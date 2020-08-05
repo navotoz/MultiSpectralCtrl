@@ -29,20 +29,26 @@ class MultiFrameGrabber:
     __camera_specs = __camera_model = __gain = __exposure_time = __gamma = __auto_exposure = None
 
     def __init__(self, focal_length_mm: (int, float), f_number: (int, float), logging_handlers: (list, tuple),
-                 camera_model: str = 'ALVIUM_1800U_1236'):
+                 camera_model: str = 'ALVIUM_1800U_1236', dummy:bool=False):
         self.__log = make_logger('MultiFrameGrabber', handlers=logging_handlers)
 
         with Vimba.get_instance() as vimba:
             cam = vimba.get_all_cameras()
             if not cam:
                 self.__log.critical('Camera was not detected.')
-                raise IOError('Camera was not detected.')
+                if not dummy:
+                    raise IOError('Camera was not detected.')
+                else:
+                    self.__log.info('Using Camera Dummy mode/')
             else:
                 with cam[0] as cam:
                     cam.AcquisitionMode.set(0) if int(cam.AcquisitionMode.get()) is not 0 else None  # single image
                     cam.set_pixel_format(PixelFormat.Mono12) if cam.get_pixel_format() != PixelFormat.Mono12 else None
 
-        self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=INFO))
+        if not dummy:
+            self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=INFO))
+        else:
+            self.__filter_wheel = dummy_wheel()
         self.camera_model = camera_model
         self.__lens_specs = dict(focal_length_mm=float(focal_length_mm), f_number=float(f_number), units="mm")
         if self.__lens_specs['units'] != self.camera_specs['units']:
@@ -144,11 +150,15 @@ class MultiFrameGrabber:
     @auto_exposure.setter
     def auto_exposure(self, mode: bool):
         with Vimba.get_instance() as vimba:
-            with vimba.get_all_cameras()[0] as cam:
-                if mode:
-                    cam.ExposureAuto.set('Once')
-                else:
-                    cam.ExposureAuto.set('Off')
+            cams= vimba.get_all_cameras()
+            if cams:
+                with cams[0] as cam:
+                    if mode:
+                        cam.ExposureAuto.set('Once')
+                    else:
+                        cam.ExposureAuto.set('Off')
+            else:
+                pass
         self.__auto_exposure = mode
         self.__log.debug(f'Set to {"auto" if mode else "manual"} exposure.')
 
@@ -260,3 +270,10 @@ class MultiFrameGrabber:
                              f"SensorHeight{specs.get('sensor_size_h', 14.2)};"
                              f"SensorWidth{specs.get('sensor_size_w', 10.4)};"
                              f"SensorDiagonal{specs.get('sensor_size_diag', 17.6)};")))
+
+
+class dummy_wheel:
+    def __init__(self):
+        self.position_names_dict =None
+        self.is_position_in_limits = lambda x: True
+        self.get_position_from_name = lambda x: 1

@@ -9,3 +9,4 @@ DEFAULT_FILTER_NAMES_DICT = {1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e', 6: 'f'}
 
 # SAVE_PATH = Path().cwd() / Path('images')
 SAVE_PATH = Path('images')
+IMAGE_FORMAT = 'tiff'

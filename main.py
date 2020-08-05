@@ -12,7 +12,7 @@ from server.server_utils import make_values_dict, save_image, file_download_link
     base64_to_split_numpy_image
 from server.layout import main_layout
 
-from utils.constants import DEFAULT_FILTER_NAMES_DICT, SAVE_PATH
+from utils.constants import DEFAULT_FILTER_NAMES_DICT, SAVE_PATH, IMAGE_FORMAT
 
 import logging
 
@@ -165,10 +165,9 @@ def show_images(photo_trigger, upload_trigger):
 
 
 image_store_dict = {}
-IMAGE_FORMAT = 'tiff'
 if __name__ == '__main__':
     handlers = make_logging_handlers(None, True)
-    grabber = MultiFrameGrabber(0, 0, handlers)
+    grabber = MultiFrameGrabber(0, 0, handlers, dummy=True)
     log = make_logger('Server', handlers=handlers)
     log.setLevel(logging.DEBUG)
     H_IMAGE = grabber.camera_specs.get('h')
