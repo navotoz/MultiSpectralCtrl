@@ -9,7 +9,7 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 
 
-UPLOAD_DIRECTORY = "/mnt/e/MultiSpectral/src/images"
+UPLOAD_DIRECTORY = "images"
 
 if not os.path.exists(UPLOAD_DIRECTORY):
     os.makedirs(UPLOAD_DIRECTORY)

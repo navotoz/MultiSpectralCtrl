@@ -7,9 +7,9 @@ from utils.camera_specs import CAMERAS_FEATURES_DICT
 from utils.logger import make_logging_handlers, make_logger
 from MultiFrame import MultiFrameGrabber
 
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, Response
 from server.server_utils import make_values_dict, save_image, file_download_link, make_images, \
-    base64_to_split_numpy_image
+    base64_to_split_numpy_image, find_files_in_savepath, make_links_from_files
 from server.layout import main_layout
 
 from utils.constants import DEFAULT_FILTER_NAMES_DICT, SAVE_PATH, IMAGE_FORMAT
@@ -25,12 +25,10 @@ app = dash.Dash(__name__, server=server)
 app.layout = html.Div(id='layout', children=main_layout)
 
 
-@app.server.route("/downloads/<path:path>")
-def download(path: str):
+@server.route("/download/<path:path>")
+def download(path: (str, Path)) -> Response:
     """Serve a file from the upload directory."""
-    path = Path('/'+path)
-    log.debug(f"Download image.")
-    return send_from_directory(directory=str(path.parent), filename=str(path.name), as_attachment=True)
+    return send_from_directory(SAVE_PATH, str(path), as_attachment=True)
 
 
 @app.callback(Output('input_exposure_time', 'disabled'), [Input('exposure_type_radio', 'value')])
@@ -116,7 +114,7 @@ def disable_button(n_clicks, trigger, button_state):
         button_state:
 
     Returns:
-
+        disables the button if the trigger came from images_handler_callback, else enables the button.
     """
     callback_trigger = dash.callback_context.triggered[0]['prop_id']
     if 'photo_but_div.n_clicks' not in callback_trigger and n_clicks > 0 and not button_state:
@@ -129,12 +127,18 @@ def disable_button(n_clicks, trigger, button_state):
 @app.callback(Output('file_list', 'children'),
               [Input(f"photo_but_div", 'n_clicks'), Input('file_list', 'n_clicks')])
 def make_downloads_list(dummy1, dummy2):
-    file_list_images = list(SAVE_PATH.glob(f"*.{IMAGE_FORMAT}"))
-    links_list = [(html.Li(file_download_link(filename_img)),)
-                  for filename_img in file_list_images]
-    download_list = [item for sublist in links_list for item in sublist]
-    log.debug(f"Found {len(download_list)} files to download.")
-    return download_list
+    """
+    Make a list of files in SAVE_PATH with type defined in utils.constants.
+    The list is transformed into a list of links and is displayed on the webpage.
+    This function is called during the initial loading of the page, and after every button press.
+
+    Returns:
+        list: links to the files in SAVE_PATH of a predefined filetype.
+    """
+    file_list_images = find_files_in_savepath()
+    links_list = make_links_from_files(file_list_images)
+    log.debug(f"Found {len(links_list)} files to download.")
+    return links_list
 
 
 @app.callback(Output('file_list', 'n_clicks'),
@@ -157,7 +161,7 @@ def upload_image(content, name):
 
 @app.callback(Output("imgs", 'children'),
               [Input('file_list', 'n_clicks'), Input('photo_but_div', 'n_clicks')])
-def show_images(photo_trigger, upload_trigger):
+def show_images(dummy1, dummy2):
     global image_store_dict
     bboxs = make_images(image_store_dict)
     log.debug('Showing images.')
@@ -169,7 +173,7 @@ if __name__ == '__main__':
     handlers = make_logging_handlers(None, True)
     grabber = MultiFrameGrabber(0, 0, handlers, dummy=True)
     log = make_logger('Server', handlers=handlers)
-    log.setLevel(logging.DEBUG)
+    log.setLevel(logging.INFO)
     H_IMAGE = grabber.camera_specs.get('h')
     W_IMAGE = grabber.camera_specs.get('w')
     PORT = 8000

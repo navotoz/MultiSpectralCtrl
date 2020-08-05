@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import numpy as np
 from PIL import Image
@@ -5,7 +6,7 @@ from base64 import b64encode, b64decode
 from io import BytesIO
 import dash_html_components as html
 from urllib.parse import quote as urlquote
-from utils.constants import INIT_EXPOSURE, SAVE_PATH
+from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT
 from MultiFrame import MultiFrameGrabber
 
 if not SAVE_PATH.is_dir():
@@ -49,8 +50,23 @@ def numpy_to_base64(image: np.ndarray) -> str:
 
 def file_download_link(filename):
     """Create a Plotly Dash 'A' element that downloads a file from the app."""
-    location = "/download/{}".format(urlquote(str(filename)))
+    location = "/download/{}".format(urlquote(filename))
     return html.A(filename, href=location)
+
+
+def find_files_in_savepath(endswith: str = IMAGE_FORMAT)->list:
+    """List the files in the upload directory."""
+    files = []
+    for filename in os.listdir(SAVE_PATH):
+        if filename.endswith(endswith):
+            path = os.path.join(SAVE_PATH, filename)
+            if os.path.isfile(path):
+                files.append(filename)
+    return files
+
+
+def make_links_from_files(file_list: (list, tuple))->list:
+    return [html.Li(file_download_link(filename)) for filename in file_list]
 
 
 def make_values_dict(camera_feat_dict: dict, model_name: str):

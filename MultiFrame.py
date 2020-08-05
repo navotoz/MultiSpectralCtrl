@@ -29,7 +29,7 @@ class MultiFrameGrabber:
     __camera_specs = __camera_model = __gain = __exposure_time = __gamma = __auto_exposure = None
 
     def __init__(self, focal_length_mm: (int, float), f_number: (int, float), logging_handlers: (list, tuple),
-                 camera_model: str = 'ALVIUM_1800U_1236', dummy:bool=False):
+                 camera_model: str = 'ALVIUM_1800U_1236', dummy: bool = False):
         self.__log = make_logger('MultiFrameGrabber', handlers=logging_handlers)
 
         with Vimba.get_instance() as vimba:
@@ -39,7 +39,7 @@ class MultiFrameGrabber:
                 if not dummy:
                     raise IOError('Camera was not detected.')
                 else:
-                    self.__log.info('Using Camera Dummy mode/')
+                    self.__log.warning('Using Camera dummy mode.')
             else:
                 with cam[0] as cam:
                     cam.AcquisitionMode.set(0) if int(cam.AcquisitionMode.get()) is not 0 else None  # single image
@@ -48,7 +48,8 @@ class MultiFrameGrabber:
         if not dummy:
             self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=INFO))
         else:
-            self.__filter_wheel = dummy_wheel()
+            self.__log.warning('Using dummy FilterWheel.')
+            self.__filter_wheel = DummyFilterWheel()
         self.camera_model = camera_model
         self.__lens_specs = dict(focal_length_mm=float(focal_length_mm), f_number=float(f_number), units="mm")
         if self.__lens_specs['units'] != self.camera_specs['units']:
@@ -150,7 +151,7 @@ class MultiFrameGrabber:
     @auto_exposure.setter
     def auto_exposure(self, mode: bool):
         with Vimba.get_instance() as vimba:
-            cams= vimba.get_all_cameras()
+            cams = vimba.get_all_cameras()
             if cams:
                 with cams[0] as cam:
                     if mode:
@@ -207,7 +208,7 @@ class MultiFrameGrabber:
 
         Raises: TimeoutError if camera time-out.
         """
-        camera.Gain.set(self.gain) if self.gain is not None else None
+        camera.Gain.set(self.gain) if self.gain is not None and self.gain != camera.Gain.get() else None
         if self.auto_exposure:
             self.auto_exposure = self.auto_exposure
         elif camera.ExposureTime.get() != self.exposure_time:
@@ -272,8 +273,9 @@ class MultiFrameGrabber:
                              f"SensorDiagonal{specs.get('sensor_size_diag', 17.6)};")))
 
 
-class dummy_wheel:
+class DummyFilterWheel:
     def __init__(self):
-        self.position_names_dict =None
+        self.position_names_dict = None
         self.is_position_in_limits = lambda x: True
         self.get_position_from_name = lambda x: 1
+        self.is_position_name_valid = lambda x: True
