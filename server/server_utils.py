@@ -54,7 +54,7 @@ def file_download_link(filename):
     return html.A(filename, href=location)
 
 
-def find_files_in_savepath(endswith: str = IMAGE_FORMAT)->list:
+def find_files_in_savepath(endswith: str = IMAGE_FORMAT) -> list:
     """List the files in the upload directory."""
     files = []
     for filename in os.listdir(SAVE_PATH):
@@ -65,23 +65,23 @@ def find_files_in_savepath(endswith: str = IMAGE_FORMAT)->list:
     return files
 
 
-def make_links_from_files(file_list: (list, tuple))->list:
+def make_links_from_files(file_list: (list, tuple)) -> list:
     return [html.Li(file_download_link(filename)) for filename in file_list]
 
 
-def make_values_dict(camera_feat_dict: dict, model_name: str):
+def make_values_dict(camera_feat_dict: dict, model_name: str) -> list:
     init_exposure = INIT_EXPOSURE // camera_feat_dict[model_name]['exposure_increment']
     init_exposure *= camera_feat_dict[model_name]['exposure_increment']
-    return camera_feat_dict[model_name]['exposure_min'] + init_exposure, \
-           camera_feat_dict[model_name]['exposure_min'], \
-           camera_feat_dict[model_name]['exposure_max'], \
-           camera_feat_dict[model_name]['exposure_increment'], \
-           camera_feat_dict[model_name]['gain_min'], \
-           camera_feat_dict[model_name]['gain_max'], \
-           camera_feat_dict[model_name]['gain_increment'], \
-           camera_feat_dict[model_name]['gamma_min'], \
-           camera_feat_dict[model_name]['gamma_max'], \
-           camera_feat_dict[model_name]['gamma_increment']
+    return [camera_feat_dict[model_name]['exposure_min'] + init_exposure,
+            camera_feat_dict[model_name]['exposure_min'],
+            camera_feat_dict[model_name]['exposure_max'],
+            camera_feat_dict[model_name]['exposure_increment'],
+            camera_feat_dict[model_name]['gain_min'],
+            camera_feat_dict[model_name]['gain_max'],
+            camera_feat_dict[model_name]['gain_increment'],
+            camera_feat_dict[model_name]['gamma_min'],
+            camera_feat_dict[model_name]['gamma_max'],
+            camera_feat_dict[model_name]['gamma_increment']]
 
 
 def make_images(images: dict):

@@ -3,6 +3,7 @@ from setuptools import setup, find_packages
 install_requires = ['pip',
                     'python>=3.7',
                     'dash>=1.4.1',
+                    'flask>=1.1',
                     # 'dash-renderer',
                     # 'dash-html-components',
                     # 'dash-core-components',

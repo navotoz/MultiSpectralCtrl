@@ -5,13 +5,19 @@ import logging
 from utils.constants import RECV_WAIT_TIME_IN_SEC
 
 GET_ID = b'*idn?'
-SET_POSITION = lambda n: f'pos={n}'.encode('utf-8')
-SET_SPEED_MODE = lambda mode: f'speed={mode}'.encode('utf-8')
 GET_POSITION = b'pos?'
 GET_SPEED_MODE = b'speed?'
 SET_SENSOR_MODE = b'sensors=0'
 GET_SENSOR_MODE = b'sensors?'
 GET_POSITION_COUNT = b'pcount?'
+
+
+def SET_POSITION(n):
+    return f'pos={n}'.encode('utf-8')
+
+
+def SET_SPEED_MODE(mode):
+    return f'speed={mode}'.encode('utf-8')
 
 
 class FilterWheel:

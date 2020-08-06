@@ -8,8 +8,8 @@ from utils.logger import make_logging_handlers, make_logger
 from MultiFrame import MultiFrameGrabber
 
 from flask import Flask, send_from_directory, Response
-from server.server_utils import make_values_dict, save_image, file_download_link, make_images, \
-    base64_to_split_numpy_image, find_files_in_savepath, make_links_from_files
+from server.server_utils import make_values_dict, save_image, make_images, make_links_from_files
+from server.server_utils import base64_to_split_numpy_image, find_files_in_savepath
 from server.layout import main_layout
 
 from utils.constants import DEFAULT_FILTER_NAMES_DICT, SAVE_PATH, IMAGE_FORMAT
