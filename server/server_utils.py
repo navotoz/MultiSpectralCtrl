@@ -32,7 +32,7 @@ def base64_to_split_numpy_image(base64_string: str, height: int, width: int) -> 
     image_numpy = np.frombuffer(buffer, dtype='uint16')
     image_numpy = image_numpy[len(image_numpy) % (height * width):]
     ch = len(image_numpy) // (height * width)
-    image_numpy = image_numpy.reshape(ch, height, width)
+    image_numpy = image_numpy.reshape(ch, width, height)
     return list(map(lambda im: im.squeeze(), np.split(image_numpy, image_numpy.shape[0])))
 
 

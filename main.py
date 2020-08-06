@@ -95,7 +95,7 @@ def images_handler_callback(button_state, handler_flags):
     if button_state:
         global image_store_dict
         image_store_dict = save_image(grabber, 'save_img' in handler_flags)
-        log.debug("Taken an image." if 'save_img' not in handler_flags else "Saved an image.")
+        log.info("Taken an image." if 'save_img' not in handler_flags else "Saved an image.")
         return 1
     return dash.no_update
 
@@ -155,7 +155,7 @@ def upload_image(content, name):
         filters_names = path.stem.split('Filters')[-1].split('_')[-num_of_filters:]
         image = base64_to_split_numpy_image(content, H_IMAGE, W_IMAGE)
         image_store_dict = {key: val for key, val in zip(filters_names, image)}
-        log.debug(f"Uploaded {len(image_store_dict.keys())} frames.")
+        log.info(f"Uploaded {len(image_store_dict.keys())} frames.")
     return 1
 
 
@@ -171,7 +171,7 @@ def show_images(dummy1, dummy2):
 image_store_dict = {}
 if __name__ == '__main__':
     handlers = make_logging_handlers(None, True)
-    grabber = MultiFrameGrabber(0, 0, handlers, dummy=True)
+    grabber = MultiFrameGrabber(0, 0, handlers, dummy=False)
     log = make_logger('Server', handlers=handlers)
     log.setLevel(logging.INFO)
     H_IMAGE = grabber.camera_specs.get('h')
