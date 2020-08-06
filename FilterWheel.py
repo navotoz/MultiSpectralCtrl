@@ -56,6 +56,7 @@ class FilterWheel:
             raise IOError
 
         # set default options
+        _ = self.id  # sometimes the serial buffer holds a CMD_NOT_DEFINED, so this cmd is to clear the buffer.
         positions_count = self.position_count
         self.is_position_in_limits = lambda position: 0 < position <= positions_count
         self.__position_names_dict = dict(zip(range(1, positions_count + 1),
@@ -190,10 +191,12 @@ class FilterWheel:
             raise ValueError(msg)
         self.__position_names_dict = names_dict.copy()  # create numbers to names dict
         if len(set(names_dict.values())) == len(names_dict.values()):
-            self.__reversed_pos_names_dict = dict((reversed(item) for item in names_dict.copy().items()))
+            reversed_generator = (reversed(item) for item in names_dict.copy().items())
+            self.__reversed_pos_names_dict = {key: val for key,val in reversed_generator}
         else:
-            self.__log.error(f'There are duplicates in the given position names dict {names_dict}.')
-            raise ValueError(f'There are duplicates in the given position names dict {names_dict}.')
+            msg = f'There are duplicates in the given position names dict {names_dict}.'
+            self.__log.error(msg)
+            raise ValueError(msg)
         self.__log.debug(f'Changed positions name dict to {list(self.__reversed_pos_names_dict.keys())}.')
 
     def is_position_name_valid(self, name: str) -> bool:
