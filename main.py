@@ -176,7 +176,7 @@ if __name__ == '__main__':
     log.setLevel(logging.INFO)
     H_IMAGE = grabber.camera_specs.get('h')
     W_IMAGE = grabber.camera_specs.get('w')
-    PORT = 8000
+    PORT = 8888
     # IP = "127.0.0.1"
     IP = "0.0.0.0"
     print(f"http://{IP:s}:{PORT:d}/")
