@@ -7,7 +7,9 @@ from io import BytesIO
 import dash_html_components as html
 from urllib.parse import quote as urlquote
 from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT
-from MultiFrame import MultiFrameGrabber
+# from MultiFrame import MultiFrameGrabber
+from tests.dummy_MultiFrame import MultiFrameGrabber
+
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()

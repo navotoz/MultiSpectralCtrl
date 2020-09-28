@@ -1,27 +1,13 @@
+import random
 from FilterWheel import FilterWheel
 from utils.logger import make_logger, INFO
 import numpy as np
 from itertools import compress
 from time import sleep
 from datetime import datetime
-from vimba import Vimba, PixelFormat
-from vimba.error import VimbaTimeout
 from PIL import Image
 from utils.camera_specs import CAMERAS_SPECS_DICT
-from utils.constants import FILTER_WHEEL_SETTLING_TIME
-
-
-def get_camera_features_dict(cam):
-    features = list(filter(lambda feat: feat.is_readable(), cam.get_all_features()))
-    features = dict(map(lambda feat: (feat.get_name(), feat.get()), features))
-    ret_dict = dict(
-        exposure_time=features['ExposureTime'],
-        gain=features['Gain'],
-        gamma=features['Gamma'])
-    if features['ContrastEnable']:
-        ret_dict['contrast_bright_limit'] = features['ContrastBrightLimit']
-        ret_dict['contrast_dark_limit'] = features['ContrastDarkLimit']
-    return ret_dict
+from utils.constants import FILTER_WHEEL_SETTLING_TIME, FAILURE_PROBABILITY
 
 
 class MultiFrameGrabber:
@@ -30,20 +16,10 @@ class MultiFrameGrabber:
 
     def __init__(self, focal_length_mm: (int, float), f_number: (int, float), logging_handlers: (list, tuple),
                  camera_model: str = 'ALVIUM_1800U_1236', dummy: bool = False):
-        self.__log = make_logger('MultiFrameGrabber', handlers=logging_handlers)
+        self.__log = make_logger('DummyMultiFrameGrabber', handlers=logging_handlers)
 
-        with Vimba.get_instance() as vimba:
-            cam = vimba.get_all_cameras()
-            if not cam:
-                self.__log.critical('Camera was not detected.')
-                if not dummy:
-                    raise RuntimeError('Camera was not detected.')
-                else:
-                    self.__log.warning('Using Camera dummy mode.')
-            else:
-                with cam[0] as cam:
-                    cam.AcquisitionMode.set(0) if int(cam.AcquisitionMode.get()) is not 0 else None  # single image
-                    cam.set_pixel_format(PixelFormat.Mono12) if cam.get_pixel_format() != PixelFormat.Mono12 else None
+        if random.random() < FAILURE_PROBABILITY:
+            raise RuntimeError('Dummy MultiFrameGrabber simulated a failure.')
 
         if not dummy:
             self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=INFO))
@@ -106,11 +82,9 @@ class MultiFrameGrabber:
 
     @property
     def image_specs(self):
-        with Vimba.get_instance() as vimba:
-            with vimba.get_all_cameras()[0] as cam:
-                return {**get_camera_features_dict(cam),
-                        **self.__lens_specs,
-                        **self.__camera_specs}
+        return {'exposure_time': 6000.0, 'gain': 0.0, 'gamma': 1.0,
+                **self.__lens_specs,
+                **self.__camera_specs}
 
     @property
     def gain(self):
@@ -151,16 +125,6 @@ class MultiFrameGrabber:
 
     @auto_exposure.setter
     def auto_exposure(self, mode: bool):
-        with Vimba.get_instance() as vimba:
-            cams = vimba.get_all_cameras()
-            if cams:
-                with cams[0] as cam:
-                    if mode:
-                        cam.ExposureAuto.set('Once')
-                    else:
-                        cam.ExposureAuto.set('Off')
-            else:
-                pass
         self.__auto_exposure = mode
         self.__log.debug(f'Set to {"auto" if mode else "manual"} exposure.')
 
@@ -201,7 +165,7 @@ class MultiFrameGrabber:
               f"{list(zip(self.filters_sequence['positions'], self.filters_sequence['filters']))}"
         self.__log.debug(msg)
 
-    def take_image(self, camera) -> Image.Image:
+    def take_image(self) -> Image.Image:
         """
         Takes an image with the camera. First sets some defaults.
 
@@ -209,17 +173,7 @@ class MultiFrameGrabber:
 
         Raises: TimeoutError if camera time-out.
         """
-        camera.Gain.set(self.gain) if self.gain is not None and self.gain != camera.Gain.get() else None
-        if self.auto_exposure:
-            self.auto_exposure = self.auto_exposure
-        elif camera.ExposureTime.get() != self.exposure_time:
-            camera.ExposureTime.set(self.exposure_time) if self.exposure_time is not None else None
-        camera.Gamma.set(self.gamma) if self.gamma is not None and self.gamma != camera.Gamma.get() else None
-        try:
-            frame = camera.get_frame().as_numpy_ndarray().squeeze()
-        except VimbaTimeout:
-            self.__log.error(f"Camera timed out. Maybe try to reconnect it.")
-            raise TimeoutError(f"Camera timed out. Maybe try to reconnect it.")
+        frame = np.random.rand(3008, 4112)  # PUT REAL H x W in the random creation
         return Image.fromarray(frame)
 
     def __call__(self) -> tuple:
@@ -235,16 +189,14 @@ class MultiFrameGrabber:
         """
         multi_frame_images_dict = {}
         self.__log.debug('Beginning sequence.')
-        with Vimba.get_instance() as vimba:
-            with vimba.get_all_cameras()[0] as cam:
-                for (position, name) in zip(self.filters_sequence['positions'], self.filters_sequence['filters']):
-                    self.__filter_wheel.position = position
-                    sleep(FILTER_WHEEL_SETTLING_TIME)
-                    try:
-                        multi_frame_images_dict[name] = self.take_image(cam)  # take a picture
-                    except TimeoutError:  # give it another try
-                        multi_frame_images_dict[name] = self.take_image(cam)  # take a picture
-                    self.__log.debug(f"Taken filter {name} image.")
+        for (position, name) in zip(self.filters_sequence['positions'], self.filters_sequence['filters']):
+            self.__filter_wheel.position = position
+            sleep(FILTER_WHEEL_SETTLING_TIME)
+            try:
+                multi_frame_images_dict[name] = self.take_image()  # take a picture
+            except TimeoutError:  # give it another try
+                multi_frame_images_dict[name] = self.take_image()  # take a picture
+            self.__log.debug(f"Taken filter {name} image.")
         self.__log.debug('Finished sequence.')
         timestamp = datetime.now().strftime('d20%y%m%d_h%Hm%Ms%S')
         f_name = f"{timestamp}_{len(multi_frame_images_dict)}Filters"

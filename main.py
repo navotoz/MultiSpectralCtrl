@@ -5,11 +5,10 @@ from pathlib import Path
 
 from utils.camera_specs import CAMERAS_FEATURES_DICT
 from utils.logger import make_logging_handlers, make_logger
-from MultiFrame import MultiFrameGrabber
 
 from flask import Flask, send_from_directory, Response
 from server.server_utils import make_values_dict, save_image, make_images, make_links_from_files
-from server.server_utils import base64_to_split_numpy_image, find_files_in_savepath
+from server.server_utils import base64_to_split_numpy_image, find_files_in_savepath, MultiFrameGrabber
 from server.layout import main_layout
 
 from utils.constants import DEFAULT_FILTER_NAMES_DICT, SAVE_PATH, IMAGE_FORMAT
@@ -171,7 +170,7 @@ def show_images(dummy1, dummy2):
 image_store_dict = {}
 if __name__ == '__main__':
     handlers = make_logging_handlers(None, True)
-    grabber = MultiFrameGrabber(0, 0, handlers, dummy=False)
+    grabber = MultiFrameGrabber(0, 0, handlers, dummy=True)
     log = make_logger('Server', handlers=handlers)
     log.setLevel(logging.INFO)
     H_IMAGE = grabber.camera_specs.get('h')
