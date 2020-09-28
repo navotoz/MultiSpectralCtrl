@@ -7,9 +7,9 @@ from io import BytesIO
 import dash_html_components as html
 from urllib.parse import quote as urlquote
 from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT
+from multiprocessing.dummy import Pool
 # from MultiFrame import MultiFrameGrabber
 from tests.dummy_MultiFrame import MultiFrameGrabber
-
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
@@ -53,7 +53,7 @@ def numpy_to_base64(image: np.ndarray) -> str:
 def file_download_link(filename):
     """Create a Plotly Dash 'A' element that downloads a file from the app."""
     location = "/download/{}".format(urlquote(filename))
-    return html.A(filename, href=location)
+    return html.A(filename, href=location, download=True)
 
 
 def find_files_in_savepath(endswith: str = IMAGE_FORMAT) -> list:
@@ -86,12 +86,18 @@ def make_values_dict(camera_feat_dict: dict, model_name: str) -> list:
             camera_feat_dict[model_name]['gamma_increment']]
 
 
+def make_image_html(input_tuple):
+    name, img = input_tuple
+    return html.Div([html.Div(name), html.Img(src=numpy_to_base64(img), style={'width': '20%'})])
+
+
 def make_images(images: dict):
     """
     Creates an image inside a Div in html.
     :param images: list of images as np.ndarrays.
     :return: html.Div containing the images.
     """
-    return html.Div([html.Div([html.Div(name),
-                               html.Img(src=numpy_to_base64(img), style={'width': '20%'})]) for
-                     (name, img) in images.items()])
+    if not images:
+        return html.Div()
+    with Pool(6) as pool:
+        return html.Div(list(pool.imap(make_image_html, images.items())))

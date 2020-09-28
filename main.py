@@ -6,17 +6,18 @@ from pathlib import Path
 from utils.camera_specs import CAMERAS_FEATURES_DICT
 from utils.logger import make_logging_handlers, make_logger
 
-from flask import Flask, send_from_directory, Response
+from flask import Flask, send_from_directory, Response, send_file
 from server.server_utils import make_values_dict, save_image, make_images, make_links_from_files
 from server.server_utils import base64_to_split_numpy_image, find_files_in_savepath, MultiFrameGrabber
 from server.layout import main_layout
 
 from utils.constants import DEFAULT_FILTER_NAMES_DICT, SAVE_PATH, IMAGE_FORMAT
-
+import os
+from io import BytesIO
 import logging
+import json
 
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.CRITICAL)
+logging.getLogger('werkzeug').disabled = True
 
 server = Flask(__name__)
 app = dash.Dash(__name__, server=server)
@@ -27,7 +28,12 @@ app.layout = html.Div(id='layout', children=main_layout)
 @server.route("/download/<path:path>")
 def download(path: (str, Path)) -> Response:
     """Serve a file from the upload directory."""
-    return send_from_directory(SAVE_PATH, str(path), as_attachment=True)
+    file_stream = BytesIO()
+    with open(SAVE_PATH / str(path), 'rb') as fp:
+        file_stream.write(fp.read())
+    file_stream.seek(0)
+    os.remove(SAVE_PATH / str(path))
+    return send_file(file_stream, as_attachment=True, attachment_filename=path)
 
 
 @app.callback(Output('input_exposure_time', 'disabled'), [Input('exposure_type_radio', 'value')])
@@ -44,7 +50,8 @@ def is_exposure_auto(exp_type):
                Output('input_exposure_time', 'max'), Output('input_exposure_time', 'step'),
                Output('input_gain_time', 'min'), Output('input_gain_time', 'max'), Output('input_gain_time', 'step'),
                Output('input_gamma_time', 'min'), Output('input_gamma_time', 'max'),
-               Output('input_gamma_time', 'step')], [Input('choose_camera_model', 'value')])
+               Output('input_gamma_time', 'step')],
+              [Input('choose_camera_model', 'value')])
 def change_values_limits(model_name):
     return make_values_dict(CAMERAS_FEATURES_DICT, model_name)
 
@@ -87,8 +94,8 @@ def set_image_sequence_length(image_sequence_length):
     return 1
 
 
-@app.callback(Output('photo_but_div', 'n_clicks'),
-              [Input(f"photo_button", 'disabled')],
+@app.callback(Output('after_take_photo', 'n_clicks'),
+              [Input('take_photo_button', 'disabled')],
               [State('save_img_checkbox', 'value')])
 def images_handler_callback(button_state, handler_flags):
     if button_state:
@@ -99,9 +106,9 @@ def images_handler_callback(button_state, handler_flags):
     return dash.no_update
 
 
-@app.callback([Output('photo_button', 'disabled')],
-              [Input("photo_button", 'n_clicks'), Input('photo_but_div', 'n_clicks')],
-              [State('photo_button', 'disabled')])
+@app.callback([Output('take_photo_button', 'disabled')],
+              [Input('take_photo_button', 'n_clicks'), Input('after_take_photo', 'n_clicks')],
+              [State('take_photo_button', 'disabled')])
 def disable_button(n_clicks, trigger, button_state):
     """
     Controls the 'Take Image' button disable status.
@@ -116,7 +123,7 @@ def disable_button(n_clicks, trigger, button_state):
         disables the button if the trigger came from images_handler_callback, else enables the button.
     """
     callback_trigger = dash.callback_context.triggered[0]['prop_id']
-    if 'photo_but_div.n_clicks' not in callback_trigger and n_clicks > 0 and not button_state:
+    if 'after_take_photo.n_clicks' not in callback_trigger and n_clicks > 0 and not button_state:
         log.debug(f"Disabled the image button.")
         return True,
     log.debug(f"Enabled the image button.")
@@ -124,7 +131,7 @@ def disable_button(n_clicks, trigger, button_state):
 
 
 @app.callback(Output('file_list', 'children'),
-              [Input(f"photo_but_div", 'n_clicks'), Input('file_list', 'n_clicks')])
+              [Input(f"after_take_photo", 'n_clicks'), Input('file_list', 'n_clicks')])
 def make_downloads_list(dummy1, dummy2):
     """
     Make a list of files in SAVE_PATH with type defined in utils.constants.
@@ -159,7 +166,7 @@ def upload_image(content, name):
 
 
 @app.callback(Output("imgs", 'children'),
-              [Input('file_list', 'n_clicks'), Input('photo_but_div', 'n_clicks')])
+              [Input('file_list', 'n_clicks'), Input('after_take_photo', 'n_clicks')])
 def show_images(dummy1, dummy2):
     global image_store_dict
     bboxs = make_images(image_store_dict)
@@ -179,4 +186,9 @@ if __name__ == '__main__':
     # IP = "127.0.0.1"
     IP = "0.0.0.0"
     print(f"http://{IP:s}:{PORT:d}/")
+    app.logger.disabled = True
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
+
+
+# todo: multiple cameras - should try to run as many cameras as possible. When detecting a camera, her page becomes available.
+## "take a photo" takes a photo in all cameras at the same time.
