@@ -195,5 +195,9 @@ if __name__ == '__main__':
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
 
+######## ADD TO README
+########## todo: should linux USB permmisions be altered?
+
+
 # todo: multiple cameras - should try to run as many cameras as possible. When detecting a camera, her page becomes available.
 ## "take a photo" takes a photo in all cameras at the same time.
