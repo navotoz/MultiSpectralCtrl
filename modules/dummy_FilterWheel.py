@@ -1,8 +1,5 @@
-from time import sleep
 import logging
-from utils.constants import RECV_WAIT_TIME_IN_SEC, FAILURE_PROBABILITY_IN_DUMMIES
-from utils.constants import GET_ID, GET_POSITION, GET_SPEED_MODE, SET_SENSOR_MODE, GET_SENSOR_MODE, GET_POSITION_COUNT
-from FilterWheel import SET_POSITION, SET_SPEED_MODE
+from utils.constants import FAILURE_PROBABILITY_IN_DUMMIES
 import random
 
 class DummyFilterWheel:

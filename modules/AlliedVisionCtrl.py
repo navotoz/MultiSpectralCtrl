@@ -1,5 +1,6 @@
-from FilterWheel import FilterWheel
-from utils.logger import make_logger, INFO
+import logging
+from modules.FilterWheel import FilterWheel
+from utils.logger import make_logger
 import numpy as np
 from itertools import compress
 from time import sleep
@@ -24,19 +25,19 @@ def get_camera_features_dict(cam):
     return ret_dict
 
 
-class MultiFrameGrabber:
+class AlliedVisionGrabber:
     __filters_sequence = dict(positions=1)
     __camera_specs = __camera_model = __gain = __exposure_time = __gamma = __auto_exposure = None
 
     def __init__(self, focal_length_mm: (int, float), f_number: (int, float), logging_handlers: (list, tuple),
-                 camera_model: str = 'ALVIUM_1800U_1236', dummy: bool = False):
+                 camera_model: str = 'ALVIUM_1800U_1236', use_dummy_filterwheel: bool = False):
         self.__log = make_logger('MultiFrameGrabber', handlers=logging_handlers)
 
         with Vimba.get_instance() as vimba:
             cam = vimba.get_all_cameras()
             if not cam:
                 self.__log.critical('Camera was not detected.')
-                if not dummy:
+                if not use_dummy_filterwheel:
                     raise RuntimeError('Camera was not detected.')
                 else:
                     self.__log.warning('Using Camera dummy mode.')
@@ -45,12 +46,13 @@ class MultiFrameGrabber:
                     cam.AcquisitionMode.set(0) if int(cam.AcquisitionMode.get()) is not 0 else None  # single image
                     cam.set_pixel_format(PixelFormat.Mono12) if cam.get_pixel_format() != PixelFormat.Mono12 else None
 
-        if not dummy:
-            self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=INFO))
+        if not use_dummy_filterwheel:
+            self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=logging.INFO))
         else:
             self.__log.warning('Using dummy FilterWheel.')
-            from tests.dummy_FilterWheel import DummyFilterWheel
-            self.__filter_wheel = DummyFilterWheel(logger=make_logger('DummyFilterWheel', logging_handlers, level=INFO))
+            from modules.dummy_FilterWheel import DummyFilterWheel
+            self.__filter_wheel = DummyFilterWheel(logger=make_logger('DummyFilterWheel',
+                                                                      logging_handlers, level=logging.INFO))
         self.camera_model = camera_model
         self.__lens_specs = dict(focal_length_mm=float(focal_length_mm), f_number=float(f_number), units="mm")
         if self.__lens_specs['units'] != self.camera_specs['units']:

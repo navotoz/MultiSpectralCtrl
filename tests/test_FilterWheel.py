@@ -1,5 +1,5 @@
 from unittest import TestCase
-from FilterWheel import FilterWheel
+from modules.FilterWheel import FilterWheel
 
 
 class TestFilterWheel(TestCase):

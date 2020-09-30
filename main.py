@@ -11,16 +11,13 @@ from server.server_utils import make_values_dict, save_image, make_images, make_
 from server.server_utils import base64_to_split_numpy_image, find_files_in_savepath
 from server.layout import main_layout
 
-### To run on test mode without camera import from test.dummMultiFrame
-# from MultiFrame import MultiFrameGrabber
-from tests.dummy_MultiFrame import MultiFrameGrabber
+from modules import get_alliedvision_grabber
 
 
 from utils.constants import DEFAULT_FILTER_NAMES_DICT, SAVE_PATH, IMAGE_FORMAT
 import os
 from io import BytesIO
 import logging
-import json
 
 logging.getLogger('werkzeug').disabled = True
 
@@ -182,7 +179,10 @@ def show_images(dummy1, dummy2):
 image_store_dict = {}
 if __name__ == '__main__':
     handlers = make_logging_handlers(None, True)
-    grabber = MultiFrameGrabber(0, 0, handlers, dummy_filterwheel=True)
+    grabber = get_alliedvision_grabber(use_dummy_alliedvision_camera=True,
+                                       use_dummy_filterwheel=True,
+                                       focal_length_mm=0, f_number=0, logging_handlers=handlers,
+                                       camera_model='ALVIUM_1800U_1236')
     log = make_logger('Server', handlers=handlers)
     log.setLevel(logging.INFO)
     H_IMAGE = grabber.camera_specs.get('h')

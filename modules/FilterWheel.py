@@ -139,12 +139,21 @@ class FilterWheel:
 
     @property
     def speed(self) -> int:
+        """
+        The SpeedMode of the FilterWheel. Either "Fast" or "Slow". Defaults to "Fast".
+        """
         speed = int(self.__send_and_recv(GET_SPEED_MODE)[1])
         self.__log.debug("SpeedMode" + ("Fast" if speed == 1 else "Slow") + ".")
         return speed
 
     @speed.setter
     def speed(self, mode: str):
+        """
+        Setter for the SpeedMode of the FilterWheel. Expects a str of either "Fast" of "Slow".
+
+        Args:
+            mode: str with either "fast" or "slow".
+        """
         mode = mode.lower()
         if mode != 'fast' and mode != 'slow':
             err_msg = f"Speed mode {mode} not implemented. Try either 'fast' or 'slow'."
@@ -161,6 +170,9 @@ class FilterWheel:
 
     @property
     def position_names_dict(self) -> dict:
+        """
+        A dictionary where the keys are the position of a filter as integer and the value is the filter's name.
+        """
         return self.__position_names_dict
 
     @position_names_dict.setter
@@ -194,9 +206,24 @@ class FilterWheel:
         self.__log.debug(f'Changed positions name dict to {list(self.__reversed_pos_names_dict.keys())}.')
 
     def is_position_name_valid(self, name: str) -> bool:
+        """
+        Checks if the given name is indeed in the position dict.
+        Args:
+            name: a string of the name of a filter.
+        Returns:
+            True if the name is in the position dict or False if the filter name is not in the dictionary.
+        """
         return name in self.position_names_dict.values()
 
     def get_position_from_name(self, name: str) -> int:
+        """
+        Returns the position of the input on the FilterWheel if valid, else -1.
+
+        Args:
+            name a string with a filter name
+        Returns:
+            The position of the given name on the FilterWheel if a valid, else -1.
+        """
         if not self.is_position_name_valid(name):
             self.__log.warning(f"Given position name {name} not in position names dict.")
             return -1

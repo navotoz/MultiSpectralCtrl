@@ -9,13 +9,12 @@ from urllib.parse import quote as urlquote
 from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT
 from multiprocessing.dummy import Pool
 
-
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
 
 
-def save_image(multiframe_grabber, to_save_img: bool) -> dict:
-    multi_frame_images_dict, image_tags, f_name = multiframe_grabber()
+def save_image(image_grabber, to_save_img: bool) -> dict:
+    multi_frame_images_dict, image_tags, f_name = image_grabber()
     if to_save_img:
         full_path = SAVE_PATH / Path(f_name)
         frames_keys_list = list(multi_frame_images_dict.keys())
@@ -85,12 +84,12 @@ def make_values_dict(camera_feat_dict: dict, model_name: str) -> list:
             camera_feat_dict[model_name]['gamma_increment']]
 
 
-def make_image_html(input_tuple):
+def make_image_html(input_tuple: tuple) -> html.Div:
     name, img = input_tuple
     return html.Div([html.Div(name), html.Img(src=numpy_to_base64(img), style={'width': '20%'})])
 
 
-def make_images(images: dict):
+def make_images(images: dict) -> html.Div:
     """
     Creates an image inside a Div in html.
     :param images: list of images as np.ndarrays.
