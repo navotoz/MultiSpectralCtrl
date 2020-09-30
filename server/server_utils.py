@@ -8,15 +8,14 @@ import dash_html_components as html
 from urllib.parse import quote as urlquote
 from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT
 from multiprocessing.dummy import Pool
-# from MultiFrame import MultiFrameGrabber
-from tests.dummy_MultiFrame import MultiFrameGrabber
+
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
 
 
-def save_image(grabber: MultiFrameGrabber, to_save_img: bool) -> dict:
-    multi_frame_images_dict, image_tags, f_name = grabber()
+def save_image(multiframe_grabber, to_save_img: bool) -> dict:
+    multi_frame_images_dict, image_tags, f_name = multiframe_grabber()
     if to_save_img:
         full_path = SAVE_PATH / Path(f_name)
         frames_keys_list = list(multi_frame_images_dict.keys())

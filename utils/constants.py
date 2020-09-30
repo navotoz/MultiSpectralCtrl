@@ -1,6 +1,6 @@
 from pathlib import Path
 
-FAILURE_PROBABILITY = 0.0
+FAILURE_PROBABILITY_IN_DUMMIES = 0.0
 
 INIT_EXPOSURE = 50000  # micro seconds
 RECV_WAIT_TIME_IN_SEC = 0.5  # seconds

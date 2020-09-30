@@ -1,6 +1,6 @@
 from time import sleep
 import logging
-from utils.constants import RECV_WAIT_TIME_IN_SEC, FAILURE_PROBABILITY
+from utils.constants import RECV_WAIT_TIME_IN_SEC, FAILURE_PROBABILITY_IN_DUMMIES
 from utils.constants import GET_ID, GET_POSITION, GET_SPEED_MODE, SET_SENSOR_MODE, GET_SENSOR_MODE, GET_POSITION_COUNT
 from FilterWheel import SET_POSITION, SET_SPEED_MODE
 import random
@@ -19,7 +19,7 @@ class DummyFilterWheel:
     def __init__(self, model_name: str = 'FW102C', logger: (None, logging.Logger) = None):
         self.__log = logging.getLogger('DummyFilterWheel') if not logger else logger
 
-        if random.random() < FAILURE_PROBABILITY:
+        if random.random() < FAILURE_PROBABILITY_IN_DUMMIES:
             raise RuntimeError('Dummy FilterWheel simulates failure.')
 
         # set default options

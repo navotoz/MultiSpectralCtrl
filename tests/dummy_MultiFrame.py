@@ -1,13 +1,14 @@
 import random
 from FilterWheel import FilterWheel
-from utils.logger import make_logger, INFO
+from utils.logger import make_logger
 import numpy as np
 from itertools import compress
 from time import sleep
 from datetime import datetime
 from PIL import Image
 from utils.camera_specs import CAMERAS_SPECS_DICT
-from utils.constants import FILTER_WHEEL_SETTLING_TIME, FAILURE_PROBABILITY
+from utils.constants import FILTER_WHEEL_SETTLING_TIME, FAILURE_PROBABILITY_IN_DUMMIES
+import logging
 
 
 class MultiFrameGrabber:
@@ -15,18 +16,19 @@ class MultiFrameGrabber:
     __camera_specs = __camera_model = __gain = __exposure_time = __gamma = __auto_exposure = None
 
     def __init__(self, focal_length_mm: (int, float), f_number: (int, float), logging_handlers: (list, tuple),
-                 camera_model: str = 'ALVIUM_1800U_1236', dummy: bool = False):
+                 camera_model: str = 'ALVIUM_1800U_1236', dummy_filterwheel: bool = False):
         self.__log = make_logger('DummyMultiFrameGrabber', handlers=logging_handlers)
 
-        if random.random() < FAILURE_PROBABILITY:
+        if random.random() < FAILURE_PROBABILITY_IN_DUMMIES:
             raise RuntimeError('Dummy MultiFrameGrabber simulated a failure.')
 
-        if not dummy:
-            self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=INFO))
+        if not dummy_filterwheel:
+            self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=logging.INFO))
         else:
             self.__log.warning('Using dummy FilterWheel.')
             from tests.dummy_FilterWheel import DummyFilterWheel
-            self.__filter_wheel = DummyFilterWheel(logger=make_logger('DummyFilterWheel', logging_handlers, level=INFO))
+            self.__filter_wheel = DummyFilterWheel(logger=make_logger('DummyFilterWheel',
+                                                                      logging_handlers, logging.INFO))
         self.camera_model = camera_model
         self.__lens_specs = dict(focal_length_mm=float(focal_length_mm), f_number=float(f_number), units="mm")
         if self.__lens_specs['units'] != self.camera_specs['units']:
