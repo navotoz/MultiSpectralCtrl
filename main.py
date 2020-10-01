@@ -179,7 +179,7 @@ def show_images(dummy1, dummy2):
 image_store_dict = {}
 if __name__ == '__main__':
     handlers = make_logging_handlers(None, True)
-    grabber = get_alliedvision_grabber(use_dummy_alliedvision_camera=True,
+    grabber = get_alliedvision_grabber(use_dummy_alliedvision_camera=False,
                                        use_dummy_filterwheel=True,
                                        focal_length_mm=0, f_number=0, logging_handlers=handlers,
                                        camera_model='ALVIUM_1800U_1236')
@@ -194,10 +194,7 @@ if __name__ == '__main__':
     app.logger.disabled = True
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
-
-######## ADD TO README
-########## todo: should linux USB permmisions be altered?
-
-
 # todo: multiple cameras - should try to run as many cameras as possible. When detecting a camera, her page becomes available.
 ## "take a photo" takes a photo in all cameras at the same time.
+
+# todo: seperate FilterWheel and AlliedVisionCtrl. Create another class to combine them.

@@ -43,7 +43,7 @@ class AlliedVisionGrabber:
                     self.__log.warning('Using Camera dummy mode.')
             else:
                 with cam[0] as cam:
-                    cam.AcquisitionMode.set(0) if int(cam.AcquisitionMode.get()) is not 0 else None  # single image
+                    cam.AcquisitionMode.set(0) if int(cam.AcquisitionMode.get()) != 0 else None  # single image
                     cam.set_pixel_format(PixelFormat.Mono12) if cam.get_pixel_format() != PixelFormat.Mono12 else None
 
         if not use_dummy_filterwheel:
@@ -53,6 +53,7 @@ class AlliedVisionGrabber:
             from modules.dummy_FilterWheel import DummyFilterWheel
             self.__filter_wheel = DummyFilterWheel(logger=make_logger('DummyFilterWheel',
                                                                       logging_handlers, level=logging.INFO))
+        self.filters_sequence = list(self.__filter_wheel.position_names_dict.values())
         self.camera_model = camera_model
         self.__lens_specs = dict(focal_length_mm=float(focal_length_mm), f_number=float(f_number), units="mm")
         if self.__lens_specs['units'] != self.camera_specs['units']:
@@ -274,3 +275,6 @@ class AlliedVisionGrabber:
                              f"SensorHeight{specs.get('sensor_size_h', 14.2)};"
                              f"SensorWidth{specs.get('sensor_size_w', 10.4)};"
                              f"SensorDiagonal{specs.get('sensor_size_diag', 17.6)};")))
+
+a = AlliedVisionGrabber(12, 1.3, (), use_dummy_filterwheel=False)
+a()

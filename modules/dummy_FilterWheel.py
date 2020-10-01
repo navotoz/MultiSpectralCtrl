@@ -3,7 +3,7 @@ from utils.constants import FAILURE_PROBABILITY_IN_DUMMIES
 import random
 
 class DummyFilterWheel:
-    __reversed_pos_names_dict = None
+    _reversed_pos_names_dict = None
     __curr_position = 1
     __speed = 1
 
@@ -23,8 +23,8 @@ class DummyFilterWheel:
         _ = self.id  # sometimes the serial buffer holds a CMD_NOT_DEFINED, so this cmd is to clear the buffer.
         positions_count = self.position_count
         self.is_position_in_limits = lambda position: 0 < position <= positions_count
-        self.__position_names_dict = dict(zip(range(1, positions_count + 1),
-                                              list(map(lambda x: str(x), range(1, positions_count + 1)))))
+        self._position_names_dict = dict(zip(range(1, positions_count + 1),
+                                             list(map(lambda x: str(x), range(1, positions_count + 1)))))
 
     @property
     def position(self) -> dict:
@@ -35,7 +35,7 @@ class DummyFilterWheel:
             A dictionary with (number, name) for FilterWheel current position.
         """
         pos_number = self.__curr_position
-        pos_name = self.__position_names_dict[pos_number]
+        pos_name = self._position_names_dict[pos_number]
         self.__log.debug(f"PosNum{pos_number}_PosName{pos_name}.")
         return dict(number=pos_number, name=pos_name)
 
@@ -79,7 +79,7 @@ class DummyFilterWheel:
 
     @property
     def position_names_dict(self) -> dict:
-        return self.__position_names_dict
+        return self._position_names_dict
 
     @position_names_dict.setter
     def position_names_dict(self, names_dict: dict):
@@ -101,15 +101,15 @@ class DummyFilterWheel:
                   f'Expected {self.position_count} and got {len(names_dict)}.'
             self.__log.error(msg)
             raise ValueError(msg)
-        self.__position_names_dict = names_dict.copy()  # create numbers to names dict
+        self._position_names_dict = names_dict.copy()  # create numbers to names dict
         if len(set(names_dict.values())) == len(names_dict.values()):
             reversed_generator = (reversed(item) for item in names_dict.copy().items())
-            self.__reversed_pos_names_dict = {key: val for key, val in reversed_generator}
+            self._reversed_pos_names_dict = {key: val for key, val in reversed_generator}
         else:
             msg = f'There are duplicates in the given position names dict {names_dict}.'
             self.__log.error(msg)
             raise ValueError(msg)
-        self.__log.debug(f'Changed positions name dict to {list(self.__reversed_pos_names_dict.keys())}.')
+        self.__log.debug(f'Changed positions name dict to {list(self._reversed_pos_names_dict.keys())}.')
 
     def is_position_name_valid(self, name: str) -> bool:
         return name in self.position_names_dict.values()
@@ -118,4 +118,4 @@ class DummyFilterWheel:
         if not self.is_position_name_valid(name):
             self.__log.warning(f"Given position name {name} not in position names dict.")
             return -1
-        return self.__reversed_pos_names_dict[name]
+        return self._reversed_pos_names_dict[name]

@@ -14,6 +14,8 @@ def make_logging_handlers(logfile_path: (None, Path) = None, verbose: bool = Fal
 
 def make_logger(name: str, handlers: (list, tuple, logging.Handler), level: int = logging.INFO) -> logging.Logger:
     logger = logging.getLogger(name)
+    if not handlers or len(handlers) == 0:
+        handlers = make_logging_handlers(None, True)
     logger.addHandler(*handlers)
     logger.setLevel(level)
     return logger
