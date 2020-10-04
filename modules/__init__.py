@@ -3,11 +3,7 @@ def get_alliedvision_grabber(focal_length_mm: (int, float), f_number: (int, floa
                              use_dummy_filterwheel: bool = False, use_dummy_alliedvision_camera: bool = False):
     if use_dummy_alliedvision_camera:
         from .dummy_AlliedVisionCtrl import DummyAlliedVisionGrabber
-        return DummyAlliedVisionGrabber(focal_length_mm=focal_length_mm, f_number=f_number,
-                                        logging_handlers=logging_handlers, camera_model=camera_model,
-                                        use_dummy_filterwheel=use_dummy_filterwheel)
+        return DummyAlliedVisionGrabber(logging_handlers=logging_handlers)
     else:
-        from .AlliedVisionCtrl import AlliedVisionGrabber
-        return AlliedVisionGrabber(focal_length_mm=focal_length_mm, f_number=f_number,
-                                   logging_handlers=logging_handlers, camera_model=camera_model,
-                                   use_dummy_filterwheel=use_dummy_filterwheel)
+        from .AlliedVisionCameraCtrl import AlliedVisionCtrl
+        return AlliedVisionCtrl(logging_handlers=logging_handlers)

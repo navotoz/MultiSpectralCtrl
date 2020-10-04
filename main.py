@@ -3,7 +3,7 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 from pathlib import Path
 
-from utils.camera_specs import CAMERAS_FEATURES_DICT
+from modules.camera_specs import CAMERAS_FEATURES_DICT
 from utils.logger import make_logging_handlers, make_logger
 
 from flask import Flask, Response, send_file
@@ -194,7 +194,13 @@ if __name__ == '__main__':
     app.logger.disabled = True
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
+# todo: AlliedVisionCamera should take images in all cameras simultaneity
+
 # todo: multiple cameras - should try to run as many cameras as possible. When detecting a camera, her page becomes available.
 ## "take a photo" takes a photo in all cameras at the same time.
 
 # todo: seperate FilterWheel and AlliedVisionCtrl. Create another class to combine them.
+
+# todo: add ability to change f_number, focal_length to AlliedVision
+
+# todo: change README file parsing section
