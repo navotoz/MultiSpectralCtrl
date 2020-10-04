@@ -3,7 +3,7 @@ from utils.logger import make_logger
 from vimba import Vimba, Camera, MONO_PIXEL_FORMATS
 from vimba.error import VimbaTimeout, VimbaFeatureError
 from PIL import Image
-from modules.camera_specs import CAMERAS_SPECS_DICT
+from devices.camera_specs import CAMERAS_SPECS_DICT
 
 
 def get_camera_features_dict(cam):

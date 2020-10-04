@@ -1,5 +1,5 @@
 import logging
-from modules.FilterWheel import FilterWheel
+from devices.FilterWheel import FilterWheel
 from utils.logger import make_logger
 import numpy as np
 from itertools import compress
@@ -8,7 +8,7 @@ from datetime import datetime
 from vimba import Vimba, PixelFormat
 from vimba.error import VimbaTimeout
 from PIL import Image
-from modules.camera_specs import CAMERAS_SPECS_DICT
+from devices.camera_specs import CAMERAS_SPECS_DICT
 from utils.constants import FILTER_WHEEL_SETTLING_TIME
 
 
@@ -49,7 +49,7 @@ class AlviumCamera:
             self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=logging.INFO))
         else:
             self.__log.warning('Using dummy FilterWheel.')
-            from modules.dummy_FilterWheel import DummyFilterWheel
+            from devices.dummy_FilterWheel import DummyFilterWheel
             self.__filter_wheel = DummyFilterWheel(logger=make_logger('DummyFilterWheel',
                                                                       logging_handlers, level=logging.INFO))
         self.filters_sequence = list(self.__filter_wheel.position_names_dict.values())

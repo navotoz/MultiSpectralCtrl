@@ -4,14 +4,16 @@ from utils.constants import DEFUALT_FOCAL_LENGTH, DEFUALT_F_NUMBER, DEFAULT_FILT
 
 FONT_SIZE = {'font-size': '16px'}
 
-upload_image = html.Div(
-    dcc.Upload(id='upload_img', accept='npy', multiple=False,
-               children=html.Div(['Drag and Drop or ', html.A('Select Files')]),
-               style={'width': '100%', 'height': '60px', 'lineHeight': '60px', 'borderWidth': '1px',
-                      'font-size': '26px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                      'textAlign': 'center', 'margin': '10px'}), hidden=True, id='upload_img_div')
 
 main_layout = [html.Div([
+    html.Table([
+        html.Tr([html.Td([html.Div(id='use-real-filterwheel-midstep', hidden=True, children=None),
+                          dcc.Checklist(id='use-real-filterwheel', options=[{'label': 'Real FilterWheel', 'value': 'real_filterwheel'}],
+                                        value=['real_filterwheel'], labelStyle={'font-size': '24px', 'display': 'block'})]),
+                 html.Td([html.Div(id='use-real-cameras-midstep', hidden=True, children=None),
+                     dcc.Checklist(id='use-real-cameras',
+                                        options=[{'label': 'Real Cameras', 'value': 'real_cameras'}],
+                                        value=[], labelStyle={'font-size': '24px', 'display': 'block'})])])]),
     html.Div(children='Camera Model'),
     dcc.Dropdown(id='choose_camera_model', clearable=False, value='ALVIUM_1800U_1236',
                  options=[{'label': 'ALVIUM_1800U_1236', 'value': 'ALVIUM_1800U_1236'}])]),
