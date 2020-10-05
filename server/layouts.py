@@ -1,11 +1,11 @@
 import dash_core_components as dcc
 import dash_html_components as html
-from utils.constants import DEFAULT_FILTER_NAMES_DICT
-from server.server_utils import make_devices_names_radioitems, make_camera_models_dropdown_options_list
+from devices.FilterWheel import DEFAULT_FILTER_NAMES_DICT
+from server.server_utils import make_devices_names_radioitems
 
 FONT_SIZE = {'font-size': '16px'}
 OPTICS_STYLE_DICT = dict(min=0.0, type='number', style=FONT_SIZE)
-main_layout = [
+main_layout = html.Div([
     html.Div([html.Div(id='use-real-filterwheel-midstep', hidden=True, children=None),
               dcc.Checklist(id='use-real-filterwheel',
                             options=[{'label': 'Real FilterWheel', 'value': 'real_filterwheel'}],
@@ -42,12 +42,12 @@ main_layout = [
                  dcc.Input(id="gamma", type='number', placeholder="Gamma", value=1.0, style=FONT_SIZE)])])]),
     html.Hr(),
 
-    html.Div([html.Div("Give names to the filters:", id='filter_names_div'),
-              html.Table([dcc.Input(id=f"filter_{idx}",
+    html.Div([html.Div("Give names to the filters. 0 is for glass:", id='filter-names-label'),
+              html.Table([dcc.Input(id=f"filter-{idx}",
                                     value=DEFAULT_FILTER_NAMES_DICT[idx], style=FONT_SIZE,
                                     type='text') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)])]),
-    html.Div([html.Div("Set number of filters to be photographed:", id='image_seq_len_div'),
-              dcc.Input(id='image_sequence_length', value=1, type='number', min=1, style=FONT_SIZE,
+    html.Div([html.Div("Set number of filters to be photographed:", id='image-sequence-length-label'),
+              dcc.Input(id='image-sequence-length', value=1, type='number', min=1, style=FONT_SIZE,
                         max=len(DEFAULT_FILTER_NAMES_DICT))]),
     html.Hr(),
 
@@ -61,7 +61,7 @@ main_layout = [
              html.Button('Upload a photo',
                          style={'padding': '6px 10px', 'text-align': 'center', 'font-size': '20px'})
              , id='upload_img'))])),
-    html.Ul(id='file_list'),
+    html.Ul(id='file-list'),
     html.Div(id='after_take_photo', hidden=True),
     html.Div(children=[], id='imgs'),
-]
+],id='page-content')

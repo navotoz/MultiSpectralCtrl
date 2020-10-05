@@ -9,7 +9,7 @@ from urllib.parse import quote as urlquote
 from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT
 from multiprocessing.dummy import Pool
 import dash_core_components as dcc
-from devices.CamerasCtrl import valid_model_names_list
+from devices.CamerasCtrl import valid_cameras_names_list
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
@@ -106,7 +106,7 @@ def make_images(images: dict) -> html.Div:
 def make_devices_names_radioitems():
     TAB_STYLE = {'border': '1px solid black'}
     tr_list = []
-    for name in valid_model_names_list:
+    for name in valid_cameras_names_list:
         tr_list.append(
             html.Td([
                 html.Div(id=f'{name}-type-radioboxes-label', children=f'{name}'),

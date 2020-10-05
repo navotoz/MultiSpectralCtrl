@@ -4,10 +4,10 @@ from vimba import Vimba, Camera, MONO_PIXEL_FORMATS
 from vimba.error import VimbaTimeout, VimbaFeatureError
 from PIL import Image
 from devices.AlliedVision import init_alliedvision_camera
-from devices.AlliedVision.alliedvision_specs import ALLIEDVISION_VALID_MODEL_NAMES
+from devices.AlliedVision.specs import ALLIEDVISION_VALID_MODEL_NAMES
 
 
-valid_model_names_list = [*ALLIEDVISION_VALID_MODEL_NAMES]
+valid_cameras_names_list = [*ALLIEDVISION_VALID_MODEL_NAMES]
 
 class CamerasCtrl:
     camera_specs = _gain = _exposure_time = _gamma = _auto_exposure = None

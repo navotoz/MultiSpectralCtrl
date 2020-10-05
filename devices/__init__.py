@@ -1,11 +1,13 @@
+from logging import Logger
 from importlib import import_module
-from abc import ABC, abstractmethod, abstractproperty
+from abc import abstractmethod
+from devices.AlliedVision.specs import *
 
 
 def initialize_device(element_name: str, handlers: list, use_dummy: bool) -> object:
     use_dummy = 'Dummy' if use_dummy else ''
     if 'filterwheel' in element_name.lower():
-        m = import_module(f"devices.{use_dummy}FilterWheel", f"{use_dummy}FilterWheel").FilterWheel
+        m = import_module(f"devices.FilterWheel.{use_dummy}FilterWheel", f"{use_dummy}FilterWheel").FilterWheel
     else:
         raise TypeError(f"{element_name} was not implemented as a module.")
     return m(logging_handlers=handlers)
@@ -17,14 +19,15 @@ def get_cameras_module(handlers: list, use_dummy: bool):
 
 
 class CameraAbstract:
-    @abstractmethod
-    def __init__(self, logging_handlers: (list, tuple) = ()):
-        pass
-
-    @property
-    @abstractmethod
-    def model_name(self):
-        pass
+    def __init__(self, model_name: str, logger: Logger):
+        self._model_name = model_name
+        self._log = logger
+        self.__focal_length = None
+        self.__f_number = None
+        self.__gamma = 1.0
+        self.__gain = 0.0
+        self.__exposure_time = 5000.
+        self.__exposure_auto = 'Off'
 
     @property
     @abstractmethod
@@ -32,103 +35,75 @@ class CameraAbstract:
         pass
 
     @property
-    @abstractmethod
+    def model_name(self):
+        return self._model_name
+
+    @property
     def focal_length(self):
-        pass
+        return self.__focal_length
+
+    @focal_length.setter
+    def focal_length(self, focal_length_to_set):
+        if self.focal_length == focal_length_to_set:
+            return
+        self._log.debug(f"Set focal length to {focal_length_to_set}mm.")
 
     @property
-    @abstractmethod
     def f_number(self):
-        pass
+        return self.__f_number
+
+    @f_number.setter
+    def f_number(self, f_number_to_set):
+        if self.focal_length == f_number_to_set:
+            return
+        self._log.debug(f"Set f# to {f_number_to_set}mm.")
 
     @property
-    @abstractmethod
     def gain(self):
-        pass
+        return self.__gain
+
+    @gain.setter
+    def gain(self, gain_to_set):
+        if self.gain == gain_to_set:
+            return
+        self.__gain = gain_to_set
+        self._log.debug(f"Set gain to {gain_to_set}dB.")
 
     @property
-    @abstractmethod
     def gamma(self):
-        pass
+        return self.__gamma
+
+    @gamma.setter
+    def gamma(self, gamma_to_set):
+        if self.gamma == gamma_to_set:
+            return
+        self.__gamma = gamma_to_set
+        self._log.debug(f"Set gamma to {gamma_to_set}.")
 
     @property
-    @abstractmethod
     def exposure_time(self):
-        pass
+        return self.__exposure_time
+
+    @exposure_time.setter
+    def exposure_time(self, exposure_time_to_set):
+        if self.exposure_time == exposure_time_to_set:
+            return
+        self.__exposure_time = exposure_time_to_set
+        self._log.debug(f"Set exposure time to {exposure_time_to_set} micro seconds.")
 
     @property
-    @abstractmethod
-    def exposure_auto(self) -> str:
-        pass
+    def exposure_auto(self):
+        return self.__exposure_auto
+
+    @exposure_auto.setter
+    def exposure_auto(self, mode: (str, bool)):
+        if not CAMERAS_FEATURES_DICT[self.model_name].get('autoexposure', True):
+            self.__exposure_auto = None
+            return
+        if isinstance(mode, str):
+            self.__exposure_auto = mode.capitalize()
+        else:
+            self.__exposure_auto = 'Once' if mode else 'Off'
+        self._log.debug(f'Set to {self.__exposure_auto} auto exposure mode.')
 
 
-class FilterWheelAbstract:
-    __reversed_pos_names_dict = dict()
-    __log = None
-
-
-    @abstractmethod
-    def __init__(self):
-        pass
-
-    @abstractmethod
-    def __enter__(self):
-        pass
-
-    @abstractmethod
-    def __exit__(self, type_, value, traceback):
-        pass
-
-    @property
-    @abstractmethod
-    def is_dummy(self) -> bool:
-        pass
-
-    @property
-    @abstractmethod
-    def position(self) -> dict:
-        pass
-
-    @property
-    @abstractmethod
-    def id(self):
-        pass
-
-    @property
-    @abstractmethod
-    def speed(self):
-        pass
-
-    @property
-    @abstractmethod
-    def position_count(self):
-        pass
-
-    @property
-    @abstractmethod
-    def position_names_dict(self):
-        pass
-
-    def is_position_name_valid(self, name: str) -> bool:
-        """
-        Checks if the given name is indeed in the position dict.
-        Args:
-            name: a string of the name of a filter.
-        Returns:
-            True if the name is in the position dict or False if the filter name is not in the dictionary.
-        """
-        return name in self.position_names_dict.values()
-
-    def get_position_from_name(self, name: str) -> int:
-        """
-        Returns the position of the input on the FilterWheel if valid, else -1.
-
-        Args:
-            name a string with a filter name
-        Returns:
-            The position of the given name on the FilterWheel if a valid, else -1.
-        """
-        if not self.is_position_name_valid(name):
-            self.__log.warning(f"Given position name {name} not in position names dict.")
-            return -1
-        return self.__reversed_pos_names_dict[name]

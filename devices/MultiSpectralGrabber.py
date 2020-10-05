@@ -1,5 +1,5 @@
 import logging
-from devices.FilterWheel import FilterWheel
+from devices.FilterWheel.FilterWheel import FilterWheel
 from utils.logger import make_logger
 import numpy as np
 from itertools import compress
@@ -8,8 +8,8 @@ from datetime import datetime
 from vimba import Vimba, PixelFormat
 from vimba.error import VimbaTimeout
 from PIL import Image
-from devices.AlliedVision.alliedvision_specs import CAMERAS_SPECS_DICT
-from utils.constants import FILTER_WHEEL_SETTLING_TIME
+from devices.AlliedVision.specs import CAMERAS_SPECS_DICT
+from devices.FilterWheel import FILTERWHEEL_SETTLING_TIME
 
 
 def get_camera_features_dict(cam):
@@ -49,7 +49,7 @@ class AlviumCamera:
             self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=logging.INFO))
         else:
             self.__log.warning('Using dummy FilterWheel.')
-            from devices.DummyFilterWheel import DummyFilterWheel
+            from devices.FilterWheel.DummyFilterWheel import DummyFilterWheel
             self.__filter_wheel = DummyFilterWheel(logger=make_logger('DummyFilterWheel',
                                                                       logging_handlers, level=logging.INFO))
         self.filters_sequence = list(self.__filter_wheel.position_names_dict.values())
@@ -241,7 +241,7 @@ class AlviumCamera:
             with vimba.get_all_cameras()[0] as cam:
                 for (position, name) in zip(self.filters_sequence['positions'], self.filters_sequence['filters']):
                     self.__filter_wheel.position = position
-                    sleep(FILTER_WHEEL_SETTLING_TIME)
+                    sleep(FILTERWHEEL_SETTLING_TIME)
                     try:
                         multi_frame_images_dict[name] = self.take_image(cam)  # take a picture
                     except TimeoutError:  # give it another try

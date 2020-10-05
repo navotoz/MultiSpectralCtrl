@@ -1,9 +1,8 @@
 import dash
 import logging
 from utils.logger import make_logging_handlers, make_logger
-from devices.CamerasCtrl import valid_model_names_list
-PATHNAME_MAIN = '/apps/main'
-PATHNAME_INIT_DEVICES = '/apps/init'
+from devices.CamerasCtrl import valid_cameras_names_list
+from devices import initialize_device
 
 logging.getLogger('werkzeug').disabled = True
 app = dash.Dash(__name__, suppress_callback_exceptions=False)
@@ -15,5 +14,5 @@ logger = make_logger('Server', handlers=handlers, level=LOGGING_LEVEL)
 
 image_store_dict = {}
 
-filterwheel= None
-cameras_dict = dict.fromkeys(valid_model_names_list)
+filterwheel = initialize_device('filterwheel', handlers, use_dummy=True)
+cameras_dict = dict.fromkeys(valid_cameras_names_list)

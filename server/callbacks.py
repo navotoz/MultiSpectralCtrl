@@ -6,16 +6,15 @@ import dash
 from dash.dependencies import Input, Output, State
 from flask import Response, send_file
 
-from devices import initialize_device, get_cameras_module
+from devices import initialize_device
 from server.app import app, server, logger, handlers, cameras_dict, filterwheel
-from server.server_utils import base64_to_split_numpy_image, find_files_in_savepath
+from server.server_utils import find_files_in_savepath
 from server.server_utils import make_images, make_links_from_files, make_camera_models_dropdown_options_list
-from utils.constants import SAVE_PATH, IMAGE_FORMAT
-from devices.CamerasCtrl import valid_model_names_list
-from devices.AlliedVision.alliedvision_specs import ALLIEDVISION_VALID_MODEL_NAMES, CAMERAS_SPECS_DICT, \
+from utils.constants import SAVE_PATH
+from devices.CamerasCtrl import valid_cameras_names_list
+from devices.AlliedVision.specs import ALLIEDVISION_VALID_MODEL_NAMES, CAMERAS_SPECS_DICT, \
     CAMERAS_FEATURES_DICT
 from devices.AlliedVision import init_alliedvision_camera
-from utils.constants import DEFAULT_FILTER_NAMES_DICT
 
 # H_IMAGE = grabber.camera_specs.get('h')
 # W_IMAGE = grabber.camera_specs.get('w')
@@ -143,8 +142,8 @@ def disable_button(n_clicks, trigger, button_state):
     return False,
 
 
-@app.callback(Output('file_list', 'children'),
-              [Input(f"after_take_photo", 'n_clicks'), Input('file_list', 'n_clicks')])
+@app.callback(Output('file-list', 'children'),
+              [Input(f"after_take_photo", 'n_clicks'), Input('file-list', 'n_clicks')])
 def make_downloads_list(dummy1, dummy2):
     """
     Make a list of files in SAVE_PATH with type defined in utils.constants.
@@ -161,7 +160,7 @@ def make_downloads_list(dummy1, dummy2):
 
 
 @app.callback(Output("imgs", 'children'),
-              [Input('file_list', 'n_clicks'), Input('after_take_photo', 'n_clicks')])
+              [Input('file-list', 'n_clicks'), Input('after_take_photo', 'n_clicks')])
 def show_images(dummy1, dummy2):
     global image_store_dict
     bboxs = make_images(image_store_dict)
@@ -206,7 +205,7 @@ def check_device_is_dummy(name) -> str:
 
 
 @app.callback([Output('devices-radioitems-table', 'n_clicks'), ],
-              [Input(f'{name}-camera-type-radio', 'value') for name in valid_model_names_list])
+              [Input(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list])
 def change_camera_status(*args):
     global cameras_dict
     radioitems_states = list(map(lambda state: (state['id'].split('-')[0], state['value'].lower()),
@@ -236,9 +235,9 @@ def change_camera_status(*args):
     return 1,
 
 
-@app.callback([Output(f'{name}-camera-type-radio', 'value') for name in valid_model_names_list],
+@app.callback([Output(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list],
               [Input('devices-radioitems-table', 'n_clicks')],
-              [State(f'{name}-camera-type-radio', 'value') for name in valid_model_names_list])
+              [State(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list])
 def update_devices_radiobox(*args):
     if not args[0]:
         return dash.no_update
@@ -256,21 +255,24 @@ def update_camera_models_dropdown_list(dummy):
     return make_camera_models_dropdown_options_list(
         list(map(lambda name: (name, check_device_is_dummy(name)), cameras_dict.keys())))
 
-# @app.callback(Output('filter_names_div', 'n_clicks'),
-#               [Input(f"filter_{idx}", 'n_submit') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)] +
-#               [Input(f"filter_{idx}", 'n_blur') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)],
-#               [State(f"filter_{idx}", 'value') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)])
-# def change_filter_names(*args):
-#     global filterwheel
-#     filterwheel.position_names_dict = dict(zip(range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1),
-#                                          args[-len(DEFAULT_FILTER_NAMES_DICT):]))
-#     logger.debug(f"Changed filters names.")
-#     return 1
-#
-#
-# @app.callback(Output('image_seq_len_div', 'n_clicks'),
-#               [Input(f"image_sequence_length", 'value')])
-# def set_image_sequence_length(image_sequence_length):
+
+@app.callback(Output('filter-names-label', 'n_clicks'),
+              [Input(f"filter-{idx}", 'n_submit') for idx in range(1, filterwheel.position_count + 1)] +
+              [Input(f"filter-{idx}", 'n_blur') for idx in range(1, filterwheel.position_count + 1)],
+              [State(f"filter-{idx}", 'value') for idx in range(1, filterwheel.position_count + 1)])
+def change_filter_names(*args):
+    global filterwheel
+    position_names_dict = dict(zip(range(1, filterwheel.position_count + 1), args[-filterwheel.position_count:]))
+    if filterwheel.position_names_dict != position_names_dict:
+        filterwheel.position_names_dict = position_names_dict
+    return 1
+
+
+# @app.callback(Output('image-sequence-length-label', 'n_clicks'),
+#               [Input(f"image-sequence-length", 'value')],
+#               [State(f"filter-{idx}", 'value') for idx in range(1, filterwheel.position_count + 1)])
+# def set_image_sequence_length(*args):
+    change_filter_names
 #     global filterwheel
 #     filterwheel.filters_sequence = list(range(1, image_sequence_length + 1))
 #     logger.debug(f"Set filter sequence length.")
@@ -288,7 +290,7 @@ def update_camera_models_dropdown_list(dummy):
 #         return 1
 #     return dash.no_update
 
-# @app.callback(Output('file_list', 'n_clicks'),
+# @app.callback(Output('file-list', 'n_clicks'),
 #               [Input('upload_img', 'contents')],
 #               [State('upload_img', 'filename')])
 # def upload_image(content, name):

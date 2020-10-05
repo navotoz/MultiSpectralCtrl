@@ -1,12 +1,8 @@
-import dash_html_components as html
-import dash_core_components as dcc
-from dash.dependencies import Input, Output
-
 from server.layouts import main_layout
-from server.app import app, PATHNAME_MAIN, PATHNAME_INIT_DEVICES
+from server.app import app
 import server.callbacks
 
-app.layout = html.Div(id='page-content', children=main_layout)
+app.layout = main_layout
 
 
 if __name__ == '__main__':
