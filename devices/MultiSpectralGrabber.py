@@ -8,7 +8,7 @@ from datetime import datetime
 from vimba import Vimba, PixelFormat
 from vimba.error import VimbaTimeout
 from PIL import Image
-from devices.camera_specs import CAMERAS_SPECS_DICT
+from devices.AlliedVision.alliedvision_specs import CAMERAS_SPECS_DICT
 from utils.constants import FILTER_WHEEL_SETTLING_TIME
 
 
@@ -49,7 +49,7 @@ class AlviumCamera:
             self.__filter_wheel = FilterWheel(logger=make_logger('FilterWheel', logging_handlers, level=logging.INFO))
         else:
             self.__log.warning('Using dummy FilterWheel.')
-            from devices.dummy_FilterWheel import DummyFilterWheel
+            from devices.DummyFilterWheel import DummyFilterWheel
             self.__filter_wheel = DummyFilterWheel(logger=make_logger('DummyFilterWheel',
                                                                       logging_handlers, level=logging.INFO))
         self.filters_sequence = list(self.__filter_wheel.position_names_dict.values())
@@ -258,7 +258,7 @@ class AlviumCamera:
 
     def parse_specs_to_tiff(self) -> dict:
         """
-        Parse the specs of the camera and images into the TIFF tags format.
+        Parse the specs of the camera and download into the TIFF tags format.
         See https://www.awaresystems.be/imaging/tiff/tifftags.html,
         https://www.loc.gov/preservation/digital/formats/content/tiff_tags.shtml
         :return: dict - keys are the TIFF TAGS and values are respective values.

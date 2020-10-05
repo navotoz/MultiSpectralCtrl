@@ -5,12 +5,10 @@ FAILURE_PROBABILITY_IN_DUMMIES = 0.0
 INIT_EXPOSURE = 50000  # micro seconds
 RECV_WAIT_TIME_IN_SEC = 0.5  # seconds
 FILTER_WHEEL_SETTLING_TIME = 1  # seconds
-DEFUALT_FOCAL_LENGTH = 12  # millimeters
-DEFUALT_F_NUMBER = 1.4
 DEFAULT_FILTER_NAMES_DICT = {1: '420', 2: '480', 3: '510', 4: '580', 5: '680', 6: '0'}  # 0 is glass
 
-# SAVE_PATH = Path().cwd() / Path('images')
-SAVE_PATH = Path('images')
+# SAVE_PATH = Path().cwd() / Path('download')
+SAVE_PATH = Path('download')
 IMAGE_FORMAT = 'tiff'
 
 

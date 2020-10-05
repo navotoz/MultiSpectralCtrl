@@ -8,6 +8,8 @@ import dash_html_components as html
 from urllib.parse import quote as urlquote
 from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT
 from multiprocessing.dummy import Pool
+import dash_core_components as dcc
+from devices.CamerasCtrl import valid_model_names_list
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
@@ -44,14 +46,14 @@ def numpy_to_base64(image: np.ndarray) -> str:
     image_ = image_.astype('uint8')
     image_bytes = BytesIO()
     Image.fromarray(image_).save(image_bytes, 'PNG')
-    # image_bytes = cv2.imencode('.png', x)[1].tobytes()  method with cv2  # todo: check if method works on real images
+    # image_bytes = cv2.imencode('.png', x)[1].tobytes()  method with cv2  # todo: check if method works on real download
     return f"data:image/png;base64,{b64encode(image_bytes.getvalue()).decode('utf-8'):s}"
 
 
 def file_download_link(filename):
     """Create a Plotly Dash 'A' element that downloads a file from the app."""
     location = "/download/{}".format(urlquote(filename))
-    return html.A(filename, href=location, download=True)
+    return html.A(filename, href=location)  # , download=True)
 
 
 def find_files_in_savepath(endswith: str = IMAGE_FORMAT) -> list:
@@ -92,10 +94,30 @@ def make_image_html(input_tuple: tuple) -> html.Div:
 def make_images(images: dict) -> html.Div:
     """
     Creates an image inside a Div in html.
-    :param images: list of images as np.ndarrays.
-    :return: html.Div containing the images.
+    :param images: list of download as np.ndarrays.
+    :return: html.Div containing the download.
     """
     if not images:
         return html.Div()
     with Pool(6) as pool:
         return html.Div(list(pool.imap(make_image_html, images.items())))
+
+
+def make_devices_names_radioitems():
+    TAB_STYLE = {'border': '1px solid black'}
+    tr_list = []
+    for name in valid_model_names_list:
+        tr_list.append(
+            html.Td([
+                html.Div(id=f'{name}-type-radioboxes-label', children=f'{name}'),
+                dcc.RadioItems(id=f'{name}-camera-type-radio',
+                               options=[{'label': 'Real', 'value': 'real'},
+                                        {'label': 'Dummy', 'value': 'dummy'},
+                                        {'label': 'None', 'value': 'none'}],
+                               value='dummy',
+                               labelStyle={'font-size': '20px', 'display': 'block'})], style=TAB_STYLE))
+    return html.Table([html.Tr(tr_list)], style=TAB_STYLE, id='devices-radioitems-table')
+
+
+def make_camera_models_dropdown_options_list(camera_state_list: list):
+    return [{'label': name, 'value': name} for name, state in camera_state_list if 'none' not in state]

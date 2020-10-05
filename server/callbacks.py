@@ -6,16 +6,21 @@ import dash
 from dash.dependencies import Input, Output, State
 from flask import Response, send_file
 
-from devices.camera_specs import CAMERAS_FEATURES_DICT
-from server.app import app, server, logger, PATHNAME_MAIN, PATHNAME_INIT_DEVICES, grabber, filterwheel
+from devices import initialize_device, get_cameras_module
+from server.app import app, server, logger, handlers, cameras_dict, filterwheel
 from server.server_utils import base64_to_split_numpy_image, find_files_in_savepath
-from server.server_utils import make_values_dict, save_image, make_images, make_links_from_files
-from utils.constants import DEFAULT_FILTER_NAMES_DICT, SAVE_PATH, IMAGE_FORMAT
+from server.server_utils import make_images, make_links_from_files, make_camera_models_dropdown_options_list
+from utils.constants import SAVE_PATH, IMAGE_FORMAT
+from devices.CamerasCtrl import valid_model_names_list
+from devices.AlliedVision.alliedvision_specs import ALLIEDVISION_VALID_MODEL_NAMES, CAMERAS_SPECS_DICT, \
+    CAMERAS_FEATURES_DICT
+from devices.AlliedVision import init_alliedvision_camera
+from utils.constants import DEFAULT_FILTER_NAMES_DICT
 
 # H_IMAGE = grabber.camera_specs.get('h')
 # W_IMAGE = grabber.camera_specs.get('w')
 
-image_store_dict  = {}
+image_store_dict = {}
 
 
 @server.route("/download/<path:path>")
@@ -29,74 +34,89 @@ def download(path: (str, Path)) -> Response:
     return send_file(file_stream, as_attachment=True, attachment_filename=path)
 
 
-@app.callback(Output('input_exposure_time', 'disabled'), [Input('exposure_type_radio', 'value')])
-def is_exposure_auto(exp_type):
-    if exp_type == 'auto':
-        grabber.auto_exposure = True
+@app.callback([Output('focal-length', 'value'), Output('f-number', 'value')],
+              Input('camera-model-dropdown', 'value'))
+def update_optical_values(camera_model_name: str):
+    if not camera_model_name:
+        return dash.no_update
+    return CAMERAS_SPECS_DICT[camera_model_name].get('focal_length', 0), \
+           CAMERAS_SPECS_DICT[camera_model_name].get('f_number', 0)
+
+
+@app.callback([Output('exposure-type-radio', 'options'),
+               Output('exposure-time', 'min'),
+               Output('exposure-time', 'max'),
+               Output('exposure-time', 'increment')],
+              Input('camera-model-dropdown', 'value'))
+def update_exposure(camera_model_name: str):
+    if not camera_model_name:
+        return dash.no_update
+    exposure_options_list = [{'label': 'Manual', 'value': 'manual'}]
+    if CAMERAS_FEATURES_DICT[camera_model_name].get('autoexposure', False):
+        exposure_options_list.append({'label': 'Auto', 'value': 'auto'})
+    return exposure_options_list, \
+           CAMERAS_FEATURES_DICT[camera_model_name].get('exposure_min'), \
+           CAMERAS_FEATURES_DICT[camera_model_name].get('exposure_max'), \
+           CAMERAS_FEATURES_DICT[camera_model_name].get('exposure_increment')
+
+
+@app.callback([Output('gain', 'min'),
+               Output('gain', 'max'),
+               Output('gain', 'increment'),
+               Output('gamma', 'min'),
+               Output('gamma', 'max'),
+               Output('gamma', 'increment')],
+              Input('camera-model-dropdown', 'value'))
+def update_gain_gamma(camera_model_name: str):
+    if not camera_model_name:
+        return dash.no_update
+    return CAMERAS_FEATURES_DICT[camera_model_name].get('gain_min'), \
+           CAMERAS_FEATURES_DICT[camera_model_name].get('gain_max'), \
+           CAMERAS_FEATURES_DICT[camera_model_name].get('gain_increment'), \
+           CAMERAS_FEATURES_DICT[camera_model_name].get('gamma_min'), \
+           CAMERAS_FEATURES_DICT[camera_model_name].get('gamma_max'), \
+           CAMERAS_FEATURES_DICT[camera_model_name].get('gamma_increment')
+
+
+@app.callback(Output('exposure-time', 'disabled'),
+              [Input('exposure-type-radio', 'value'),
+               Input('camera-model-dropdown', 'value')])
+def set_auto_exposure(exposure_type, camera_model_name):
+    if not camera_model_name:
         return True
-    if exp_type == 'manual':
-        grabber.auto_exposure = False
+    if exposure_type == 'auto':
+        cameras_dict[camera_model_name].exposure_auto = True
+        return True
+    if exposure_type == 'manual':
+        cameras_dict[camera_model_name].exposure_auto = False
         return False
 
 
-@app.callback([Output('input_exposure_time', 'value'), Output('input_exposure_time', 'min'),
-               Output('input_exposure_time', 'max'), Output('input_exposure_time', 'step'),
-               Output('input_gain_time', 'min'), Output('input_gain_time', 'max'), Output('input_gain_time', 'step'),
-               Output('input_gamma_time', 'min'), Output('input_gamma_time', 'max'),
-               Output('input_gamma_time', 'step')],
-              [Input('choose_camera_model', 'value')])
-def change_values_limits(model_name):
-    return make_values_dict(CAMERAS_FEATURES_DICT, model_name)
+@app.callback([Output('gain', 'disabled'),
+               Output('gamma', 'disabled'),
+               Output('focal-length', 'disabled'),
+               Output('f-number', 'disabled')],
+              Input('camera-model-dropdown', 'value'))
+def set_disabled_to_camera_values(camera_model_name):
+    if not camera_model_name:
+        return [True] * len(dash.callback_context.outputs_list)
+    return [False] * len(dash.callback_context.outputs_list)
 
 
-@app.callback(Output('focal_tag', 'n_clicks'),
-              [Input('choose_camera_model', 'value'),
-               Input('input_exposure_time', 'value'),
-               Input('input_gain_time', 'value'),
-               Input('input_gamma_time', 'value'),
-               Input('input_lens_focal_length_mm', 'value'),
-               Input('input_lens_f_number', 'value')
-               ])
-def update_values_in_camera(camera_model, exposure_time_value, gain_value, gamma_value, focal_length, f_num):
-    grabber.camera_model = camera_model
-    grabber.focal_length = focal_length
-    grabber.f_number = f_num
-    grabber.gain = gain_value
-    grabber.exposure_time = exposure_time_value
-    grabber.gamma = gamma_value
+@app.callback(Output('focal-length-label', 'n_clicks'),
+              [Input('gain', 'value'),
+               Input('gamma', 'value'),
+               Input('exposure-time', 'value'),
+               Input('camera-model-dropdown', 'value')])
+def update_values_in_camera(gain, gamma, exposure_time, camera_model_name):
+    if not camera_model_name:
+        return dash.no_update
+    global cameras_dict
+    cameras_dict[camera_model_name].gain = gain
+    cameras_dict[camera_model_name].gamma = gamma
+    cameras_dict[camera_model_name].exposure_time = exposure_time
     logger.debug(f"Updated camera values.")
     return 1
-
-
-@app.callback(Output('filter_names_div', 'n_clicks'),
-              [Input(f"filter_{idx}", 'n_submit') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)] +
-              [Input(f"filter_{idx}", 'n_blur') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)],
-              [State(f"filter_{idx}", 'value') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)])
-def change_filter_names(*args):
-    grabber.filter_names_dict = dict(zip(range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1),
-                                         args[-len(DEFAULT_FILTER_NAMES_DICT):]))
-    logger.debug(f"Changed filters names.")
-    return 1
-
-
-@app.callback(Output('image_seq_len_div', 'n_clicks'),
-              [Input(f"image_sequence_length", 'value')])
-def set_image_sequence_length(image_sequence_length):
-    grabber.filters_sequence = list(range(1, image_sequence_length + 1))
-    logger.debug(f"Set filter sequence length.")
-    return 1
-
-
-@app.callback(Output('after_take_photo', 'n_clicks'),
-              [Input('take_photo_button', 'disabled')],
-              [State('save_img_checkbox', 'value')])
-def images_handler_callback(button_state, handler_flags):
-    if button_state:
-        global image_store_dict
-        image_store_dict = save_image(grabber, 'save_img' in handler_flags)
-        logger.info("Taken an image." if 'save_img' not in handler_flags else "Saved an image.")
-        return 1
-    return dash.no_update
 
 
 @app.callback([Output('take_photo_button', 'disabled')],
@@ -140,36 +160,18 @@ def make_downloads_list(dummy1, dummy2):
     return links_list
 
 
-@app.callback(Output('file_list', 'n_clicks'),
-              [Input('upload_img', 'contents')],
-              [State('upload_img', 'filename')])
-def upload_image(content, name):
-    if content is not None:
-        path = Path(name)
-        if IMAGE_FORMAT not in path.suffix:
-            logger.error(f"Given image suffix is {path.suffix}, different than required {IMAGE_FORMAT}.")
-            return 1
-        global image_store_dict
-        num_of_filters = int(path.stem.split('Filters')[0].split('_')[-1])
-        filters_names = path.stem.split('Filters')[-1].split('_')[-num_of_filters:]
-        image = base64_to_split_numpy_image(content, H_IMAGE, W_IMAGE)
-        image_store_dict = {key: val for key, val in zip(filters_names, image)}
-        logger.info(f"Uploaded {len(image_store_dict.keys())} frames.")
-    return 1
-
-
 @app.callback(Output("imgs", 'children'),
               [Input('file_list', 'n_clicks'), Input('after_take_photo', 'n_clicks')])
 def show_images(dummy1, dummy2):
     global image_store_dict
     bboxs = make_images(image_store_dict)
-    logger.debug('Showing images.')
+    logger.debug('Showing download.')
     return bboxs
 
 
 @app.callback(Output('use-real-filterwheel-midstep', 'children'),
-              Input('use-real-filterwheel','value'),
-              [State('use-real-filterwheel-midstep', 'children') ])
+              Input('use-real-filterwheel', 'value'),
+              State('use-real-filterwheel-midstep', 'children'))
 def get_real_filterwheel_midstep(value, next_value):
     if value and isinstance(value, list) or isinstance(value, tuple):
         value = value[0]
@@ -178,50 +180,127 @@ def get_real_filterwheel_midstep(value, next_value):
     return value
 
 
-@app.callback([Output('use-real-filterwheel', 'value')],
-              [Input('use-real-filterwheel-midstep','children')],
-              [State('use-real-filterwheel', 'value')])
-def get_real_filterwheel(value,next_value):
-    # todo: does changes here reflect to all the application?
+@app.callback([Output('use-real-filterwheel', 'value'), ],
+              Input('use-real-filterwheel-midstep', 'children'))
+def get_real_filterwheel(value: str):
     global filterwheel
-    if not value:
-        from devices.dummy_FilterWheel import DummyFilterWheel
-        filterwheel = DummyFilterWheel(logger=logger)
-        return []
-    else:
-        from devices.FilterWheel import FilterWheel
+    if not value:  # use the dummy
+        if not filterwheel.is_dummy:
+            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
+        return (),
+    else:  # use the real FilterWheel
         try:
-            filterwheel = FilterWheel(logger=logger)
-        except: # todo: change expect to RuntimeError
+            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=False)
+        except RuntimeError:
+            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
             return [],
-        return value
+        return [value],
 
 
-@app.callback(Output('use-real-camers-midstep', 'children'),
-              Input('use-real-camers','value'),
-              [State('use-real-camers-midstep', 'children') ])
-def get_real_camers_midstep(value, next_value):
-    if value and isinstance(value, list) or isinstance(value, tuple):
-        value = value[0]
-    if value == next_value:
+def check_device_is_dummy(name) -> str:
+    if not cameras_dict[name]:
+        return 'none'
+    if cameras_dict[name].is_dummy:
+        return 'dummy'
+    return 'real'
+
+
+@app.callback([Output('devices-radioitems-table', 'n_clicks'), ],
+              [Input(f'{name}-camera-type-radio', 'value') for name in valid_model_names_list])
+def change_camera_status(*args):
+    global cameras_dict
+    radioitems_states = list(map(lambda state: (state['id'].split('-')[0], state['value'].lower()),
+                                 dash.callback_context.inputs_list))
+    devices_state = list(map(lambda name: check_device_is_dummy(name), cameras_dict.keys()))
+    if all([dev == radio[-1] for dev, radio in zip(devices_state, radioitems_states)]):
         return dash.no_update
-    return value
+    for name, state in radioitems_states:
+        if 'none' in state:
+            if cameras_dict[name] and name in dash.callback_context.triggered[0]['prop_id']:
+                logger.info(f'{name} camera is not used.')
+            cameras_dict[name] = None
+        elif 'dummy' in state:
+            if not cameras_dict[name]:
+                if name in ALLIEDVISION_VALID_MODEL_NAMES:
+                    cameras_dict[name] = init_alliedvision_camera(name, handlers, use_dummy=True)
+            else:
+                if not cameras_dict[name].is_dummy:
+                    cameras_dict[name] = init_alliedvision_camera(name, handlers, use_dummy=True)
+
+        else:
+            try:
+                if name in ALLIEDVISION_VALID_MODEL_NAMES:
+                    cameras_dict[name] = init_alliedvision_camera(name, handlers, use_dummy=False)
+            except RuntimeError:
+                cameras_dict[name] = None
+    return 1,
 
 
-@app.callback([Output('use-real-camers', 'value')],
-              [Input('use-real-camers-midstep','children')],
-              [State('use-real-camers', 'value')])
-def get_real_camers(value,next_value):
-    # todo: use the multigrabber
-    global grabber
-    if not value:
-        from devices.dummy_FilterWheel import DummyFilterWheel
-        filterwheel = DummyFilterWheel(logger=logger)
-        return []
-    else:
-        from devices.FilterWheel import FilterWheel
-        try:
-            filterwheel = FilterWheel(logger=logger)
-        except: # todo: change expect to RuntimeError
-            return [],
-        return value
+@app.callback([Output(f'{name}-camera-type-radio', 'value') for name in valid_model_names_list],
+              [Input('devices-radioitems-table', 'n_clicks')],
+              [State(f'{name}-camera-type-radio', 'value') for name in valid_model_names_list])
+def update_devices_radiobox(*args):
+    if not args[0]:
+        return dash.no_update
+    radioitems_states = list(map(lambda state: (state['id'].split('-')[0], state['value'].lower()),
+                                 dash.callback_context.states_list))
+    devices_state = list(map(lambda name: check_device_is_dummy(name), cameras_dict.keys()))
+    if all([dev == radio[-1] for dev, radio in zip(devices_state, radioitems_states)]):
+        return dash.no_update
+    return list(map(lambda name: check_device_is_dummy(name), cameras_dict.keys()))
+
+
+@app.callback(Output('camera-model-dropdown', 'options'),
+              Input('devices-radioitems-table', 'n_clicks'))
+def update_camera_models_dropdown_list(dummy):
+    return make_camera_models_dropdown_options_list(
+        list(map(lambda name: (name, check_device_is_dummy(name)), cameras_dict.keys())))
+
+# @app.callback(Output('filter_names_div', 'n_clicks'),
+#               [Input(f"filter_{idx}", 'n_submit') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)] +
+#               [Input(f"filter_{idx}", 'n_blur') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)],
+#               [State(f"filter_{idx}", 'value') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)])
+# def change_filter_names(*args):
+#     global filterwheel
+#     filterwheel.position_names_dict = dict(zip(range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1),
+#                                          args[-len(DEFAULT_FILTER_NAMES_DICT):]))
+#     logger.debug(f"Changed filters names.")
+#     return 1
+#
+#
+# @app.callback(Output('image_seq_len_div', 'n_clicks'),
+#               [Input(f"image_sequence_length", 'value')])
+# def set_image_sequence_length(image_sequence_length):
+#     global filterwheel
+#     filterwheel.filters_sequence = list(range(1, image_sequence_length + 1))
+#     logger.debug(f"Set filter sequence length.")
+#     return 1
+#
+#
+# @app.callback(Output('after_take_photo', 'n_clicks'),
+#               [Input('take_photo_button', 'disabled')],
+#               [State('save_img_checkbox', 'value')])
+# def images_handler_callback(button_state, handler_flags):
+#     if button_state:
+#         global image_store_dict
+#         image_store_dict = save_image(grabber, 'save_img' in handler_flags)
+#         logger.info("Taken an image." if 'save_img' not in handler_flags else "Saved an image.")
+#         return 1
+#     return dash.no_update
+
+# @app.callback(Output('file_list', 'n_clicks'),
+#               [Input('upload_img', 'contents')],
+#               [State('upload_img', 'filename')])
+# def upload_image(content, name):
+#     if content is not None:
+#         path = Path(name)
+#         if IMAGE_FORMAT not in path.suffix:
+#             logger.error(f"Given image suffix is {path.suffix}, different than required {IMAGE_FORMAT}.")
+#             return 1
+#         global image_store_dict
+#         num_of_filters = int(path.stem.split('Filters')[0].split('_')[-1])
+#         filters_names = path.stem.split('Filters')[-1].split('_')[-num_of_filters:]
+#         image = base64_to_split_numpy_image(content, H_IMAGE, W_IMAGE)
+#         image_store_dict = {key: val for key, val in zip(filters_names, image)}
+#         logger.info(f"Uploaded {len(image_store_dict.keys())} frames.")
+#     return 1

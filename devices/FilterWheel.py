@@ -4,6 +4,8 @@ import serial
 import logging
 from utils.constants import RECV_WAIT_TIME_IN_SEC
 from utils.constants import GET_ID, GET_POSITION, GET_SPEED_MODE, SET_SENSOR_MODE, GET_SENSOR_MODE, GET_POSITION_COUNT
+from utils.logger import make_logger, make_logging_handlers
+from devices import FilterWheelAbstract
 
 
 def SET_POSITION(n):
@@ -14,40 +16,33 @@ def SET_SPEED_MODE(mode):
     return f'speed={mode}'.encode('utf-8')
 
 
-class FilterWheel:
+class FilterWheel(FilterWheelAbstract):
     __reversed_pos_names_dict = None
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type_, value, traceback):
-        if self.__conn is not None:
-            self.__conn.close()
-        self.__log.info("Disconnecting from FilterWheel.")
-
-    def __init__(self, model_name: str = 'FW102C', logger: (None, logging.Logger) = None):
-        self.__log = logging.getLogger('FilterWheel') if not logger else logger
+    def __init__(self, model_name: str = 'FW102C', logging_handlers: tuple = ()):
+        super().__init__()
+        self.__log = make_logger('FilterWheel', logging_handlers)
 
         port = [p for p in serial.tools.list_ports.comports() if model_name in p]
         if len(port) == 0:
             self.__log.error(f"FilterWheel {model_name} not detected.")
-            raise serial.SerialException('This model was not detected.')
+            raise RuntimeError('This model was not detected.')
         port = port[0]  # only one port should remain
         try:
             self.__conn = serial.Serial(port.device, baudrate=115200,
                                         parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE)
         except (serial.SerialException, RuntimeError) as err:
             self.__log.critical(err)
-            raise err
+            raise RuntimeError(err)
 
         if self.__conn.is_open:
-            self.__log.info("Connected to camera at {}.".format(port))
+            self.__log.info("Connected to FilterWheel at {}.".format(port))
             self.__conn.flushInput()
             self.__conn.flushOutput()
             self.__conn.timeout = 3
         else:
-            self.__log.critical("Couldn't connect to camera!")
-            raise RuntimeError
+            self.__log.critical("Couldn't connect to FilterWheel!")
+            raise RuntimeError("Couldn't connect to FilterWheel!")
 
         # set default options
         _ = self.id  # sometimes the serial buffer holds a CMD_NOT_DEFINED, so this cmd is to clear the buffer.
@@ -56,6 +51,14 @@ class FilterWheel:
         self.__position_names_dict = dict(zip(range(1, positions_count + 1),
                                               list(map(lambda x: str(x), range(1, positions_count + 1)))))
         self.__set_sensor_mode_to_off()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type_, value, traceback):
+        if self.__conn is not None:
+            self.__conn.close()
+        self.__log.info("Disconnecting from FilterWheel.")
 
     def __send(self, command: bytes):
         self.__conn.write(command + b'\r')
@@ -92,6 +95,10 @@ class FilterWheel:
         """
         if int(self.__send_and_recv(GET_SENSOR_MODE)[1]) != 0:
             self.__send_and_recv(SET_SENSOR_MODE)
+
+    @property
+    def is_dummy(self) -> bool:
+        return False
 
     @property
     def position(self) -> dict:
@@ -198,33 +205,9 @@ class FilterWheel:
         self.__position_names_dict = names_dict.copy()  # create numbers to names dict
         if len(set(names_dict.values())) == len(names_dict.values()):
             reversed_generator = (reversed(item) for item in names_dict.copy().items())
-            self.__reversed_pos_names_dict = {key: val for key,val in reversed_generator}
+            self.__reversed_pos_names_dict = {key: val for key, val in reversed_generator}
         else:
             msg = f'There are duplicates in the given position names dict {names_dict}.'
             self.__log.error(msg)
             raise ValueError(msg)
         self.__log.debug(f'Changed positions name dict to {list(self.__reversed_pos_names_dict.keys())}.')
-
-    def is_position_name_valid(self, name: str) -> bool:
-        """
-        Checks if the given name is indeed in the position dict.
-        Args:
-            name: a string of the name of a filter.
-        Returns:
-            True if the name is in the position dict or False if the filter name is not in the dictionary.
-        """
-        return name in self.position_names_dict.values()
-
-    def get_position_from_name(self, name: str) -> int:
-        """
-        Returns the position of the input on the FilterWheel if valid, else -1.
-
-        Args:
-            name a string with a filter name
-        Returns:
-            The position of the given name on the FilterWheel if a valid, else -1.
-        """
-        if not self.is_position_name_valid(name):
-            self.__log.warning(f"Given position name {name} not in position names dict.")
-            return -1
-        return self.__reversed_pos_names_dict[name]
