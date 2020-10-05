@@ -1,8 +1,7 @@
 import dash
 import logging
 from utils.logger import make_logging_handlers, make_logger
-from devices.CamerasCtrl import valid_cameras_names_list
-from devices import initialize_device
+from devices import valid_cameras_names_list, initialize_device
 
 logging.getLogger('werkzeug').disabled = True
 app = dash.Dash(__name__, suppress_callback_exceptions=False)

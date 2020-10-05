@@ -6,15 +6,12 @@ import dash
 from dash.dependencies import Input, Output, State
 from flask import Response, send_file
 
-from devices import initialize_device
-from server.app import app, server, logger, handlers, cameras_dict, filterwheel
-from server.server_utils import find_files_in_savepath
-from server.server_utils import make_images, make_links_from_files, make_camera_models_dropdown_options_list
+from devices import initialize_device, valid_cameras_names_list
+from devices.AlliedVision.specs import CAMERAS_SPECS_DICT, CAMERAS_FEATURES_DICT
+from server.app import app, server, logger, handlers, filterwheel, cameras_dict
+from server.server_utils import find_files_in_savepath, save_image
+from server.server_utils import make_images, make_links_from_files, make_models_dropdown_options_list
 from utils.constants import SAVE_PATH
-from devices.CamerasCtrl import valid_cameras_names_list
-from devices.AlliedVision.specs import ALLIEDVISION_VALID_MODEL_NAMES, CAMERAS_SPECS_DICT, \
-    CAMERAS_FEATURES_DICT
-from devices.AlliedVision import init_alliedvision_camera
 
 # H_IMAGE = grabber.camera_specs.get('h')
 # W_IMAGE = grabber.camera_specs.get('w')
@@ -118,32 +115,9 @@ def update_values_in_camera(gain, gamma, exposure_time, camera_model_name):
     return 1
 
 
-@app.callback([Output('take_photo_button', 'disabled')],
-              [Input('take_photo_button', 'n_clicks'), Input('after_take_photo', 'n_clicks')],
-              [State('take_photo_button', 'disabled')])
-def disable_button(n_clicks, trigger, button_state):
-    """
-    Controls the 'Take Image' button disable status.
-    Can be triggered by pressing the button or by images_handler_callback.
-
-    Args:
-        n_clicks:
-        trigger:
-        button_state:
-
-    Returns:
-        disables the button if the trigger came from images_handler_callback, else enables the button.
-    """
-    callback_trigger = dash.callback_context.triggered[0]['prop_id']
-    if 'after_take_photo.n_clicks' not in callback_trigger and n_clicks > 0 and not button_state:
-        logger.debug(f"Disabled the image button.")
-        return True,
-    logger.debug(f"Enabled the image button.")
-    return False,
-
-
 @app.callback(Output('file-list', 'children'),
-              [Input(f"after_take_photo", 'n_clicks'), Input('file-list', 'n_clicks')])
+              [Input(f"after-photo-sync-label", 'n_clicks'),
+               Input('file-list', 'n_clicks')])
 def make_downloads_list(dummy1, dummy2):
     """
     Make a list of files in SAVE_PATH with type defined in utils.constants.
@@ -160,7 +134,8 @@ def make_downloads_list(dummy1, dummy2):
 
 
 @app.callback(Output("imgs", 'children'),
-              [Input('file-list', 'n_clicks'), Input('after_take_photo', 'n_clicks')])
+              [Input('file-list', 'n_clicks'),
+               Input('after-photo-sync-label', 'n_clicks')])
 def show_images(dummy1, dummy2):
     global image_store_dict
     bboxs = make_images(image_store_dict)
@@ -168,35 +143,7 @@ def show_images(dummy1, dummy2):
     return bboxs
 
 
-@app.callback(Output('use-real-filterwheel-midstep', 'children'),
-              Input('use-real-filterwheel', 'value'),
-              State('use-real-filterwheel-midstep', 'children'))
-def get_real_filterwheel_midstep(value, next_value):
-    if value and isinstance(value, list) or isinstance(value, tuple):
-        value = value[0]
-    if value == next_value:
-        return dash.no_update
-    return value
-
-
-@app.callback([Output('use-real-filterwheel', 'value'), ],
-              Input('use-real-filterwheel-midstep', 'children'))
-def get_real_filterwheel(value: str):
-    global filterwheel
-    if not value:  # use the dummy
-        if not filterwheel.is_dummy:
-            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
-        return (),
-    else:  # use the real FilterWheel
-        try:
-            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=False)
-        except RuntimeError:
-            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
-            return [],
-        return [value],
-
-
-def check_device_is_dummy(name) -> str:
+def check_device_state(name: str) -> str:
     if not cameras_dict[name]:
         return 'none'
     if cameras_dict[name].is_dummy:
@@ -204,32 +151,31 @@ def check_device_is_dummy(name) -> str:
     return 'real'
 
 
+def is_equal_states(context_list):
+    radioitems_states = list(map(lambda state: (state['id'].split('-')[0], state['value'].lower()), context_list))
+    devices_state = list(map(lambda name: check_device_state(name), cameras_dict.keys()))
+    if all([dev == radio[-1] for dev, radio in zip(devices_state, radioitems_states)]):
+        return True, radioitems_states
+    return False, radioitems_states
+
+
 @app.callback([Output('devices-radioitems-table', 'n_clicks'), ],
               [Input(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list])
 def change_camera_status(*args):
     global cameras_dict
-    radioitems_states = list(map(lambda state: (state['id'].split('-')[0], state['value'].lower()),
-                                 dash.callback_context.inputs_list))
-    devices_state = list(map(lambda name: check_device_is_dummy(name), cameras_dict.keys()))
-    if all([dev == radio[-1] for dev, radio in zip(devices_state, radioitems_states)]):
+    states_equal, radioitems_states = is_equal_states(dash.callback_context.inputs_list)
+    if states_equal:
         return dash.no_update
     for name, state in radioitems_states:
         if 'none' in state:
             if cameras_dict[name] and name in dash.callback_context.triggered[0]['prop_id']:
                 logger.info(f'{name} camera is not used.')
             cameras_dict[name] = None
-        elif 'dummy' in state:
-            if not cameras_dict[name]:
-                if name in ALLIEDVISION_VALID_MODEL_NAMES:
-                    cameras_dict[name] = init_alliedvision_camera(name, handlers, use_dummy=True)
-            else:
-                if not cameras_dict[name].is_dummy:
-                    cameras_dict[name] = init_alliedvision_camera(name, handlers, use_dummy=True)
-
-        else:
+        elif 'dummy' in state and (not cameras_dict[name] or check_device_state(name)):
+            cameras_dict[name] = initialize_device(name, handlers, use_dummy=True)
+        elif 'real' in state:
             try:
-                if name in ALLIEDVISION_VALID_MODEL_NAMES:
-                    cameras_dict[name] = init_alliedvision_camera(name, handlers, use_dummy=False)
+                cameras_dict[name] = initialize_device(name, handlers, use_dummy=False)
             except RuntimeError:
                 cameras_dict[name] = None
     return 1,
@@ -239,60 +185,66 @@ def change_camera_status(*args):
               [Input('devices-radioitems-table', 'n_clicks')],
               [State(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list])
 def update_devices_radiobox(*args):
-    if not args[0]:
+    if not args[0] or is_equal_states(dash.callback_context.states_list)[0]:
         return dash.no_update
-    radioitems_states = list(map(lambda state: (state['id'].split('-')[0], state['value'].lower()),
-                                 dash.callback_context.states_list))
-    devices_state = list(map(lambda name: check_device_is_dummy(name), cameras_dict.keys()))
-    if all([dev == radio[-1] for dev, radio in zip(devices_state, radioitems_states)]):
-        return dash.no_update
-    return list(map(lambda name: check_device_is_dummy(name), cameras_dict.keys()))
+    return list(map(lambda name: check_device_state(name), cameras_dict.keys()))
 
 
-@app.callback(Output('camera-model-dropdown', 'options'),
+@app.callback([Output('camera-model-dropdown', 'options'),
+               Output('multispectral-camera-radioitems', 'options'),
+               Output('multispectral-camera-radioitems', 'value')],
               Input('devices-radioitems-table', 'n_clicks'))
 def update_camera_models_dropdown_list(dummy):
-    return make_camera_models_dropdown_options_list(
-        list(map(lambda name: (name, check_device_is_dummy(name)), cameras_dict.keys())))
+    device_state_list = list(map(lambda name: (name, check_device_state(name)), cameras_dict.keys()))
+    dropdown_options = make_models_dropdown_options_list(device_state_list)
+    return dropdown_options, dropdown_options, dropdown_options[0]['value'] if dropdown_options else None
 
 
-@app.callback(Output('filter-names-label', 'n_clicks'),
-              [Input(f"filter-{idx}", 'n_submit') for idx in range(1, filterwheel.position_count + 1)] +
-              [Input(f"filter-{idx}", 'n_blur') for idx in range(1, filterwheel.position_count + 1)],
-              [State(f"filter-{idx}", 'value') for idx in range(1, filterwheel.position_count + 1)])
-def change_filter_names(*args):
-    global filterwheel
-    position_names_dict = dict(zip(range(1, filterwheel.position_count + 1), args[-filterwheel.position_count:]))
-    if filterwheel.position_names_dict != position_names_dict:
-        filterwheel.position_names_dict = position_names_dict
+@app.callback([Output('take-photo-button', 'disabled')],
+              [Input('take-photo-button', 'n_clicks'),
+               Input('after-photo-sync-label', 'n_clicks')],
+              [State('take-photo-button', 'disabled')])
+def disable_button(n_clicks, dummy, button_state):
+    callback_trigger = dash.callback_context.triggered[0]['prop_id']
+    if 'after-photo-sync-label' not in callback_trigger and n_clicks > 0 and not button_state:
+        logger.debug(f"Disabled the image button.")
+        return True,
+    logger.debug(f"Enabled the image button.")
+    return False,
+
+
+@app.callback(Output('image-sequence-length-label', 'n_clicks'),
+              Input(f"image-sequence-length", 'value'))
+def set_image_sequence_length(image_sequence_length: int):
+    filter_sequence = list(range(1, image_sequence_length + 1))
+    logger.debug(f"Set filter sequence length to {len(filter_sequence)}.")
     return 1
 
 
-# @app.callback(Output('image-sequence-length-label', 'n_clicks'),
-#               [Input(f"image-sequence-length", 'value')],
-#               [State(f"filter-{idx}", 'value') for idx in range(1, filterwheel.position_count + 1)])
-# def set_image_sequence_length(*args):
-    change_filter_names
-#     global filterwheel
-#     filterwheel.filters_sequence = list(range(1, image_sequence_length + 1))
-#     logger.debug(f"Set filter sequence length.")
-#     return 1
-#
-#
-# @app.callback(Output('after_take_photo', 'n_clicks'),
-#               [Input('take_photo_button', 'disabled')],
-#               [State('save_img_checkbox', 'value')])
-# def images_handler_callback(button_state, handler_flags):
-#     if button_state:
-#         global image_store_dict
-#         image_store_dict = save_image(grabber, 'save_img' in handler_flags)
-#         logger.info("Taken an image." if 'save_img' not in handler_flags else "Saved an image.")
-#         return 1
-#     return dash.no_update
+@app.callback(Output('after-photo-sync-label', 'n_clicks'),
+              Input('take-photo-button', 'disabled'),
+              [State('save-image-checkbox', 'value'),
+               State('multispectral-camera-radioitems', 'value'),
+               State(f"image-sequence-length", 'value')])
+def images_handler_callback(button_state, to_save: str, multispectral_camera_name: str, position_list: list):
+    if button_state:
+        global image_store_dict
+        global cameras_dict
+        global filterwheel
+        camera_names_list = list(filter(lambda name: multispectral_camera_name not in name, cameras_dict.keys()))
+        for camera_name in camera_names_list:
+            image_store_dict[camera_name] = cameras_dict[camera_name]()
+        for position in position_list:
+            filterwheel.position = position
+            image_store_dict[multispectral_camera_name] = cameras_dict[multispectral_camera_name]()
+        image_store_dict = save_image(to_save_image=True if to_save else False)
+        logger.info("Taken an image." if 'save' not in to_save else "Saved an image.")
+        return 1
+    return dash.no_update
 
 # @app.callback(Output('file-list', 'n_clicks'),
-#               [Input('upload_img', 'contents')],
-#               [State('upload_img', 'filename')])
+#               [Input('upload-img-button', 'contents')],
+#               [State('upload-img-button', 'filename')])
 # def upload_image(content, name):
 #     if content is not None:
 #         path = Path(name)

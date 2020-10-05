@@ -20,6 +20,10 @@ main_layout = html.Div([
     dcc.Dropdown(id='camera-model-dropdown', clearable=False, options=[]),
     html.Hr(),
 
+    html.Div(children='Which camera is connected to the FilterWheel'),
+    dcc.RadioItems(id='multispectral-camera-radioitems', options=[]),
+    html.Hr(),
+
     html.Table([
         html.Tr([html.Td([html.Div(id='focal-length-label', children='Focal Length [mm]'),
                           dcc.Input(id="focal-length",placeholder="Focal Length",
@@ -51,17 +55,16 @@ main_layout = html.Div([
                         max=len(DEFAULT_FILTER_NAMES_DICT))]),
     html.Hr(),
 
-    dcc.Checklist(id='save-image-checkbox', options=[{'label': 'Save Image', 'value': 'save_image'}],
+    dcc.Checklist(id='save-image-checkbox', options=[{'label': 'Save Image', 'value': 'save'}],
                   value=[], labelStyle={'font-size': '20px', 'display': 'block'}),
     html.Hr(),
+
     html.Table(html.Tr(
-        [html.Td(html.Button('Take a photo', id='take_photo_button', n_clicks_timestamp=0, n_clicks=0, disabled=False,
+        [html.Td(html.Button('Take a photo', id='take-photo-button', n_clicks_timestamp=0, n_clicks=0, disabled=False,
                              style={'padding': '6px 10px', 'text-align': 'center', 'font-size': '20px'})),
-         html.Td(dcc.Upload(
-             html.Button('Upload a photo',
-                         style={'padding': '6px 10px', 'text-align': 'center', 'font-size': '20px'})
-             , id='upload_img'))])),
+         html.Td(dcc.Upload(html.Button('Upload a photo',
+                                        style={'padding': '6px 10px', 'text-align': 'center', 'font-size': '20px'}),
+                            id='upload-img-button'))])),
     html.Ul(id='file-list'),
-    html.Div(id='after_take_photo', hidden=True),
-    html.Div(children=[], id='imgs'),
-],id='page-content')
+    html.Div(id='after-photo-sync-label', hidden=True),
+    html.Div(children=[], id='imgs')], id='page-content')

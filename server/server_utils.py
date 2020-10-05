@@ -9,15 +9,15 @@ from urllib.parse import quote as urlquote
 from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT
 from multiprocessing.dummy import Pool
 import dash_core_components as dcc
-from devices.CamerasCtrl import valid_cameras_names_list
+from devices import valid_cameras_names_list
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
 
 
-def save_image(image_grabber, to_save_img: bool) -> dict:
+def save_image(to_save_image: bool) -> dict:
     multi_frame_images_dict, image_tags, f_name = image_grabber()
-    if to_save_img:
+    if to_save_image:
         full_path = SAVE_PATH / Path(f_name)
         frames_keys_list = list(multi_frame_images_dict.keys())
         frames_keys_list.sort()
@@ -46,7 +46,6 @@ def numpy_to_base64(image: np.ndarray) -> str:
     image_ = image_.astype('uint8')
     image_bytes = BytesIO()
     Image.fromarray(image_).save(image_bytes, 'PNG')
-    # image_bytes = cv2.imencode('.png', x)[1].tobytes()  method with cv2  # todo: check if method works on real download
     return f"data:image/png;base64,{b64encode(image_bytes.getvalue()).decode('utf-8'):s}"
 
 
@@ -119,5 +118,5 @@ def make_devices_names_radioitems():
     return html.Table([html.Tr(tr_list)], style=TAB_STYLE, id='devices-radioitems-table')
 
 
-def make_camera_models_dropdown_options_list(camera_state_list: list):
+def make_models_dropdown_options_list(camera_state_list: list):
     return [{'label': name, 'value': name} for name, state in camera_state_list if 'none' not in state]

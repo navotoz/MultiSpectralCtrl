@@ -46,7 +46,7 @@ CAMERAS_FEATURES_DICT = {
     'MakoU130b': dict(
         exposure_min=44.2,  # microseconds
         exposure_max=1.4e6,  # microseconds
-        exposure_increment=10,  # microseconds   # todo: change to the real thing!!!
+        exposure_increment=10,  # microseconds   # todo: change to the real thing using the vimba viewer!!!
         gain_min=0.0,  # dB
         gain_max=20.0,  # db
         gain_increment=0.1,  # db

@@ -1,21 +1,24 @@
+from functools import partial
 from logging import Logger
 from importlib import import_module
 from abc import abstractmethod
 from devices.AlliedVision.specs import *
+from devices.AlliedVision import init_alliedvision_camera
+
+valid_cameras_names_list = [*ALLIEDVISION_VALID_MODEL_NAMES]
 
 
 def initialize_device(element_name: str, handlers: list, use_dummy: bool) -> object:
-    use_dummy = 'Dummy' if use_dummy else ''
     if 'filterwheel' in element_name.lower():
+        use_dummy = 'Dummy' if use_dummy else ''
         m = import_module(f"devices.FilterWheel.{use_dummy}FilterWheel", f"{use_dummy}FilterWheel").FilterWheel
     else:
-        raise TypeError(f"{element_name} was not implemented as a module.")
+        if element_name in ALLIEDVISION_VALID_MODEL_NAMES:
+            m = partial(init_alliedvision_camera, model_name=element_name, use_dummy=use_dummy)
+        # todo: add other cameras...
+        else:
+            raise TypeError(f"{element_name} was not implemented as a module.")
     return m(logging_handlers=handlers)
-
-
-def get_cameras_module(handlers: list, use_dummy: bool):
-    m = import_module(f"devices.CamerasCtrl", f"CamerasCtrl").CamerasCtrl
-    return m(logging_handlers=handlers, use_dummy=use_dummy)
 
 
 class CameraAbstract:
@@ -32,6 +35,10 @@ class CameraAbstract:
     @property
     @abstractmethod
     def is_dummy(self):
+        pass
+
+    @abstractmethod
+    def __call__(self):
         pass
 
     @property
@@ -56,7 +63,7 @@ class CameraAbstract:
     def f_number(self, f_number_to_set):
         if self.focal_length == f_number_to_set:
             return
-        self._log.debug(f"Set f# to {f_number_to_set}mm.")
+        self._log.debug(f"Set f# to {f_number_to_set}.")
 
     @property
     def gain(self):
@@ -105,5 +112,4 @@ class CameraAbstract:
         else:
             self.__exposure_auto = 'Once' if mode else 'Off'
         self._log.debug(f'Set to {self.__exposure_auto} auto exposure mode.')
-
 
