@@ -6,7 +6,7 @@ from devices.AlliedVision.specs import *
 from devices.AlliedVision import init_alliedvision_camera
 from PIL.Image import Image
 
-valid_cameras_names_list = [*ALLIEDVISION_VALID_MODEL_NAMES]
+valid_cameras_names_list = [*ALLIEDVISION_VALID_MODEL_NAMES]# todo: add other cameras to the list here...
 
 
 def initialize_device(element_name: str, handlers: list, use_dummy: bool) -> object:
