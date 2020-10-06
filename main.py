@@ -13,11 +13,8 @@ if __name__ == '__main__':
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
 
-# todo: add stream() to the camera, so no need to do with... each time?? maybe yield??
-
-# todo: displays images after taking. in a table - {multifilter} | {regular}
-
 # todo: make viewer - maybe in a multipage setup
+# todo: add stream() to the camera, so no need to do with... each time. Use yield to avoid __exit__
 
 # todo: add more types of cameras
 

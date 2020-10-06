@@ -9,10 +9,11 @@ from flask import Response, send_file
 from devices import initialize_device, valid_cameras_names_list
 from devices.AlliedVision.specs import CAMERAS_SPECS_DICT, CAMERAS_FEATURES_DICT
 from server.app import app, server, logger, handlers, filterwheel, cameras_dict
-from server.utils import find_files_in_savepath, save_image_to_tiff
+from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters_tags_images
 from server.utils import make_images, make_links_from_files, make_models_dropdown_options_list
 from utils.constants import SAVE_PATH
 import devices.FilterWheel.callbacks
+import dash_html_components as html
 # H_IMAGE = grabber.camera_specs.get('h')
 # W_IMAGE = grabber.camera_specs.get('w')
 
@@ -138,7 +139,17 @@ def make_downloads_list(dummy1, dummy2):
                Input('after-photo-sync-label', 'n_clicks')])
 def show_images(dummy1, dummy2):
     global image_store_dict
-    bboxs = make_images(image_store_dict)
+    if not image_store_dict:
+        return dash.no_update
+    camera_names_list = list(image_store_dict.keys())
+    multispectral_name = list(filter(lambda name:isinstance(image_store_dict[name][0],tuple), camera_names_list))[-1]
+    camera_names_list.remove(multispectral_name)
+    camera_names_list.insert(0, multispectral_name)
+    bboxs_list = []
+    for camera_name in camera_names_list:
+        filter_names_list, _, image_list = get_filters_tags_images(image_store_dict[camera_name])
+        bboxs_list.append(make_images(camera_name, image_list, filter_names_list))
+    bboxs = html.Table(html.Td(children=[*bboxs_list]))
     logger.debug('Showing download.')
     return bboxs
 
@@ -191,14 +202,19 @@ def update_devices_radiobox(*args):
 
 
 @app.callback([Output('camera-model-dropdown', 'options'),
-               Output('multispectral-camera-radioitems', 'options'),
-               Output('multispectral-camera-radioitems', 'value')],
+               Output('multispectral-camera-radioitems', 'options')],
               Input('devices-radioitems-table', 'n_clicks'))
 def update_camera_models_dropdown_list(dummy):
     device_state_list = list(map(lambda name: (name, check_device_state(name)), cameras_dict.keys()))
     dropdown_options = make_models_dropdown_options_list(device_state_list)
-    return dropdown_options, dropdown_options, dropdown_options[0]['value'] if dropdown_options else None
+    return dropdown_options, dropdown_options
 
+
+@app.callback(Output('multispectral-camera-radioitems', 'value'),
+              Input('multispectral-camera-radioitems', 'options'))
+def update_camera_models_dropdown_list(dropdown_options):
+    hyperspectral_name = dropdown_options[0]['value'] if dropdown_options else None
+    return hyperspectral_name
 
 @app.callback([Output('take-photo-button', 'disabled')],
               [Input('take-photo-button', 'n_clicks'),
@@ -232,7 +248,10 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
         global cameras_dict
         global filterwheel
         image_store_dict = dict()
-        camera_names_list = list(filter(lambda name: multispectral_camera_name not in name, cameras_dict.keys()))
+        camera_names_list = filter(lambda name: cameras_dict[name], cameras_dict.keys())
+        camera_names_list = list(filter(lambda name: multispectral_camera_name not in name, camera_names_list))
+        if not multispectral_camera_name:
+            return 1
 
         # take images for different filters
         for position in range(1, length_sequence+1):

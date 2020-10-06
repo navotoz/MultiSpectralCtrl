@@ -33,11 +33,16 @@ def get_filter_names_list(image_list: list) -> list:
     return []
 
 
-def save_image_to_tiff(image_list: list):
+def get_filters_tags_images(image_list:list)->tuple:
     filter_names_list = get_filter_names_list(image_list)
     tiff_tags = list(filter(lambda x: isinstance(x, dict), image_list))[-1]
-    image_list = filter(lambda x: isinstance(x, np.ndarray) or isinstance(x, tuple), image_list)
+    image_list = filter(lambda x: not isinstance(x, dict), image_list)
     image_list = map(lambda x: x[-1] if isinstance(x, tuple) else x, image_list)
+    return filter_names_list, tiff_tags, list(image_list)
+
+
+def save_image_to_tiff(image_list: list):
+    filter_names_list, tiff_tags, image_list = get_filters_tags_images(image_list)
     image_list = list(map(lambda image: Image.fromarray(image), image_list))
     full_path = SAVE_PATH / get_image_filename(tiff_tags, filter_names_list)
     first_image = image_list.pop(0)
@@ -86,21 +91,22 @@ def make_links_from_files(file_list: (list, tuple)) -> list:
     return [html.Li(file_download_link(filename)) for filename in file_list]
 
 
-def make_image_html(input_tuple: tuple) -> html.Div:
+def make_image_html(input_tuple: tuple) -> tuple:
     name, img = input_tuple
-    return html.Div([html.Div(name), html.Img(src=numpy_to_base64(img), style={'width': '20%'})])
+    return html.Div(name), html.Img(src=numpy_to_base64(img), style={'width': '200px'})
 
 
-def make_images(images_dict: dict) -> html.Div:
-    """
-    Creates an image inside a Div in html.
-    :param images_dict: list of download as np.ndarrays.
-    :return: html.Div containing the download.
-    """
-    if not images_dict:
+def make_images(camera_name:str, images_list:list, filter_names_list:list) -> html.Div:
+    if not images_list:
         return html.Div()
-    with Pool(len(images_dict)) as pool:
-        return html.Div(list(pool.imap(make_image_html, images_dict.items())))
+    if not filter_names_list:
+        images_list = list(map(lambda x:('0', x), images_list))
+    else:
+        images_list = list(map(lambda name, image:(name, image), filter_names_list, images_list))
+    with Pool(len(images_list)) as pool:
+        children = list(sum(pool.imap(make_image_html, images_list), ()))
+        children = html.Div([html.Div(str(camera_name))]+children)
+        return html.Td(children)
 
 
 def make_devices_names_radioitems():
