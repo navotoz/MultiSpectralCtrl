@@ -14,8 +14,9 @@ if __name__ == '__main__':
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
 
-# todo: multiple cameras - should try to run as many cameras as possible. When detecting a camera, her page becomes available.
-## "take a photo" takes a photo in all cameras at the same time.
+# todo: displays images after taking. in a table - {multifilter} | {regular}
+
+# todo: make viewer - maybe in a multipage setup
 
 # todo: change README file parsing section and all other..
 

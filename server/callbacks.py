@@ -9,10 +9,10 @@ from flask import Response, send_file
 from devices import initialize_device, valid_cameras_names_list
 from devices.AlliedVision.specs import CAMERAS_SPECS_DICT, CAMERAS_FEATURES_DICT
 from server.app import app, server, logger, handlers, filterwheel, cameras_dict
-from server.server_utils import find_files_in_savepath, save_image
-from server.server_utils import make_images, make_links_from_files, make_models_dropdown_options_list
+from server.utils import find_files_in_savepath, save_image_to_tiff
+from server.utils import make_images, make_links_from_files, make_models_dropdown_options_list
 from utils.constants import SAVE_PATH
-
+import devices.FilterWheel.callbacks
 # H_IMAGE = grabber.camera_specs.get('h')
 # W_IMAGE = grabber.camera_specs.get('w')
 
@@ -226,18 +226,29 @@ def set_image_sequence_length(image_sequence_length: int):
               [State('save-image-checkbox', 'value'),
                State('multispectral-camera-radioitems', 'value'),
                State(f"image-sequence-length", 'value')])
-def images_handler_callback(button_state, to_save: str, multispectral_camera_name: str, position_list: list):
+def images_handler_callback(button_state, to_save: str, multispectral_camera_name: str, length_sequence: int):
     if button_state:
         global image_store_dict
         global cameras_dict
         global filterwheel
+        image_store_dict = dict()
         camera_names_list = list(filter(lambda name: multispectral_camera_name not in name, cameras_dict.keys()))
-        for camera_name in camera_names_list:
-            image_store_dict[camera_name] = cameras_dict[camera_name]()
-        for position in position_list:
+
+        # take images for different filters
+        for position in range(1, length_sequence+1):
+            for camera_name in camera_names_list:  # photo with un-filtered cameras
+                image_store_dict.setdefault(camera_name, []).append(cameras_dict[camera_name]())
             filterwheel.position = position
-            image_store_dict[multispectral_camera_name] = cameras_dict[multispectral_camera_name]()
-        image_store_dict = save_image(to_save_image=True if to_save else False)
+            image = cameras_dict[multispectral_camera_name]()
+            image_store_dict.setdefault(multispectral_camera_name, []).append((filterwheel.position['name'], image))
+
+        # get specs for all cameras
+        for camera_name in camera_names_list+[multispectral_camera_name]:
+            image_store_dict.setdefault(camera_name, []).append(cameras_dict[camera_name].parse_specs_to_tiff())
+
+        # save images (if to_save)
+        for camera_name in camera_names_list + [multispectral_camera_name]:  # photo with un-filtered cameras
+            save_image_to_tiff(image_store_dict[camera_name]) if to_save else None
         logger.info("Taken an image." if 'save' not in to_save else "Saved an image.")
         return 1
     return dash.no_update

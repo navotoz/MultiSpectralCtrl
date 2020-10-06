@@ -1,7 +1,7 @@
 import dash_core_components as dcc
 import dash_html_components as html
 from devices.FilterWheel import DEFAULT_FILTER_NAMES_DICT
-from server.server_utils import make_devices_names_radioitems
+from server.utils import make_devices_names_radioitems
 
 FONT_SIZE = {'font-size': '16px'}
 OPTICS_STYLE_DICT = dict(min=0.0, type='number', style=FONT_SIZE)

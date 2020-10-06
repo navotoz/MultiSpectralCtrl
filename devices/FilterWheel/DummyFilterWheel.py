@@ -5,8 +5,8 @@ from devices.FilterWheel import FilterWheelAbstract
 
 
 class FilterWheel(FilterWheelAbstract):
-    __dummy_curr_position = 1
-    __dummy_speed = 1
+    _dummy_curr_position = 1
+    _dummy_speed = 1
 
     def __init__(self, model_name: str = 'FW102C', logging_handlers: tuple = ()):
         self._log = make_logger('DummyFilterWheel', logging_handlers)
@@ -32,8 +32,8 @@ class FilterWheel(FilterWheelAbstract):
         Returns:
             A dictionary with (number, name) for FilterWheel current position.
         """
-        pos_number = self.__dummy_curr_position
-        pos_name = self.__position_names_dict[pos_number]
+        pos_number = self._dummy_curr_position
+        pos_name = self._position_names_dict[pos_number]
         self._log.debug(f"PosNum{pos_number}_PosName{pos_name}.")
         return dict(number=pos_number, name=pos_name)
 
@@ -48,7 +48,7 @@ class FilterWheel(FilterWheelAbstract):
         """
         next_position = self.get_position_from_name(next_position) if isinstance(next_position, str) else next_position
         if self.is_position_in_limits(next_position):
-            self.__dummy_curr_position = next_position
+            self._dummy_curr_position = next_position
         else:
             self._log.warning(f'Position {next_position} is invalid.')
 
@@ -62,11 +62,11 @@ class FilterWheel(FilterWheelAbstract):
 
     @property
     def speed(self) -> int:
-        return self.__dummy_speed
+        return self._dummy_speed
 
     @speed.setter
     def speed(self, mode: str):
-        self.__dummy_speed = 0 if mode == 'slow' else 1
+        self._dummy_speed = 0 if mode == 'slow' else 1
 
     @property
     def position_count(self) -> int:

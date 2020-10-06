@@ -9,33 +9,49 @@ from urllib.parse import quote as urlquote
 from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT
 from multiprocessing.dummy import Pool
 import dash_core_components as dcc
-from devices import valid_cameras_names_list
+from devices import valid_cameras_names_list, TIFF_MODEL_NAME
+from datetime import datetime
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
 
 
-def save_image(to_save_image: bool) -> dict:
-    multi_frame_images_dict, image_tags, f_name = image_grabber()
-    if to_save_image:
-        full_path = SAVE_PATH / Path(f_name)
-        frames_keys_list = list(multi_frame_images_dict.keys())
-        frames_keys_list.sort()
-        first_key = frames_keys_list.pop()
-        multi_frame_images_dict[first_key] \
-            .save(full_path.with_suffix('.tiff'), format="tiff", tiffinfo=image_tags,
-                  append_images=list(map(lambda key: multi_frame_images_dict[key], frames_keys_list)),
-                  save_all=True, compression=None, quality=100)
-    return dict(map(lambda im: (im[0], np.array(im[1])), multi_frame_images_dict.items()))
+def get_image_filename(tiff_tags: dict, filter_names_list: list) -> Path:
+    filename = datetime.now().strftime('d20%y%m%d_h%Hm%Ms%S_')
+    filename += f"{tiff_tags.get(TIFF_MODEL_NAME, '')}"
+    if filter_names_list:
+        filename += f"_{len(filter_names_list)}Filters_"
+        filename += '_'.join(filter_names_list)
+    filename += '.tiff'
+    return Path(filename)
 
 
-def base64_to_split_numpy_image(base64_string: str, height: int, width: int) -> list:
-    buffer = b64decode(base64_string.split('base64,')[-1])
-    image_numpy = np.frombuffer(buffer, dtype='uint16')
-    image_numpy = image_numpy[len(image_numpy) % (height * width):]
-    ch = len(image_numpy) // (height * width)
-    image_numpy = image_numpy.reshape(ch, width, height)
-    return list(map(lambda im: im.squeeze(), np.split(image_numpy, image_numpy.shape[0])))
+def get_filter_names_list(image_list: list) -> list:
+    if isinstance(image_list[0], tuple):
+        lst = filter(lambda x: isinstance(x, tuple), image_list)
+        return list(map(lambda x: x[0], lst))
+    return []
+
+
+def save_image_to_tiff(image_list: list):
+    filter_names_list = get_filter_names_list(image_list)
+    tiff_tags = list(filter(lambda x: isinstance(x, dict), image_list))[-1]
+    image_list = filter(lambda x: isinstance(x, np.ndarray) or isinstance(x, tuple), image_list)
+    image_list = map(lambda x: x[-1] if isinstance(x, tuple) else x, image_list)
+    image_list = list(map(lambda image: Image.fromarray(image), image_list))
+    full_path = SAVE_PATH / get_image_filename(tiff_tags, filter_names_list)
+    first_image = image_list.pop(0)
+    first_image.save(full_path, format="tiff", tiffinfo=tiff_tags,
+                     append_images=image_list, save_all=True, compression=None, quality=100)
+
+
+# def base64_to_split_numpy_image(base64_string: str, height: int, width: int) -> list:
+#     buffer = b64decode(base64_string.split('base64,')[-1])
+#     image_numpy = np.frombuffer(buffer, dtype='uint16')
+#     image_numpy = image_numpy[len(image_numpy) % (height * width):]
+#     ch = len(image_numpy) // (height * width)
+#     image_numpy = image_numpy.reshape(ch, width, height)
+#     return list(map(lambda im: im.squeeze(), np.split(image_numpy, image_numpy.shape[0])))
 
 
 def numpy_to_base64(image: np.ndarray) -> str:
@@ -70,36 +86,21 @@ def make_links_from_files(file_list: (list, tuple)) -> list:
     return [html.Li(file_download_link(filename)) for filename in file_list]
 
 
-def make_values_dict(camera_feat_dict: dict, model_name: str) -> list:
-    init_exposure = INIT_EXPOSURE // camera_feat_dict[model_name]['exposure_increment']
-    init_exposure *= camera_feat_dict[model_name]['exposure_increment']
-    return [camera_feat_dict[model_name]['exposure_min'] + init_exposure,
-            camera_feat_dict[model_name]['exposure_min'],
-            camera_feat_dict[model_name]['exposure_max'],
-            camera_feat_dict[model_name]['exposure_increment'],
-            camera_feat_dict[model_name]['gain_min'],
-            camera_feat_dict[model_name]['gain_max'],
-            camera_feat_dict[model_name]['gain_increment'],
-            camera_feat_dict[model_name]['gamma_min'],
-            camera_feat_dict[model_name]['gamma_max'],
-            camera_feat_dict[model_name]['gamma_increment']]
-
-
 def make_image_html(input_tuple: tuple) -> html.Div:
     name, img = input_tuple
     return html.Div([html.Div(name), html.Img(src=numpy_to_base64(img), style={'width': '20%'})])
 
 
-def make_images(images: dict) -> html.Div:
+def make_images(images_dict: dict) -> html.Div:
     """
     Creates an image inside a Div in html.
-    :param images: list of download as np.ndarrays.
+    :param images_dict: list of download as np.ndarrays.
     :return: html.Div containing the download.
     """
-    if not images:
+    if not images_dict:
         return html.Div()
-    with Pool(6) as pool:
-        return html.Div(list(pool.imap(make_image_html, images.items())))
+    with Pool(len(images_dict)) as pool:
+        return html.Div(list(pool.imap(make_image_html, images_dict.items())))
 
 
 def make_devices_names_radioitems():
