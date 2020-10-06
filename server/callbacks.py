@@ -14,6 +14,7 @@ from server.utils import make_images, make_links_from_files, make_models_dropdow
 from utils.constants import SAVE_PATH
 import devices.FilterWheel.callbacks
 import dash_html_components as html
+
 # H_IMAGE = grabber.camera_specs.get('h')
 # W_IMAGE = grabber.camera_specs.get('w')
 
@@ -142,16 +143,20 @@ def show_images(dummy1, dummy2):
     if not image_store_dict:
         return dash.no_update
     camera_names_list = list(image_store_dict.keys())
-    multispectral_name = list(filter(lambda name:isinstance(image_store_dict[name][0],tuple), camera_names_list))[-1]
-    camera_names_list.remove(multispectral_name)
-    camera_names_list.insert(0, multispectral_name)
-    bboxs_list = []
-    for camera_name in camera_names_list:
-        filter_names_list, _, image_list = get_filters_tags_images(image_store_dict[camera_name])
-        bboxs_list.append(make_images(camera_name, image_list, filter_names_list))
-    bboxs = html.Table(html.Td(children=[*bboxs_list]))
+    ms_name = list(filter(lambda name: isinstance(image_store_dict[name][0], tuple), camera_names_list))[-1]
+    camera_names_list.remove(ms_name)
+    camera_names_list.insert(0, ms_name)
+    table_cells_list = [html.Tr([html.Td(name) for name in camera_names_list])]
+    num_of_filters = len(image_store_dict[ms_name]) - 1  # -1 for the spec dict in the end
+    for idx in range(num_of_filters):
+        image_list = []
+        for camera_name in camera_names_list:
+            image = image_store_dict[camera_name][idx]
+            image_list.append(image if isinstance(image, tuple) else ('0', image))
+        table_cells_list.append(make_images(image_list))
+    table = html.Table(html.Tr(children=[*table_cells_list]))
     logger.debug('Showing download.')
-    return bboxs
+    return table
 
 
 def check_device_state(name: str) -> str:
@@ -213,8 +218,9 @@ def update_camera_models_dropdown_list(dummy):
 @app.callback(Output('multispectral-camera-radioitems', 'value'),
               Input('multispectral-camera-radioitems', 'options'))
 def update_camera_models_dropdown_list(dropdown_options):
-    hyperspectral_name = dropdown_options[0]['value'] if dropdown_options else None
-    return hyperspectral_name
+    ms_name = dropdown_options[0]['value'] if dropdown_options else None
+    return ms_name
+
 
 @app.callback([Output('take-photo-button', 'disabled')],
               [Input('take-photo-button', 'n_clicks'),
@@ -254,7 +260,7 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
             return 1
 
         # take images for different filters
-        for position in range(1, length_sequence+1):
+        for position in range(1, length_sequence + 1):
             for camera_name in camera_names_list:  # photo with un-filtered cameras
                 image_store_dict.setdefault(camera_name, []).append(cameras_dict[camera_name]())
             filterwheel.position = position
@@ -262,7 +268,7 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
             image_store_dict.setdefault(multispectral_camera_name, []).append((filterwheel.position['name'], image))
 
         # get specs for all cameras
-        for camera_name in camera_names_list+[multispectral_camera_name]:
+        for camera_name in camera_names_list + [multispectral_camera_name]:
             image_store_dict.setdefault(camera_name, []).append(cameras_dict[camera_name].parse_specs_to_tiff())
 
         # save images (if to_save)

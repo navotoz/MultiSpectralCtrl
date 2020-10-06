@@ -18,6 +18,8 @@ if __name__ == '__main__':
 
 # todo: add more types of cameras
 
+# todo: fix uploads
+
 # todo: change README file parsing section and all other..
 
 # todo: add documantiation

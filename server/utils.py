@@ -11,6 +11,7 @@ from multiprocessing.dummy import Pool
 import dash_core_components as dcc
 from devices import valid_cameras_names_list, TIFF_MODEL_NAME
 from datetime import datetime
+from utils.constants import DISPLAY_IMAGE_SIZE
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
@@ -91,22 +92,14 @@ def make_links_from_files(file_list: (list, tuple)) -> list:
     return [html.Li(file_download_link(filename)) for filename in file_list]
 
 
-def make_image_html(input_tuple: tuple) -> tuple:
+def make_image_html(input_tuple: tuple) -> html.Td:
     name, img = input_tuple
-    return html.Div(name), html.Img(src=numpy_to_base64(img), style={'width': '200px'})
+    return html.Td([html.Div(name), html.Img(src=numpy_to_base64(img),style={'width': DISPLAY_IMAGE_SIZE})])
 
 
-def make_images(camera_name:str, images_list:list, filter_names_list:list) -> html.Div:
-    if not images_list:
-        return html.Div()
-    if not filter_names_list:
-        images_list = list(map(lambda x:('0', x), images_list))
-    else:
-        images_list = list(map(lambda name, image:(name, image), filter_names_list, images_list))
-    with Pool(len(images_list)) as pool:
-        children = list(sum(pool.imap(make_image_html, images_list), ()))
-        children = html.Div([html.Div(str(camera_name))]+children)
-        return html.Td(children)
+def make_images(image_list:list) -> html.Tr:
+    with Pool(len(image_list)) as pool:
+        return html.Tr(list(pool.imap(make_image_html, image_list)))
 
 
 def make_devices_names_radioitems():
