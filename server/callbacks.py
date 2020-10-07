@@ -10,9 +10,8 @@ from devices import initialize_device, valid_cameras_names_list
 from devices.AlliedVision.specs import CAMERAS_SPECS_DICT, CAMERAS_FEATURES_DICT
 from server.app import app, server, logger, handlers, filterwheel, cameras_dict
 from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters_tags_images
-from server.utils import make_images, make_links_from_files, make_models_dropdown_options_list
+from server.utils import make_images_for_web_display, make_links_from_files, make_models_dropdown_options_list
 from utils.constants import SAVE_PATH
-import devices.FilterWheel.callbacks
 import dash_html_components as html
 
 # H_IMAGE = grabber.camera_specs.get('h')
@@ -153,7 +152,7 @@ def show_images(dummy1, dummy2):
         for camera_name in camera_names_list:
             image = image_store_dict[camera_name][idx]
             image_list.append(image if isinstance(image, tuple) else ('0', image))
-        table_cells_list.append(make_images(image_list))
+        table_cells_list.append(make_images_for_web_display(image_list))
     table = html.Table(html.Tr(children=[*table_cells_list]))
     logger.debug('Showing download.')
     return table
@@ -278,6 +277,8 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
         return 1
     return dash.no_update
 
+
+
 # @app.callback(Output('file-list', 'n_clicks'),
 #               [Input('upload-img-button', 'contents')],
 #               [State('upload-img-button', 'filename')])
@@ -294,3 +295,46 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
 #         image_store_dict = {key: val for key, val in zip(filters_names, image)}
 #         logger.info(f"Uploaded {len(image_store_dict.keys())} frames.")
 #     return 1
+
+
+
+
+@app.callback(Output('use-real-filterwheel-midstep', 'children'),
+              Input('use-real-filterwheel', 'value'),
+              State('use-real-filterwheel-midstep', 'children'))
+def get_real_filterwheel_midstep(value, next_value):
+    if value and isinstance(value, list) or isinstance(value, tuple):
+        value = value[0]
+    if value == next_value:
+        return dash.no_update
+    return value
+
+
+@app.callback([Output('use-real-filterwheel', 'value'), ],
+              Input('use-real-filterwheel-midstep', 'children'))
+def get_real_filterwheel(value: str):
+    global filterwheel
+    if not value:  # use the dummy
+        if not filterwheel.is_dummy:
+            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
+        return (),
+    else:  # use the real FilterWheel
+        try:
+            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=False)
+        except RuntimeError:
+            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
+            return [],
+        return [value],
+
+
+@app.callback(Output('filter-names-label', 'n_clicks'),
+              [Input('image-sequence-length-label', 'n_clicks')]+
+              [Input(f"filter-{idx}", 'n_submit') for idx in range(1, filterwheel.position_count + 1)] +
+              [Input(f"filter-{idx}", 'n_blur') for idx in range(1, filterwheel.position_count + 1)],
+              [State(f"filter-{idx}", 'value') for idx in range(1, filterwheel.position_count + 1)])
+def change_filter_names(*args):
+    global filterwheel
+    position_names_dict = dict(zip(range(1, filterwheel.position_count + 1), args[-filterwheel.position_count:]))
+    if filterwheel.position_names_dict != position_names_dict:
+        filterwheel.position_names_dict = position_names_dict
+    return 1

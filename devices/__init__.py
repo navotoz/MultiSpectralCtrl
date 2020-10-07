@@ -32,6 +32,7 @@ class CameraAbstract:
         self.__gain: float = 0.0
         self.__exposure_time: float = 5000.
         self.__exposure_auto: str = 'Off'
+        self.__flag_stream = False
 
     @property
     @abstractmethod
@@ -40,6 +41,10 @@ class CameraAbstract:
 
     @abstractmethod
     def __call__(self) -> Image:
+        pass
+
+    @abstractmethod
+    def stream(self):
         pass
 
     @property
@@ -56,6 +61,14 @@ class CameraAbstract:
             return
         self.__focal_length = float(focal_length_to_set)
         self._log.debug(f"Set focal length to {focal_length_to_set}mm.")
+
+    @property
+    def flag_stream(self)->bool:
+        return self.__flag_stream
+
+    @flag_stream.setter
+    def flag_stream(self, mode:bool):
+        self.__flag_stream = mode
 
     @property
     def f_number(self) -> float:

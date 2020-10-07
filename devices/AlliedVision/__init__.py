@@ -22,7 +22,6 @@ def get_camera_features_dict(cam):
 
 
 def get_alliedvision_camera_model_name(camera):
-    with camera as cam:
-        model = cam.get_model()
-        model = ''.join(map(lambda x: x.lower().capitalize(), model.replace(' ', '-').split('-')))
-        return model
+    model = camera.get_model()
+    model = ''.join(map(lambda x: x.lower().capitalize(), model.replace(' ', '-').split('-')))
+    return model

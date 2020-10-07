@@ -6,12 +6,11 @@ from base64 import b64encode, b64decode
 from io import BytesIO
 import dash_html_components as html
 from urllib.parse import quote as urlquote
-from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT
+from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT, DISPLAY_IMAGE_SIZE
 from multiprocessing.dummy import Pool
 import dash_core_components as dcc
 from devices import valid_cameras_names_list, TIFF_MODEL_NAME
 from datetime import datetime
-from utils.constants import DISPLAY_IMAGE_SIZE
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
@@ -34,7 +33,7 @@ def get_filter_names_list(image_list: list) -> list:
     return []
 
 
-def get_filters_tags_images(image_list:list)->tuple:
+def get_filters_tags_images(image_list: list) -> tuple:
     filter_names_list = get_filter_names_list(image_list)
     tiff_tags = list(filter(lambda x: isinstance(x, dict), image_list))[-1]
     image_list = filter(lambda x: not isinstance(x, dict), image_list)
@@ -60,15 +59,15 @@ def save_image_to_tiff(image_list: list):
 #     return list(map(lambda im: im.squeeze(), np.split(image_numpy, image_numpy.shape[0])))
 
 
-def numpy_to_base64(image: np.ndarray) -> str:
-    image_ = image.astype('float32').copy()
+def numpy_to_base64(image_: np.ndarray) -> bytes:
     image_ -= np.amin(image_)
     image_ = image_ / np.amax(image_)
     image_ *= 255
     image_ = image_.astype('uint8')
     image_bytes = BytesIO()
-    Image.fromarray(image_).save(image_bytes, 'PNG')
-    return f"data:image/png;base64,{b64encode(image_bytes.getvalue()).decode('utf-8'):s}"
+    Image.fromarray(image_).save(image_bytes, 'jpeg')
+    return image_bytes.getvalue()
+    # return f"data:image/png;base64,{b64encode(image_bytes.getvalue()).decode('utf-8'):s}"
 
 
 def file_download_link(filename):
@@ -93,11 +92,12 @@ def make_links_from_files(file_list: (list, tuple)) -> list:
 
 
 def make_image_html(input_tuple: tuple) -> html.Td:
-    name, img = input_tuple
-    return html.Td([html.Div(name), html.Img(src=numpy_to_base64(img),style={'width': DISPLAY_IMAGE_SIZE})])
+    name, image = input_tuple
+    img = f"data:image/jpeg;base64,{b64encode(numpy_to_base64(image)).decode('utf-8'):s}"
+    return html.Td([html.Div(name), html.Img(src=img, style={'width': DISPLAY_IMAGE_SIZE})])
 
 
-def make_images(image_list:list) -> html.Tr:
+def make_images_for_web_display(image_list: list) -> html.Tr:
     with Pool(len(image_list)) as pool:
         return html.Tr(list(pool.imap(make_image_html, image_list)))
 
@@ -120,3 +120,10 @@ def make_devices_names_radioitems():
 
 def make_models_dropdown_options_list(camera_state_list: list):
     return [{'label': name, 'value': name} for name, state in camera_state_list if 'none' not in state]
+
+
+def list_server_routes(server):
+    routes = []
+    for rule in server.url_map.iter_rules():
+        routes.append('%s' % rule)
+    return routes

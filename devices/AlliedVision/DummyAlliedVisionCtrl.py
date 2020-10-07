@@ -1,12 +1,14 @@
+from PIL import Image
+from base64 import b64encode, b64decode
+from io import BytesIO
+
 import numpy as np
 import random
 from utils.constants import FAILURE_PROBABILITY_IN_DUMMIES
-from typing import Dict
 from utils.logger import make_logger
-from PIL import Image
 from devices import CameraAbstract
 from devices.AlliedVision.specs import *
-from vimba import Vimba
+from server.utils import numpy_to_base64
 
 
 class AlliedVisionCtrl(CameraAbstract):
@@ -23,9 +25,21 @@ class AlliedVisionCtrl(CameraAbstract):
         self.f_number = CAMERAS_SPECS_DICT[self.model_name].get('f_number', -1)
         self._log.info(f"Initialized Dummy {self.model_name} AlliedVision cameras.")
 
+    def __del__(self):
+        pass
+
     @property
     def is_dummy(self):
         return True
+
+    def stream(self):
+        h, w = CAMERAS_SPECS_DICT[self.model_name]['h'], CAMERAS_SPECS_DICT[self.model_name]['w']
+        while True:
+            if not self.flag_stream:
+                yield b''
+            else:
+                while self.flag_stream:
+                    yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + numpy_to_base64(np.random.rand(w,h)) + b'\r\n'
 
     def __call__(self):
         h, w = CAMERAS_SPECS_DICT[self.model_name]['h'], CAMERAS_SPECS_DICT[self.model_name]['w']

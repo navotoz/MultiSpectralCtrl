@@ -5,7 +5,10 @@ from server.utils import make_devices_names_radioitems
 
 FONT_SIZE = {'font-size': '16px'}
 OPTICS_STYLE_DICT = dict(min=0.0, type='number', style=FONT_SIZE)
-main_layout = html.Div([
+main_layout = [
+    dcc.Link('Camera Viewer', href='/viewer'),
+    html.Hr(),
+
     html.Div([html.Div(id='use-real-filterwheel-midstep', hidden=True, children=None),
               dcc.Checklist(id='use-real-filterwheel',
                             options=[{'label': 'Real FilterWheel', 'value': 'real_filterwheel'}],
@@ -67,4 +70,4 @@ main_layout = html.Div([
                             id='upload-img-button'))])),
     html.Ul(id='file-list'),
     html.Div(id='after-photo-sync-label', hidden=True),
-    html.Div(children=[], id='imgs')], id='page-content')
+    html.Div(children=[], id='imgs')]

@@ -1,8 +1,34 @@
+import dash
 from server.layouts import main_layout
-from server.app import app
+from server.app import app, cameras_dict
 import server.callbacks
+import dash_core_components as dcc
+import dash_html_components as html
+from dash.dependencies import Input, Output, State
+from server.viewer import make_viewers
 
-app.layout = main_layout
+app.layout = html.Div([dcc.Location(id='url', refresh=False), html.Div(id='page-content')])
+layout = main_layout
+
+
+@app.callback(Output('page-content', 'children'),
+              Input('url', 'pathname'),
+              State('page-content', 'children'))
+def display_page(pathname, current_layout):
+    global layout
+    global cameras_dict
+    if pathname == '/':
+        for name in cameras_dict.keys():
+            try:
+                cameras_dict[name].flag_stream = False
+            except (AttributeError, KeyError):
+                pass
+        return layout
+    elif pathname == '/viewer':
+        layout = current_layout
+        return make_viewers()
+    else:
+        return dash.no_update
 
 
 if __name__ == '__main__':
@@ -12,9 +38,6 @@ if __name__ == '__main__':
     app.logger.disabled = True
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
-
-# todo: make viewer - maybe in a multipage setup
-# todo: add stream() to the camera, so no need to do with... each time. Use yield to avoid __exit__
 
 # todo: add more types of cameras
 
