@@ -5,7 +5,7 @@ import server.callbacks
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
-from server.viewer import make_viewers
+from server.viewer import make_viewers, streamers_dict
 
 app.layout = html.Div([dcc.Location(id='url', refresh=False), html.Div(id='page-content')])
 layout = main_layout
@@ -20,7 +20,7 @@ def display_page(pathname, current_layout):
     if pathname == '/':
         for name in cameras_dict.keys():
             try:
-                cameras_dict[name].flag_stream = False
+                streamers_dict[name].flag_stream = False
             except (AttributeError, KeyError):
                 pass
         return layout
@@ -38,8 +38,6 @@ if __name__ == '__main__':
     app.logger.disabled = True
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
-
-# todo: add more types of cameras
 
 # todo: fix uploads
 

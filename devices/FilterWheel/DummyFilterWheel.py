@@ -21,7 +21,7 @@ class FilterWheel(FilterWheelAbstract):
         self._log.info("Using DummyFilterWheel")
 
     @property
-    def is_dummy(self)->bool:
+    def is_dummy(self) -> bool:
         return True
 
     @property

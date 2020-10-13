@@ -2,11 +2,21 @@ from functools import partial
 from logging import Logger
 from importlib import import_module
 from abc import abstractmethod
-from devices.AlliedVision.specs import *
 from devices.AlliedVision import init_alliedvision_camera
+from devices.IDS import init_ids_camera
 from PIL.Image import Image
 
-valid_cameras_names_list = [*ALLIEDVISION_VALID_MODEL_NAMES]# todo: add other cameras to the list here...
+ALLIEDVISION_VALID_MODEL_NAMES = import_module(f"devices.AlliedVision", f"AlliedVision").get_specs_dict().keys()
+IDS_VALID_MODEL_NAMES = import_module(f"devices.IDS", f"IDS").get_specs_dict().keys()
+FEATURES_DICT = {**import_module(f"devices.AlliedVision", f"AlliedVision").get_features_dict(),
+                 **import_module(f"devices.IDS", f"IDS").get_features_dict()}
+SPECS_DICT = {**import_module(f"devices.AlliedVision", f"AlliedVision").get_specs_dict(),
+              **import_module(f"devices.IDS", f"IDS").get_specs_dict()}
+valid_cameras_names_list = [*ALLIEDVISION_VALID_MODEL_NAMES,
+                            *IDS_VALID_MODEL_NAMES]
+
+
+# todo: add other cameras to the list here...
 
 
 def initialize_device(element_name: str, handlers: list, use_dummy: bool) -> object:
@@ -16,10 +26,21 @@ def initialize_device(element_name: str, handlers: list, use_dummy: bool) -> obj
     else:
         if element_name in ALLIEDVISION_VALID_MODEL_NAMES:
             m = partial(init_alliedvision_camera, model_name=element_name, use_dummy=use_dummy)
+        elif element_name in IDS_VALID_MODEL_NAMES:
+            m = partial(init_ids_camera, model_name=element_name, use_dummy=use_dummy)
         # todo: add other cameras...
         else:
             raise TypeError(f"{element_name} was not implemented as a module.")
     return m(logging_handlers=handlers)
+
+
+def get_camera_model_name(camera):
+    if not isinstance(camera, str):
+        model = camera.get_model()
+    else:
+        model = camera
+    model = ''.join(map(lambda x: x.lower().capitalize(), model.replace(' ', '-').split('-')))
+    return model
 
 
 class CameraAbstract:
@@ -32,7 +53,6 @@ class CameraAbstract:
         self.__gain: float = 0.0
         self.__exposure_time: float = 5000.
         self.__exposure_auto: str = 'Off'
-        self.__flag_stream = False
 
     @property
     @abstractmethod
@@ -41,10 +61,6 @@ class CameraAbstract:
 
     @abstractmethod
     def __call__(self) -> Image:
-        pass
-
-    @abstractmethod
-    def stream(self):
         pass
 
     @property
@@ -61,14 +77,6 @@ class CameraAbstract:
             return
         self.__focal_length = float(focal_length_to_set)
         self._log.debug(f"Set focal length to {focal_length_to_set}mm.")
-
-    @property
-    def flag_stream(self)->bool:
-        return self.__flag_stream
-
-    @flag_stream.setter
-    def flag_stream(self, mode:bool):
-        self.__flag_stream = mode
 
     @property
     def f_number(self) -> float:
@@ -120,7 +128,7 @@ class CameraAbstract:
 
     @exposure_auto.setter
     def exposure_auto(self, mode: (str, bool)):
-        if not CAMERAS_FEATURES_DICT[self.model_name].get('autoexposure', True):
+        if not FEATURES_DICT[self.model_name].get('autoexposure', True):
             self.__exposure_auto = None
             return
         if isinstance(mode, str):
@@ -137,15 +145,16 @@ class CameraAbstract:
         :return: dict - keys are the TIFF TAGS and values are respective values.
         """
         return dict(((TIFF_MODEL_NAME, f"{self.model_name}"),
-                     (258, f"{CAMERAS_SPECS_DICT[self.model_name].get('bit_depth', '12')}"),
+                     (258, f"{SPECS_DICT[self.model_name].get('bit_depth', '12')}"),
                      (TIFF_EXPOSURE_TIME, f"{self.exposure_time}"),
                      (TIFF_GAIN, f"{self.gain}"),
                      (TIFF_FOCAL_LENGTH, f"{self.focal_length}"),
                      (TIFF_F_NUMBER, f"{self.f_number}"),
-                     (37500, f"PixelPitch{CAMERAS_SPECS_DICT[self.model_name].get('pixel_size', 0.00345)};"
-                             f"SensorHeight{CAMERAS_SPECS_DICT[self.model_name].get('sensor_size_h', 14.2)};"
-                             f"SensorWidth{CAMERAS_SPECS_DICT[self.model_name].get('sensor_size_w', 10.4)};"
-                             f"SensorDiagonal{CAMERAS_SPECS_DICT[self.model_name].get('sensor_size_diag', 17.6)};")))
+                     (37500, f"PixelPitch{SPECS_DICT[self.model_name].get('pixel_size', 0.00345)};"
+                             f"SensorHeight{SPECS_DICT[self.model_name].get('sensor_size_h', 14.2)};"
+                             f"SensorWidth{SPECS_DICT[self.model_name].get('sensor_size_w', 10.4)};"
+                             f"SensorDiagonal{SPECS_DICT[self.model_name].get('sensor_size_diag', 17.6)};")))
+
 
 TIFF_MODEL_NAME = 272
 TIFF_EXPOSURE_TIME = 33434

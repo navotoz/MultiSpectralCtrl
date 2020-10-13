@@ -37,7 +37,6 @@ class FilterWheel(FilterWheelAbstract):
         super().__init__(self._conn, self._log)
         self.__set_sensor_mode_to_off()
 
-
     def __send(self, command: bytes):
         self._conn.write(command + b'\r')
 

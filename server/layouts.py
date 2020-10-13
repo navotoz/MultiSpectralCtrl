@@ -29,7 +29,7 @@ main_layout = [
 
     html.Table([
         html.Tr([html.Td([html.Div(id='focal-length-label', children='Focal Length [mm]'),
-                          dcc.Input(id="focal-length",placeholder="Focal Length",
+                          dcc.Input(id="focal-length", placeholder="Focal Length",
                                     value=0, **OPTICS_STYLE_DICT)]),
                  html.Td([html.Div(children='F#'),
                           dcc.Input(id="f-number", placeholder="F#",
@@ -37,7 +37,7 @@ main_layout = [
     html.Hr(),
 
     html.Div(id='exposure-label', children='Exposure Time [micro sec]'),
-    dcc.RadioItems(id='exposure-type-radio',value='manual',
+    dcc.RadioItems(id='exposure-type-radio', value='manual',
                    options=[{'label': 'Manual', 'value': 'manual'}, {'label': 'Auto', 'value': 'auto'}]),
     dcc.Input(id="exposure-time", type='number', placeholder="Exposure Time", value=5000.0, style=FONT_SIZE),
     html.Hr(),

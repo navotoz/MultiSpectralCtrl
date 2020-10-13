@@ -4,8 +4,7 @@ from vimba import Vimba, MONO_PIXEL_FORMATS
 from vimba.error import VimbaTimeout, VimbaFeatureError
 from PIL import Image
 from devices import CameraAbstract
-from devices.AlliedVision.specs import *
-from devices.AlliedVision import get_alliedvision_camera_model_name
+from devices import SPECS_DICT, get_camera_model_name
 from server.utils import numpy_to_base64
 
 ERR_MSG = 'AlliedVision cameras were not detected. Check if cameras are connected to USB3 via USB3 cable.'
@@ -16,20 +15,22 @@ class AlliedVisionCtrl(CameraAbstract):
         self._vimba = Vimba.get_instance()
         with self._vimba:
             camera_list = self._vimba.get_all_cameras()
-            func = lambda x: model_name and model_name in get_alliedvision_camera_model_name(x)
+            func = lambda x: model_name and model_name in get_camera_model_name(x)
             camera_list = list(filter(func, list(camera_list)))
             if not camera_list:
                 raise RuntimeError(ERR_MSG)
             self._camera = camera_list[0]
-            self._model_name = get_alliedvision_camera_model_name(self._camera)
+            self._model_name = get_camera_model_name(self._camera)
             self._log = make_logger(f"{self._model_name}", handlers=logging_handlers)
             super().__init__(self._model_name, self._log)
             with self._camera:
-                self._camera.AcquisitionMode.set(0) if int(self._camera.AcquisitionMode.get()) != 0 else None  # single image
+                self._camera.AcquisitionMode.set(0) if int(
+                    self._camera.AcquisitionMode.get()) != 0 else None  # single image
                 pix_format_max = self._camera.get_pixel_formats()[-1]
-                self._camera.set_pixel_format(pix_format_max) if self._camera.get_pixel_format() != pix_format_max else None
-        self.focal_length = CAMERAS_SPECS_DICT[self.model_name].get('focal_length', -1)
-        self.f_number = CAMERAS_SPECS_DICT[self.model_name].get('f_number', -1)
+                self._camera.set_pixel_format(
+                    pix_format_max) if self._camera.get_pixel_format() != pix_format_max else None
+        self.focal_length = SPECS_DICT[self.model_name].get('focal_length', -1)
+        self.f_number = SPECS_DICT[self.model_name].get('f_number', -1)
         self._log.info(f"Initialized {self.model_name} AlliedVision cameras.")
 
     @property
@@ -44,17 +45,6 @@ class AlliedVisionCtrl(CameraAbstract):
             raise TimeoutError(f"Camera timed out. Maybe try to reconnect it.")
         frame.convert_pixel_format(MONO_PIXEL_FORMATS[7])
         return frame.as_numpy_ndarray().squeeze()
-
-    def stream(self):
-        while True:
-            if not self.flag_stream:
-                yield b''
-            else:
-                with self._vimba:
-                    with self._camera:
-                        while self.flag_stream:
-                            image = numpy_to_base64(self.__take_image())
-                            yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
 
     def __call__(self) -> Image.Image:
         with self._vimba:

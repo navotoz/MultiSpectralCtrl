@@ -2,11 +2,11 @@ import os
 from pathlib import Path
 import numpy as np
 from PIL import Image
-from base64 import b64encode, b64decode
+from base64 import b64encode
 from io import BytesIO
 import dash_html_components as html
 from urllib.parse import quote as urlquote
-from utils.constants import INIT_EXPOSURE, SAVE_PATH, IMAGE_FORMAT, DISPLAY_IMAGE_SIZE
+from utils.constants import SAVE_PATH, IMAGE_FORMAT, DISPLAY_IMAGE_SIZE
 from multiprocessing.dummy import Pool
 import dash_core_components as dcc
 from devices import valid_cameras_names_list, TIFF_MODEL_NAME
@@ -59,7 +59,9 @@ def save_image_to_tiff(image_list: list):
 #     return list(map(lambda im: im.squeeze(), np.split(image_numpy, image_numpy.shape[0])))
 
 
-def numpy_to_base64(image_: np.ndarray) -> bytes:
+def numpy_to_base64(image_: (np.ndarray, Image.Image)) -> bytes:
+    if isinstance(image_, Image.Image):
+        image_ = np.array(image_)
     image_ -= np.amin(image_)
     image_ = image_ / np.amax(image_)
     image_ *= 255

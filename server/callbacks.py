@@ -7,7 +7,7 @@ from dash.dependencies import Input, Output, State
 from flask import Response, send_file
 
 from devices import initialize_device, valid_cameras_names_list
-from devices.AlliedVision.specs import CAMERAS_SPECS_DICT, CAMERAS_FEATURES_DICT
+from devices import SPECS_DICT, FEATURES_DICT
 from server.app import app, server, logger, handlers, filterwheel, cameras_dict
 from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters_tags_images
 from server.utils import make_images_for_web_display, make_links_from_files, make_models_dropdown_options_list
@@ -36,8 +36,8 @@ def download(path: (str, Path)) -> Response:
 def update_optical_values(camera_model_name: str):
     if not camera_model_name:
         return dash.no_update
-    return CAMERAS_SPECS_DICT[camera_model_name].get('focal_length', 0), \
-           CAMERAS_SPECS_DICT[camera_model_name].get('f_number', 0)
+    return SPECS_DICT[camera_model_name].get('focal_length', 0), \
+           SPECS_DICT[camera_model_name].get('f_number', 0)
 
 
 @app.callback([Output('exposure-type-radio', 'options'),
@@ -49,12 +49,12 @@ def update_exposure(camera_model_name: str):
     if not camera_model_name:
         return dash.no_update
     exposure_options_list = [{'label': 'Manual', 'value': 'manual'}]
-    if CAMERAS_FEATURES_DICT[camera_model_name].get('autoexposure', False):
+    if FEATURES_DICT[camera_model_name].get('autoexposure', False):
         exposure_options_list.append({'label': 'Auto', 'value': 'auto'})
     return exposure_options_list, \
-           CAMERAS_FEATURES_DICT[camera_model_name].get('exposure_min'), \
-           CAMERAS_FEATURES_DICT[camera_model_name].get('exposure_max'), \
-           CAMERAS_FEATURES_DICT[camera_model_name].get('exposure_increment')
+           FEATURES_DICT[camera_model_name].get('exposure_min'), \
+           FEATURES_DICT[camera_model_name].get('exposure_max'), \
+           FEATURES_DICT[camera_model_name].get('exposure_increment')
 
 
 @app.callback([Output('gain', 'min'),
@@ -67,12 +67,12 @@ def update_exposure(camera_model_name: str):
 def update_gain_gamma(camera_model_name: str):
     if not camera_model_name:
         return dash.no_update
-    return CAMERAS_FEATURES_DICT[camera_model_name].get('gain_min'), \
-           CAMERAS_FEATURES_DICT[camera_model_name].get('gain_max'), \
-           CAMERAS_FEATURES_DICT[camera_model_name].get('gain_increment'), \
-           CAMERAS_FEATURES_DICT[camera_model_name].get('gamma_min'), \
-           CAMERAS_FEATURES_DICT[camera_model_name].get('gamma_max'), \
-           CAMERAS_FEATURES_DICT[camera_model_name].get('gamma_increment')
+    return FEATURES_DICT[camera_model_name].get('gain_min'), \
+           FEATURES_DICT[camera_model_name].get('gain_max'), \
+           FEATURES_DICT[camera_model_name].get('gain_increment'), \
+           FEATURES_DICT[camera_model_name].get('gamma_min'), \
+           FEATURES_DICT[camera_model_name].get('gamma_max'), \
+           FEATURES_DICT[camera_model_name].get('gamma_increment')
 
 
 @app.callback(Output('exposure-time', 'disabled'),
