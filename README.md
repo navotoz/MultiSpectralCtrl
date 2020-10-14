@@ -21,7 +21,13 @@ The relevant version for the RaspberriPi4 is ARM.
     - An installation guide is available under _utils_ directory.
 4. After running `[InstallDir]/Vimba_x_x/VimbaUSBTL`, go to `VimbaPython/Source`.
 5. In `VimbaPython/Source`, using the pip *in the environment you use* run `pip install .`.
-  
+ 
+
+## Finding the RaspberryPi in the network ##
+Type in the terminal `nslookip hyperspectralpi` and write down the resultant IP address.
+
+Notice - the addresses update slowly.
+
 ## Usage ##
 #### Test mode ####
 - To use a dummy *Camera*: in the file `main.py`, when calling the function `get_alliedvision_grabber`,
