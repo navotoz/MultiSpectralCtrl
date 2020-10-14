@@ -28,7 +28,6 @@ __status__ = "Development"
 
 from pyueye import ueye
 from threading import Thread
-from PyQt5 import QtWidgets, QtGui
 import cv2
 
 error_codes = {ueye.IS_INVALID_EXPOSURE_TIME: "Invalid exposure time",

@@ -28,7 +28,7 @@ __status__ = "Development"
 
 from pyueye import ueye
 from threading import Thread
-from .utils import ImageData, ImageBuffer
+from .utils import ImageBuffer
 import cv2
 
 
