@@ -4,7 +4,7 @@ from devices import CameraAbstract, get_camera_model_name
 from devices import SPECS_DICT
 from server.utils import numpy_to_base64
 from pyueye import ueye
-from pypyueye import Camera
+from devices.IDS.pypyueye import Camera
 
 
 class IDSCtrl(CameraAbstract):

@@ -32,7 +32,7 @@ def download(path: (str, Path)) -> Response:
 
 
 @app.callback([Output('focal-length', 'value'), Output('f-number', 'value')],
-              Input('camera-model-dropdown', 'value'))
+              [Input('camera-model-dropdown', 'value')])
 def update_optical_values(camera_model_name: str):
     if not camera_model_name:
         return dash.no_update
@@ -43,8 +43,8 @@ def update_optical_values(camera_model_name: str):
 @app.callback([Output('exposure-type-radio', 'options'),
                Output('exposure-time', 'min'),
                Output('exposure-time', 'max'),
-               Output('exposure-time', 'increment')],
-              Input('camera-model-dropdown', 'value'))
+               Output('exposure-time', 'step')],
+              [Input('camera-model-dropdown', 'value')])
 def update_exposure(camera_model_name: str):
     if not camera_model_name:
         return dash.no_update
@@ -59,11 +59,11 @@ def update_exposure(camera_model_name: str):
 
 @app.callback([Output('gain', 'min'),
                Output('gain', 'max'),
-               Output('gain', 'increment'),
+               Output('gain', 'step'),
                Output('gamma', 'min'),
                Output('gamma', 'max'),
-               Output('gamma', 'increment')],
-              Input('camera-model-dropdown', 'value'))
+               Output('gamma', 'step')],
+              [Input('camera-model-dropdown', 'value')])
 def update_gain_gamma(camera_model_name: str):
     if not camera_model_name:
         return dash.no_update
@@ -93,7 +93,7 @@ def set_auto_exposure(exposure_type, camera_model_name):
                Output('gamma', 'disabled'),
                Output('focal-length', 'disabled'),
                Output('f-number', 'disabled')],
-              Input('camera-model-dropdown', 'value'))
+              [Input('camera-model-dropdown', 'value')])
 def set_disabled_to_camera_values(camera_model_name):
     if not camera_model_name:
         return [True] * len(dash.callback_context.outputs_list)
@@ -297,8 +297,6 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
 #     return 1
 
 
-
-
 @app.callback(Output('use-real-filterwheel-midstep', 'children'),
               Input('use-real-filterwheel', 'value'),
               State('use-real-filterwheel-midstep', 'children'))
@@ -311,7 +309,7 @@ def get_real_filterwheel_midstep(value, next_value):
 
 
 @app.callback([Output('use-real-filterwheel', 'value'), ],
-              Input('use-real-filterwheel-midstep', 'children'))
+              [Input('use-real-filterwheel-midstep', 'children')])
 def get_real_filterwheel(value: str):
     global filterwheel
     if not value:  # use the dummy

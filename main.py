@@ -1,14 +1,15 @@
 import dash
 from server.layouts import main_layout
 from server.app import app, cameras_dict
-import server.callbacks
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 from server.viewer import make_viewers, streamers_dict
 
-app.layout = html.Div([dcc.Location(id='url', refresh=False), html.Div(id='page-content')])
+app.layout = html.Div([dcc.Location(id='url', refresh=False),
+                       html.Div(id='page-content', children=main_layout)])
 layout = main_layout
+import server.callbacks
 
 
 @app.callback(Output('page-content', 'children'),
