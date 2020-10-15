@@ -182,13 +182,13 @@ def change_camera_status(*args):
     if states_equal:
         return dash.no_update
     for name, state in radioitems_states:
-        if 'none' in state:
+        if 'none' in state and check_device_state(name)!='none':
             if cameras_dict[name] and name in dash.callback_context.triggered[0]['prop_id']:
                 logger.info(f'{name} camera is not used.')
             cameras_dict[name] = None
-        elif 'dummy' in state and (not cameras_dict[name] or check_device_state(name)):
+        elif 'dummy' in state and (not cameras_dict[name] or check_device_state(name)!='dummy'):
             cameras_dict[name] = initialize_device(name, handlers, use_dummy=True)
-        elif 'real' in state:
+        elif 'real' in state and (not cameras_dict[name] or check_device_state(name)!='real'):
             try:
                 cameras_dict[name] = initialize_device(name, handlers, use_dummy=False)
             except RuntimeError:

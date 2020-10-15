@@ -6,7 +6,7 @@ from server.utils import make_devices_names_radioitems
 FONT_SIZE = {'font-size': '16px'}
 OPTICS_STYLE_DICT = dict(min=0.0, type='number', style=FONT_SIZE)
 main_layout = [
-    dcc.Link('Camera Viewer', href='/viewer'),
+    dcc.Link('Camera Viewer', href='/viewer', target='_blank'),
     html.Hr(),
 
     html.Div([html.Div(id='use-real-filterwheel-midstep', hidden=True, children=None),

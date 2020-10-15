@@ -115,7 +115,7 @@ def make_devices_names_radioitems():
                                options=[{'label': 'Real', 'value': 'real'},
                                         {'label': 'Dummy', 'value': 'dummy'},
                                         {'label': 'None', 'value': 'none'}],
-                               value='dummy',
+                               value='none',
                                labelStyle={'font-size': '20px', 'display': 'block'})], style=TAB_STYLE))
     return html.Table([html.Tr(tr_list)], style=TAB_STYLE, id='devices-radioitems-table')
 

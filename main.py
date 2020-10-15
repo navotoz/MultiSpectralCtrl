@@ -19,11 +19,9 @@ def display_page(pathname, current_layout):
     global layout
     global cameras_dict
     if pathname == '/':
-        for name in cameras_dict.keys():
-            try:
-                streamers_dict[name].flag_stream = False
-            except (AttributeError, KeyError):
-                pass
+        for name in streamers_dict.keys():
+            streamers_dict[name].flag_stream = False
+            streamers_dict[name].camera = None
         return layout
     elif pathname == '/viewer':
         layout = current_layout

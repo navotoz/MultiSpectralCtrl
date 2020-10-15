@@ -42,6 +42,7 @@ class IDSCtrl(CameraAbstract):
             cam.set_exposure_auto(0 if 'Off' in self.exposure_auto else 1)
             if cam.get_exposure() != self.exposure_time:
                 cam.set_exposure(self.exposure_time) if self.exposure_time is not None else None
+            print(self.exposure_time)
 
             cam.set_colormode(ueye.IS_CM_MONO8)  # todo: is this the only relevant colormode?
 
