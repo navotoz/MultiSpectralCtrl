@@ -37,6 +37,7 @@ if __name__ == '__main__':
     app.logger.disabled = True
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
+# todo: add fps measure in viewer window
 
 # todo: fix uploads
 

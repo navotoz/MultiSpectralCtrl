@@ -1,16 +1,14 @@
-# from flask import Response, url_for
-# import dash_html_components as html
-# import dash_core_components as dcc
-# from utils.constants import DISPLAY_IMAGE_SIZE
-# from server.app import server, cameras_dict
-# from server.utils import numpy_to_base64
-# import numpy as np
-# from devices import valid_cameras_names_list
+from flask import Response, url_for
+import dash_html_components as html
+from utils.constants import DISPLAY_IMAGE_SIZE
+from server.app import server, cameras_dict
+from server.utils import numpy_to_base64
 
-
-
-from threading import Thread, Semaphore
+from threading import Thread
 from collections import deque
+from collections.abc import Generator
+
+
 class ThreadedGenerator(object):
     """
     Generator that runs on a separate thread, returning values to calling
@@ -18,85 +16,62 @@ class ThreadedGenerator(object):
     variables referenced in the calling thread.
     """
 
-    def __init__(self, iterator, sentinel=object(), queue_maxsize=1, daemon=False, Thread=Thread, Queue=deque):
-        self._iterator = iterator
-        self._sentinel = sentinel
-        self._queue = Queue(maxlen=queue_maxsize)
+    def __init__(self, camera_name:(str,None)):
+        self._camera_name = camera_name
+        self._iterator = CameraIterator(None)
+        self._queue = deque(maxlen=1)
         self._queue.append(b'')
-        self._thread = Thread(name=repr(iterator), target=self._run      )
-        self._thread.daemon = daemon
-
-    def __repr__(self):
-        return 'ThreadedGenerator({!r})'.format(self._iterator)
+        self._thread = None
 
     def _run(self):
-        try:
-            self._queue.append(self._iterator())
-        finally:
-            self._queue.append(self._sentinel)
+        self._queue.append(self._iterator)
 
-    def __iter__(self):
+    def __call__(self):
+        self._iterator.camera = cameras_dict[self._camera_name] if self._camera_name else None
+        self._thread = Thread(target=self._run, daemon=True)
         self._thread.start()
-        for value in iter(self._queue.pop(), self._sentinel):
+        for value in self._queue.pop():
             yield value
-
         self._thread.join()
 
 
-
-class Streamer:
-    def __init__(self):
+class CameraIterator(Generator):
+    def __init__(self, camera):
         super().__init__()
-        self.flag_stream = False
-        self.camera = None
-        self.__semaphore = Semaphore(1)
+        self.camera = camera
 
     def __del__(self):
-        self.flag_stream = False
-        self.__semaphore.acquire()
         self.camera = None
 
+    def throw(self, typ, val, tb):
+        raise StopIteration
 
-    def __call__(self):
-        print('call')
-        while True:
-            if self.camera and self.flag_stream:
-                while self.camera and self.flag_stream:
-                    self.__semaphore.acquire()
-                    try:
-                        # image = numpy_to_base64(self.camera())
-                        image = b'a'
-                        self.__semaphore.release()
-                    except:
-                        self.__semaphore.release()
-                        break
-                    yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
-            else:
-                yield b''
+    def close(self) -> None:
+        self.camera = None
+
+    def send(self, value):
+        try:
+            image = numpy_to_base64(self.camera()) if self.camera else b''
+        except:
+            image = b'a'
+        return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
 
 
-[x for x in ThreadedGenerator(Streamer())]
-#
-#
-#
-# @server.route("/video_feed/<name>")
-# def video_feed(name):
-#     return Response(streamers_dict[name](), mimetype='multipart/x-mixed-replace; boundary=frame')
-#
-#
-# def make_viewers() -> html.Div:
-#     global cameras_dict
-#     dict_available_cameras = list(filter(lambda item: item[-1], cameras_dict.items()))
-#     children_list = []
-#     for name, camera in dict_available_cameras:
-#         children_list.append(html.Div(name))
-#         children_list.append(html.Img(src=url_for(f'video_feed', name=name), style={'width': DISPLAY_IMAGE_SIZE}))
-#         streamers_dict.setdefault(name, Streamer()).camera = cameras_dict[name]
-#         streamers_dict.setdefault(name, Streamer()).flag_stream = True
-#         children_list.append(html.Hr())
-#     return html.Div([*children_list])
-#
-#
-# streamers_dict = dict().fromkeys(valid_cameras_names_list, Streamer())
-# [print(val.is_alive() for val in streamers_dict.values()]
-# # [val.start() for val in streamers_dict.values()]
+@server.route("/video_feed/<name>")
+def video_feed(name):
+    return Response(streamers_dict[name](), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+def make_viewers() -> html.Div:
+    global cameras_dict
+    dict_available_cameras = list(filter(lambda item: item[-1], cameras_dict.items()))
+    children_list = []
+    for name, camera in dict_available_cameras:
+        children_list.append(html.Div(name))
+        children_list.append(html.Img(src=url_for(f'video_feed', name=name), style={'width': DISPLAY_IMAGE_SIZE}))
+        streamers_dict.setdefault(name, ThreadedGenerator(name))
+        children_list.append(html.Hr())
+    return html.Div([*children_list])
+
+
+streamers_dict = dict()
