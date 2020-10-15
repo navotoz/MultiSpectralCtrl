@@ -9,11 +9,8 @@ main_layout = [
     dcc.Link('Camera Viewer', href='/viewer', target='_blank'),
     html.Hr(),
 
-    html.Div([html.Div(id='use-real-filterwheel-midstep', hidden=True, children=None),
-              dcc.Checklist(id='use-real-filterwheel',
-                            options=[{'label': 'Real FilterWheel', 'value': 'real_filterwheel'}],
-                            value=['real_filterwheel'],
-                            labelStyle={'font-size': '24px', 'display': 'block'})]),
+    dcc.Checklist(id='use-real-filterwheel', options=[{'label': 'Real FilterWheel', 'value': 'real'}],
+                  value=['real'], labelStyle={'font-size': '24px', 'display': 'block'}),
     html.Hr(),
 
     make_devices_names_radioitems(),
@@ -69,5 +66,6 @@ main_layout = [
                                         style={'padding': '6px 10px', 'text-align': 'center', 'font-size': '20px'}),
                             id='upload-img-button'))])),
     html.Ul(id='file-list'),
+    dcc.Interval(id='interval-component', interval=1 * 1e3),  # in milliseconds,
     html.Div(id='after-photo-sync-label', hidden=True),
     html.Div(children=[], id='imgs')]

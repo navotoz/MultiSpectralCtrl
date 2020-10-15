@@ -13,11 +13,13 @@ from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters
 from server.utils import make_images_for_web_display, make_links_from_files, make_models_dropdown_options_list
 from utils.constants import SAVE_PATH
 import dash_html_components as html
-
+from threading import Event
 # H_IMAGE = grabber.camera_specs.get('h')
 # W_IMAGE = grabber.camera_specs.get('w')
 
 image_store_dict = {}
+event_finished_image = Event()
+event_finished_image.set()
 
 
 @server.route("/download/<path:path>")
@@ -77,24 +79,27 @@ def update_gain_gamma(camera_model_name: str):
 
 @app.callback(Output('exposure-time', 'disabled'),
               [Input('exposure-type-radio', 'value'),
-               Input('camera-model-dropdown', 'value')])
-def set_auto_exposure(exposure_type, camera_model_name):
-    if not camera_model_name:
+               Input('interval-component', 'n_intervals')],
+               State('camera-model-dropdown', 'value'))
+def set_auto_exposure(exposure_type, interval, camera_model_name):
+    if not camera_model_name or not cameras_dict[camera_model_name]:
         return True
-    if exposure_type == 'auto':
+    if exposure_type == 'auto' and 'Off' in cameras_dict[camera_model_name].exposure_auto:
         cameras_dict[camera_model_name].exposure_auto = True
         return True
-    if exposure_type == 'manual':
+    if exposure_type == 'manual' and 'Off' not in cameras_dict[camera_model_name].exposure_auto:
         cameras_dict[camera_model_name].exposure_auto = False
         return False
+    return False if exposure_type == 'manual' else True
 
 
 @app.callback([Output('gain', 'disabled'),
                Output('gamma', 'disabled'),
                Output('focal-length', 'disabled'),
                Output('f-number', 'disabled')],
-              [Input('camera-model-dropdown', 'value')])
-def set_disabled_to_camera_values(camera_model_name):
+              [Input('camera-model-dropdown', 'value'),
+               Input('interval-component', 'n_intervals')])
+def set_disabled_to_camera_values(camera_model_name, dummy):
     if not camera_model_name:
         return [True] * len(dash.callback_context.outputs_list)
     return [False] * len(dash.callback_context.outputs_list)
@@ -197,20 +202,20 @@ def change_camera_status(*args):
 
 
 @app.callback([Output(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list],
-              [Input('devices-radioitems-table', 'n_clicks')],
-              [State(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list])
+              [Input('interval-component', 'n_intervals')])
 def update_devices_radiobox(*args):
-    if not args[0] or is_equal_states(dash.callback_context.states_list)[0]:
-        return dash.no_update
     return list(map(lambda name: check_device_state(name), cameras_dict.keys()))
 
 
 @app.callback([Output('camera-model-dropdown', 'options'),
                Output('multispectral-camera-radioitems', 'options')],
-              Input('devices-radioitems-table', 'n_clicks'))
-def update_camera_models_dropdown_list(dummy):
+              Input('interval-component', 'n_intervals'),
+              State('camera-model-dropdown', 'options'))
+def update_camera_models_dropdown_list(dummy, *models):
     device_state_list = list(map(lambda name: (name, check_device_state(name)), cameras_dict.keys()))
     dropdown_options = make_models_dropdown_options_list(device_state_list)
+    if models[0] == dropdown_options:
+        return dash.no_update
     return dropdown_options, dropdown_options
 
 
@@ -223,14 +228,15 @@ def update_camera_models_dropdown_list(dropdown_options):
 
 @app.callback([Output('take-photo-button', 'disabled')],
               [Input('take-photo-button', 'n_clicks'),
-               Input('after-photo-sync-label', 'n_clicks')],
-              [State('take-photo-button', 'disabled')])
-def disable_button(n_clicks, dummy, button_state):
+               Input('interval-component', 'n_intervals')])
+def disable_button(dummy1, dummy2):
     callback_trigger = dash.callback_context.triggered[0]['prop_id']
-    if 'after-photo-sync-label' not in callback_trigger and n_clicks > 0 and not button_state:
-        logger.debug(f"Disabled the image button.")
+    global event_finished_image
+    if not event_finished_image.is_set():
+        return dash.no_update
+    if 'take-photo-button' in callback_trigger:
+        event_finished_image.clear()
         return True,
-    logger.debug(f"Enabled the image button.")
     return False,
 
 
@@ -249,6 +255,8 @@ def set_image_sequence_length(image_sequence_length: int):
                State(f"image-sequence-length", 'value')])
 def images_handler_callback(button_state, to_save: str, multispectral_camera_name: str, length_sequence: int):
     if button_state:
+        global event_finished_image
+        event_finished_image.clear()
         global image_store_dict
         global cameras_dict
         global filterwheel
@@ -256,6 +264,7 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
         camera_names_list = filter(lambda name: cameras_dict[name], cameras_dict.keys())
         camera_names_list = list(filter(lambda name: multispectral_camera_name not in name, camera_names_list))
         if not multispectral_camera_name:
+            event_finished_image.set()
             return 1
 
         # take images for different filters
@@ -274,6 +283,7 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
         for camera_name in camera_names_list + [multispectral_camera_name]:  # photo with un-filtered cameras
             save_image_to_tiff(image_store_dict[camera_name]) if to_save else None
         logger.info("Taken an image." if 'save' not in to_save else "Saved an image.")
+        event_finished_image.set()
         return 1
     return dash.no_update
 
@@ -297,32 +307,22 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
 #     return 1
 
 
-@app.callback(Output('use-real-filterwheel-midstep', 'children'),
-              Input('use-real-filterwheel', 'value'),
-              State('use-real-filterwheel-midstep', 'children'))
-def get_real_filterwheel_midstep(value, next_value):
-    if value and isinstance(value, list) or isinstance(value, tuple):
-        value = value[0]
-    if value == next_value:
-        return dash.no_update
-    return value
-
-
-@app.callback([Output('use-real-filterwheel', 'value'), ],
-              [Input('use-real-filterwheel-midstep', 'children')])
-def get_real_filterwheel(value: str):
+@app.callback(Output('use-real-filterwheel', 'value'),
+              Input('interval-component', 'n_intervals'),
+              State('use-real-filterwheel', 'value'))
+def get_real_filterwheel(interval, value: str):
     global filterwheel
-    if not value:  # use the dummy
-        if not filterwheel.is_dummy:
-            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
-        return (),
-    else:  # use the real FilterWheel
+    if not value and not filterwheel.is_dummy:  # use the dummy
+        filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
+        return []
+    elif 'real' in value and filterwheel.is_dummy:  # use the real FilterWheel
         try:
             filterwheel = initialize_device('FilterWheel', handlers, use_dummy=False)
+            return [value]
         except RuntimeError:
-            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
-            return [],
-        return [value],
+            return []
+    else:
+        return dash.no_update
 
 
 @app.callback(Output('filter-names-label', 'n_clicks'),
