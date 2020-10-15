@@ -69,7 +69,6 @@ def numpy_to_base64(image_: (np.ndarray, Image.Image)) -> bytes:
     image_bytes = BytesIO()
     Image.fromarray(image_).save(image_bytes, 'jpeg')
     return image_bytes.getvalue()
-    # return f"data:image/png;base64,{b64encode(image_bytes.getvalue()).decode('utf-8'):s}"
 
 
 def file_download_link(filename):

@@ -46,7 +46,7 @@ class AlliedVisionCtrl(CameraAbstract):
         frame.convert_pixel_format(MONO_PIXEL_FORMATS[7])
         return frame.as_numpy_ndarray().squeeze()
 
-    def __call__(self) -> Image.Image:
+    def __call__(self) -> np.ndarray:
         with self._vimba:
             with self._camera:
                 self._camera.Gain.set(self.gain) if self.gain is not None and self.gain != self._camera.Gain.get() else None
@@ -57,4 +57,4 @@ class AlliedVisionCtrl(CameraAbstract):
                 if self._camera.ExposureTime.get() != self.exposure_time:
                     self._camera.ExposureTime.set(self.exposure_time) if self.exposure_time is not None else None
                 self._camera.Gamma.set(self.gamma) if self.gamma is not None and self.gamma != self._camera.Gamma.get() else None
-                return Image.fromarray(self.__take_image())
+                return self.__take_image()

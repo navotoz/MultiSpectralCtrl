@@ -5,6 +5,7 @@ from devices import SPECS_DICT
 from server.utils import numpy_to_base64
 from pyueye import ueye
 from devices.IDS.pypyueye import Camera
+from numpy import ndarray
 
 
 class IDSCtrl(CameraAbstract):
@@ -36,7 +37,7 @@ class IDSCtrl(CameraAbstract):
     def is_dummy(self):
         return False
 
-    def __call__(self) -> Image.Image:
+    def __call__(self) -> ndarray:
         with self as cam:
             cam.set_gain_auto(0)
             cam.set_exposure_auto(0 if 'Off' in self.exposure_auto else 1)
@@ -45,5 +46,4 @@ class IDSCtrl(CameraAbstract):
 
             cam.set_colormode(ueye.IS_CM_MONO8)  # todo: is this the only relevant colormode?
 
-            image = cam.capture_image()
-            return Image.fromarray(image)
+            return cam.capture_image()

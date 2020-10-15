@@ -28,6 +28,6 @@ class IDSCtrl(CameraAbstract):
     def is_dummy(self):
         return True
 
-    def __call__(self):
+    def __call__(self)->np.ndarray:
         h, w = SPECS_DICT[self.model_name]['h'], SPECS_DICT[self.model_name]['w']
         return np.random.rand(h, w)

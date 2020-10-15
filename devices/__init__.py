@@ -1,3 +1,4 @@
+from numpy import ndarray
 from functools import partial
 from logging import Logger
 from importlib import import_module
@@ -60,7 +61,7 @@ class CameraAbstract:
         pass
 
     @abstractmethod
-    def __call__(self) -> Image:
+    def __call__(self) -> ndarray:
         pass
 
     @property

@@ -50,10 +50,7 @@ class CameraIterator(Generator):
         self.camera = None
 
     def send(self, value):
-        try:
-            image = numpy_to_base64(self.camera()) if self.camera else b''
-        except:
-            image = b'a'
+        image = numpy_to_base64(self.camera()) if self.camera else b''
         return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
 
 
