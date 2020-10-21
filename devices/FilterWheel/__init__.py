@@ -3,7 +3,7 @@ from logging import Logger
 
 # constants
 FILTERWHEEL_SETTLING_TIME = 1  # seconds
-DEFAULT_FILTER_NAMES_DICT = {1: '420', 2: '480', 3: '510', 4: '580', 5: '680', 6: '0'}  # 0 is glass
+DEFAULT_FILTER_NAMES_DICT = {1: '480', 2: '520', 3: '550', 4: '670', 5: '700', 6: '0'}  # 0 is glass
 FILTERWHEEL_RECV_WAIT_TIME_IN_SEC = 0.5  # seconds
 
 
