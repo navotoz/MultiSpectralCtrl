@@ -4,7 +4,7 @@ This is a server module aimed to run the AlliedVision camera with the Thorlabs F
 The server is run on the RaspberryPi4 and controlled via a browser connected to the same network. 
 
 ## Installation ##
-#### Requirements ####
+### Requirements ###
 This module was tested on Ubuntu 20.04 (PC) and on a RaspberryPi 4 running Raspberry Pi OS 32bit.  
 RaspberryPi 3 wouldn't work because it lacks USB3 sockets.
 
@@ -12,39 +12,79 @@ The computer **Must** have USB-3 socket to connect the camera, and only using a 
 
 The server is run using python 3.7 with requirements detailed in requirements.txt.
 
-#### Installation ####
-1. Install python with pip support, preferably using Anaconda package manager.
-2. Create a virtual environment and install the requirements file using:
-`python -m pip install -r requirements.txt`
-3. Install the Vimba software package from the AlliedVision site. 
+#### RaspberryPi setup ####
+##### Setting up the connection #####
+1. Add a file name `ssh` to the **boot* partition of the Pi.
+1. The default hostname and password are *pi* and *raspberry* respectivly.
+1. Log into the Pi via ssh by typing `ssh pi@raspberrypi.local`
+1. Change the relevent options by typing `sudo raspi-config`.
+1. Change the password to `12345678` (one to eight).
+1. Under *Network Options* (2.) change Hostname to `multispectralpi`.
+1. Go to the options menu again, and enable VNC under *Interface options*.
+1. Change the default resolution under *Advenced options*. 
+    It doesn't really matter what resolution is set, as long as not the default one.
+1. Go back to the terminal.
+1. Type `sudo vncpasswd -service`
+1. Add the following lines to /root/.vnc/config.d/vncserver-x11:
+```
+SecurityTypes=VncAuth 
+UserPasswdVerifier=VncAuth
+```
+1. Start vncserver by typing `sudo vncserver-x11-serviced`
+1. Set the correct time:
+`sudo date --set '2016-04-26 18:26:00`
+1. Reboot using `sudo reboot`
+1. Notice that to connect you need to type `ssh pi@multispectralpi.local`
+
+##### Setting up the Pythoh venv #####
+1. Clone/Copy the *Multispectral* project.
+1. In the terminal run `sudo apt-get install libatlas-base-dev`
+1. In the project folder, make `venv` and enter into it.
+1. Setup a venv inside `/venv`:
+    - `python3 -m venv .`
+1. Activate it by `source /bin/activate`
+1. Make a new file on the desktop named `Multispectral.desktop`
+1. Write inside:
+```
+[Desktop Entry]
+Terminal=true
+Type=Application
+X-KeepTerminal=true
+StartupNotify=true
+Exec=/path/to/project/venv/bin/python3 /path/to/project/main.py
+```
+
+
+##### Python Installation #####
+1. Activate the venv by `source path/to/venv/bin/activate`
+1. Install the requirements file using:
+`pip install -r requirements.txt`
+1. Make sure to install on pip3 also.
+1. In the terminal run `sudo apt-get install libatlas-base-dev`
+1. Install the Vimba software package from the AlliedVision site. 
 The relevant version for the RaspberriPi4 is ARM.
     - An installation guide is available under _utils_ directory.
-4. After running `[InstallDir]/Vimba_x_x/VimbaUSBTL`, go to `VimbaPython/Source`.
-5. In `VimbaPython/Source`, using the pip *in the environment you use* run `pip install .`.
+1. After running `[InstallDir]/Vimba_x_x/VimbaUSBTL`, go to `VimbaPython/Source`.
+1. In `VimbaPython/Source`, using the pip *in the environment you use* run `pip install .`.
+
 
 #### Changing the default filter names ####
 Change **DEFAULT_FILTER_NAMES_DICT** in `devices/FilterWheel/__init.py`. 
 
-## Finding the RaspberryPi in the network ##
-Type in the terminal `nslookip hyperspectralpi` and write down the resultant IP address.
-*Notice* - the addresses update slowly.
-
 ## Usage ##
-#### Test mode ####
-- To use a dummy *Camera*: in the file `main.py`, when calling the function `get_alliedvision_grabber`,
- set the flag `use_dummy_alliedvision_camera` to `True`.
-- To  use a dummy *FilterWheel*: in the file `main.py`, when calling the function `get_alliedvision_grabber`,
- set the flag `use_dummy_filterwheel` to `True`.
+#### Checking current IP address ####
+1. Type in the terminal `ssh pi@multispectralpi.local` to connect to the Pi via SSH.
+2. The password should be set to `12345678`
+3. Type `ifconfig`
+
 #### Take a photo ####
 1. Connect the *FilterWheel* to the USB and to the electrical socket. Turn it on.
-2. Connect the *AlliedVision* camera to the **USB-3 socket** using a **USB-3 cable**.
-3. Make sure `use_dummy_alliedvision_camera` and `use_dummy_filterwheel` are set to `False` 
-in the function `get_alliedvision_grabber` in file `main.py`.
-4. Make sure the *RaspberryPi* and the client device (smartphone/computer) are connected to the **SAME NETWORK**.
-5. Check the IP address of the **RaspberryPi**.
-6. Run `python main.py` on the **RaspberryPi**.
-7. On the **Client Device**: open the web browser and enter:
-`<RaspberryPi IP address here>:8000`
+1. Connect the *AlliedVision* camera to the **USB-3 socket** using a **USB-3 cable**.
+1. Connect any other relevant camera to the USB.
+1. Make sure the *RaspberryPi* and the client device (smartphone/computer) are connected to the **SAME NETWORK**.
+1. Run `python3 main.py` on the **RaspberryPi** with the venv (see above).
+1. On the **Client Device**: open the web browser and enter:
+`multispectral.local:8000`
 8. Follow the instructions on the screen to take a picture.
 9. To **Download** the image into the client device, press the link with the name of the image 
     on the bottom of the web page.
