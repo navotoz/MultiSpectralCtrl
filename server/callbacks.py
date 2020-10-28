@@ -9,13 +9,11 @@ from flask import Response, send_file
 from devices import initialize_device, valid_cameras_names_list
 from devices import SPECS_DICT, FEATURES_DICT
 from server.app import app, server, logger, handlers, filterwheel, cameras_dict
-from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters_tags_images
+from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters_tags_images, base64_to_split_numpy_image
 from server.utils import make_images_for_web_display, make_links_from_files, make_models_dropdown_options_list
-from utils.constants import SAVE_PATH
+from utils.constants import SAVE_PATH,IMAGE_FORMAT
 import dash_html_components as html
 from threading import Event
-# H_IMAGE = grabber.camera_specs.get('h')
-# W_IMAGE = grabber.camera_specs.get('w')
 
 image_store_dict = {}
 event_finished_image = Event()
@@ -288,23 +286,22 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
     return dash.no_update
 
 
-
-# @app.callback(Output('file-list', 'n_clicks'),
-#               [Input('upload-img-button', 'contents')],
-#               [State('upload-img-button', 'filename')])
-# def upload_image(content, name):
-#     if content is not None:
-#         path = Path(name)
-#         if IMAGE_FORMAT not in path.suffix:
-#             logger.error(f"Given image suffix is {path.suffix}, different than required {IMAGE_FORMAT}.")
-#             return 1
-#         global image_store_dict
-#         num_of_filters = int(path.stem.split('Filters')[0].split('_')[-1])
-#         filters_names = path.stem.split('Filters')[-1].split('_')[-num_of_filters:]
-#         image = base64_to_split_numpy_image(content, H_IMAGE, W_IMAGE)
-#         image_store_dict = {key: val for key, val in zip(filters_names, image)}
-#         logger.info(f"Uploaded {len(image_store_dict.keys())} frames.")
-#     return 1
+@app.callback(Output('file-list', 'n_clicks'),
+              [Input('upload-img-button', 'contents')],
+              [State('upload-img-button', 'filename')])
+def upload_image(content, name):
+    if content is not None:
+        path = Path(name)
+        if IMAGE_FORMAT not in path.suffix.lower():
+            logger.error(f"Given image suffix is {path.suffix}, different than required {IMAGE_FORMAT}.")
+            return 1
+        global image_store_dict
+        num_of_filters = int(path.stem.split('Filters')[0].split('_')[-1])
+        filters_names = path.stem.split('Filters')[-1].split('_')[-num_of_filters:]
+        image = base64_to_split_numpy_image(content, len(filters_names))
+        image_store_dict = {key: val for key, val in zip(filters_names, image)}
+        logger.info(f"Uploaded {len(image_store_dict.keys())} frames.")
+    return 1
 
 
 @app.callback(Output('use-real-filterwheel', 'value'),
