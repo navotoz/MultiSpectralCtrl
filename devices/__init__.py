@@ -5,7 +5,7 @@ from importlib import import_module
 from abc import abstractmethod
 from devices.AlliedVision import init_alliedvision_camera
 from devices.IDS import init_ids_camera
-from PIL.Image import Image
+from utils.constants import TIFF_MODEL_NAME, TIFF_GAIN, TIFF_F_NUMBER, TIFF_EXPOSURE_TIME, TIFF_FOCAL_LENGTH, TIFF_NOTES
 
 ALLIEDVISION_VALID_MODEL_NAMES = import_module(f"devices.AlliedVision", f"AlliedVision").get_specs_dict().keys()
 IDS_VALID_MODEL_NAMES = import_module(f"devices.IDS", f"IDS").get_specs_dict().keys()
@@ -151,14 +151,7 @@ class CameraAbstract:
                      (TIFF_GAIN, f"{self.gain}"),
                      (TIFF_FOCAL_LENGTH, f"{self.focal_length}"),
                      (TIFF_F_NUMBER, f"{self.f_number}"),
-                     (37500, f"PixelPitch{SPECS_DICT[self.model_name].get('pixel_size', 0.00345)};"
+                     (TIFF_NOTES, f"PixelPitch{SPECS_DICT[self.model_name].get('pixel_size', 0.00345)};"
                              f"SensorHeight{SPECS_DICT[self.model_name].get('sensor_size_h', 14.2)};"
                              f"SensorWidth{SPECS_DICT[self.model_name].get('sensor_size_w', 10.4)};"
                              f"SensorDiagonal{SPECS_DICT[self.model_name].get('sensor_size_diag', 17.6)};")))
-
-
-TIFF_MODEL_NAME = 272
-TIFF_EXPOSURE_TIME = 33434
-TIFF_GAIN = 41991
-TIFF_F_NUMBER = 33437
-TIFF_FOCAL_LENGTH = 37386

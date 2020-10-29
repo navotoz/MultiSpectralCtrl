@@ -1,3 +1,4 @@
+import struct
 import os
 from pathlib import Path
 import numpy as np
@@ -6,7 +7,7 @@ from base64 import b64encode, b64decode
 from io import BytesIO
 import dash_html_components as html
 from urllib.parse import quote as urlquote
-from utils.constants import SAVE_PATH, IMAGE_FORMAT, DISPLAY_IMAGE_SIZE
+from utils.constants import SAVE_PATH, IMAGE_FORMAT, DISPLAY_IMAGE_SIZE, TIFF_NOTES, TIFF_X_RESOLUTION, TIFF_Y_RESOLUTION
 from multiprocessing.dummy import Pool
 import dash_core_components as dcc
 from devices import valid_cameras_names_list, TIFF_MODEL_NAME
@@ -43,33 +44,26 @@ def get_filters_tags_images(image_list: list) -> tuple:
 
 def save_image_to_tiff(image_list: list):
     filter_names_list, tiff_tags, image_list = get_filters_tags_images(image_list)
-    image_list = list(map(lambda image: Image.fromarray(image), image_list))
+    image_list = list(map(lambda image: Image.fromarray(image.astype('uint16')), image_list))
     full_path = SAVE_PATH / get_image_filename(tiff_tags, filter_names_list)
     first_image = image_list.pop(0)
+    h,w = first_image.size
+    tiff_tags[TIFF_Y_RESOLUTION], tiff_tags[TIFF_X_RESOLUTION] = h,w
+    tiff_tags[TIFF_NOTES] += f'Height{h};Width{w};'
     first_image.save(full_path, format=IMAGE_FORMAT, tiffinfo=tiff_tags,
                      append_images=image_list, save_all=True, compression=None, quality=100)
 
 
-def base64_to_split_numpy_image(base64_string: str, n_channels: int) -> list:
+def base64_to_split_numpy_image(base64_string: str) -> list:
     text_base64  = base64_string.split('base64,')[-1]
     bytes_base64 = text_base64.encode()
     buffer = b64decode(bytes_base64)
-    Image.frombytes(mode='I',data=buffer, size=10)
-    # image_numpy = np.frombuffer(buffer, dtype='uint8')
-    # bit16 = 0x3FFF & image_numpy.view('uint16')
-    # bit16 = bit16.reshape(n_channels, -1)
-    # bit32 = 0x3FFF & image_numpy.view('uint32')
-    # bit32 = bit32.reshape(n_channels, -1)
-    import struct
-    h_big = np.array(struct.unpack('>'+'H'*(len(buffer)//2), buffer))
-    h_little = np.array(struct.unpack('<'+'H'*(len(buffer)//2), buffer))
-    i_big = np.array(struct.unpack('>'+'I'*(len(buffer)//4), buffer))
-    i_little = np.array(struct.unpack('<'+'I'*(len(buffer)//4), buffer))
-    l_big = np.array(struct.unpack('>'+'L'*(len(buffer)//4), buffer))
-    l_little = np.array(struct.unpack('<'+'L'*(len(buffer)//4), buffer))
-
-    l = tuple(l_big[76:])
-    l_big &= 0x3F
+    height, width = buffer.find(b';Height'), buffer.find(b';Width')
+    height = buffer[height:height + buffer[height+1:].find(b';')+1].decode()
+    height = int(''.join([x for x in height if x.isdigit()]))
+    width = buffer[width:width + buffer[width+1:].find(b';')+1].decode()
+    width = int(''.join([x for x in width if x.isdigit()]))
+    image_numpy = np.frombuffer(buffer, dtype='uint16')
     image_numpy = image_numpy[len(image_numpy) % (height * width):]
     ch = len(image_numpy) // (height * width)
     image_numpy = image_numpy.reshape(ch, width, height)

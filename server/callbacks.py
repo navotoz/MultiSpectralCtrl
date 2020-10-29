@@ -298,7 +298,7 @@ def upload_image(content, name):
         global image_store_dict
         num_of_filters = int(path.stem.split('Filters')[0].split('_')[-1])
         filters_names = path.stem.split('Filters')[-1].split('_')[-num_of_filters:]
-        image = base64_to_split_numpy_image(content, len(filters_names))
+        image = base64_to_split_numpy_image(content)
         image_store_dict = {key: val for key, val in zip(filters_names, image)}
         logger.info(f"Uploaded {len(image_store_dict.keys())} frames.")
     return 1
