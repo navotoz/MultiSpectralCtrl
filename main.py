@@ -37,8 +37,6 @@ if __name__ == '__main__':
     app.logger.disabled = True
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
-# todo: fix uploads
-
 # todo: change README file parsing section and all other..
 
 # todo: add documantiation
