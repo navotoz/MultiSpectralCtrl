@@ -1,3 +1,4 @@
+from socket import gethostname, gethostbyname
 import dash
 from server.layouts import main_layout
 from server.app import app, cameras_dict
@@ -33,7 +34,7 @@ def display_page(pathname, current_layout):
 if __name__ == '__main__':
     PORT = 8000
     IP = "0.0.0.0"
-    print(f"http://{IP:s}:{PORT:d}/")
+    print(f"http://{gethostbyname(gethostname()):s}:{PORT:d}/")
     app.logger.disabled = True
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
