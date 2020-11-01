@@ -1,5 +1,5 @@
 import numpy as np
-from utils.logger import make_logger
+from utils.logger import make_logger, make_device_logging_handler
 from vimba import Vimba, MONO_PIXEL_FORMATS
 from vimba.error import VimbaTimeout, VimbaFeatureError
 from PIL import Image
@@ -21,6 +21,7 @@ class AlliedVisionCtrl(CameraAbstract):
                 raise RuntimeError(ERR_MSG)
             self._camera = camera_list[0]
             self._model_name = get_camera_model_name(self._camera)
+            logging_handlers = make_device_logging_handler(f"{self._model_name}", logging_handlers)
             self._log = make_logger(f"{self._model_name}", handlers=logging_handlers)
             super().__init__(self._model_name, self._log)
             with self._camera:

@@ -1,6 +1,7 @@
 import os
 from io import BytesIO
 from pathlib import Path
+from typing import Dict, Any
 
 import dash
 from dash.dependencies import Input, Output, State
@@ -9,13 +10,15 @@ from flask import Response, send_file
 from devices import initialize_device, valid_cameras_names_list
 from devices import SPECS_DICT, FEATURES_DICT
 from server.app import app, server, logger, handlers, filterwheel, cameras_dict
-from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters_tags_images, base64_to_split_numpy_image
+from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters_tags_images, \
+    base64_to_split_numpy_image
 from server.utils import make_images_for_web_display, make_links_from_files, make_models_dropdown_options_list
-from utils.constants import SAVE_PATH,IMAGE_FORMAT
+from utils.constants import SAVE_PATH, IMAGE_FORMAT
 import dash_html_components as html
 from threading import Event
 
-image_store_dict = {}
+image_store_dict = dict()
+dict_flags_change_camera_mode: dict = dict().fromkeys(valid_cameras_names_list, False)
 event_finished_image = Event()
 event_finished_image.set()
 
@@ -31,15 +34,6 @@ def download(path: (str, Path)) -> Response:
     return send_file(file_stream, as_attachment=True, attachment_filename=path)
 
 
-@app.callback([Output('focal-length', 'value'), Output('f-number', 'value')],
-              [Input('camera-model-dropdown', 'value')])
-def update_optical_values(camera_model_name: str):
-    if not camera_model_name:
-        return dash.no_update
-    return SPECS_DICT[camera_model_name].get('focal_length', 0), \
-           SPECS_DICT[camera_model_name].get('f_number', 0)
-
-
 @app.callback([Output('exposure-type-radio', 'options'),
                Output('exposure-time', 'min'),
                Output('exposure-time', 'max'),
@@ -48,9 +42,9 @@ def update_optical_values(camera_model_name: str):
 def update_exposure(camera_model_name: str):
     if not camera_model_name:
         return dash.no_update
-    exposure_options_list = [{'label': 'Manual', 'value': 'manual'}]
+    exposure_options_list = [{'label': 'Manual', 'value': 'Off'}]
     if FEATURES_DICT[camera_model_name].get('autoexposure', False):
-        exposure_options_list.append({'label': 'Auto', 'value': 'auto'})
+        exposure_options_list.append({'label': 'Auto', 'value': 'Once'})
     return exposure_options_list, \
            FEATURES_DICT[camera_model_name].get('exposure_min'), \
            FEATURES_DICT[camera_model_name].get('exposure_max'), \
@@ -78,17 +72,17 @@ def update_gain_gamma(camera_model_name: str):
 @app.callback(Output('exposure-time', 'disabled'),
               [Input('exposure-type-radio', 'value'),
                Input('interval-component', 'n_intervals')],
-               State('camera-model-dropdown', 'value'))
+              State('camera-model-dropdown', 'value'))
 def set_auto_exposure(exposure_type, interval, camera_model_name):
     if not camera_model_name or not cameras_dict[camera_model_name]:
         return True
-    if exposure_type == 'auto' and 'Off' in cameras_dict[camera_model_name].exposure_auto:
+    if exposure_type == 'Once' and 'Off' in cameras_dict[camera_model_name].exposure_auto:
         cameras_dict[camera_model_name].exposure_auto = True
         return True
-    if exposure_type == 'manual' and 'Off' not in cameras_dict[camera_model_name].exposure_auto:
+    if exposure_type == 'Off' and 'Off' not in cameras_dict[camera_model_name].exposure_auto:
         cameras_dict[camera_model_name].exposure_auto = False
         return False
-    return False if exposure_type == 'manual' else True
+    return False if exposure_type == 'Off' else True
 
 
 @app.callback([Output('gain', 'disabled'),
@@ -117,6 +111,25 @@ def update_values_in_camera(gain, gamma, exposure_time, camera_model_name):
     cameras_dict[camera_model_name].exposure_time = exposure_time
     logger.debug(f"Updated camera values.")
     return 1
+
+
+@app.callback([Output('exposure-time', 'value'),
+               Output('exposure-type-radio', 'value'),
+               Output('gain', 'value'),
+               Output('gamma','value'),
+               Output('focal-length', 'value'),
+               Output('f-number', 'value')],
+              [Input('camera-model-dropdown', 'value')])
+def get_values_from_selected_camera_to_spinboxes(camera_model_name):
+    if not camera_model_name:
+        return dash.no_update
+    global cameras_dict
+    return cameras_dict[camera_model_name].exposure_time, \
+           cameras_dict[camera_model_name].exposure_auto,\
+           cameras_dict[camera_model_name].gain,\
+           cameras_dict[camera_model_name].gamma,\
+           cameras_dict[camera_model_name].focal_length,\
+           cameras_dict[camera_model_name].f_number
 
 
 @app.callback(Output('file-list', 'children'),
@@ -181,28 +194,36 @@ def is_equal_states(context_list):
               [Input(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list])
 def change_camera_status(*args):
     global cameras_dict
+    global dict_flags_change_camera_mode
     states_equal, radioitems_states = is_equal_states(dash.callback_context.inputs_list)
     if states_equal:
         return dash.no_update
     for name, state in radioitems_states:
-        if 'none' in state and check_device_state(name)!='none':
+        if dict_flags_change_camera_mode[name]:
+            return dash.no_update
+        dict_flags_change_camera_mode[name] = True
+        if 'none' in state and check_device_state(name) != 'none':
             if cameras_dict[name] and name in dash.callback_context.triggered[0]['prop_id']:
                 logger.info(f'{name} camera is not used.')
             cameras_dict[name] = None
-        elif 'dummy' in state and (not cameras_dict[name] or check_device_state(name)!='dummy'):
+        elif 'dummy' in state and (not cameras_dict[name] or check_device_state(name) != 'dummy'):
             cameras_dict[name] = initialize_device(name, handlers, use_dummy=True)
-        elif 'real' in state and (not cameras_dict[name] or check_device_state(name)!='real'):
+        elif 'real' in state and (not cameras_dict[name] or check_device_state(name) != 'real'):
             try:
                 cameras_dict[name] = initialize_device(name, handlers, use_dummy=False)
-            except RuntimeError:
+            except RuntimeError as err:
                 cameras_dict[name] = None
+        dict_flags_change_camera_mode[name] = False
     return 1,
 
 
 @app.callback([Output(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list],
               [Input('interval-component', 'n_intervals')])
 def update_devices_radiobox(*args):
-    return list(map(lambda name: check_device_state(name), cameras_dict.keys()))
+    radioboxes_list = []
+    for name in cameras_dict:
+        radioboxes_list.append(check_device_state(name) if not dict_flags_change_camera_mode[name] else dash.no_update)
+    return radioboxes_list
 
 
 @app.callback([Output('camera-model-dropdown', 'options'),
@@ -309,6 +330,8 @@ def upload_image(content, name):
               State('use-real-filterwheel', 'value'))
 def get_real_filterwheel(interval, value: str):
     global filterwheel
+    if not interval:
+        return dash.no_update
     if not value and not filterwheel.is_dummy:  # use the dummy
         filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
         return []
@@ -316,14 +339,14 @@ def get_real_filterwheel(interval, value: str):
         try:
             filterwheel = initialize_device('FilterWheel', handlers, use_dummy=False)
             return [value]
-        except RuntimeError:
+        except RuntimeError as err:
             return []
     else:
         return dash.no_update
 
 
 @app.callback(Output('filter-names-label', 'n_clicks'),
-              [Input('image-sequence-length-label', 'n_clicks')]+
+              [Input('image-sequence-length-label', 'n_clicks')] +
               [Input(f"filter-{idx}", 'n_submit') for idx in range(1, filterwheel.position_count + 1)] +
               [Input(f"filter-{idx}", 'n_blur') for idx in range(1, filterwheel.position_count + 1)],
               [State(f"filter-{idx}", 'value') for idx in range(1, filterwheel.position_count + 1)])

@@ -1,3 +1,5 @@
+from typing import Dict
+
 from flask import Response, url_for
 import dash_html_components as html
 from utils.constants import DISPLAY_IMAGE_SIZE
@@ -7,6 +9,8 @@ from server.utils import numpy_to_base64
 from threading import Thread
 from collections import deque
 from collections.abc import Generator
+import cv2
+from server.utils import show_image
 
 
 class ThreadedGenerator(object):
@@ -39,9 +43,15 @@ class CameraIterator(Generator):
     def __init__(self, camera):
         super().__init__()
         self.camera = camera
+        self._frame_number = 0
 
     def __del__(self):
         self.camera = None
+
+    @property
+    def frame_number(self):
+        self._frame_number += 1
+        return self._frame_number
 
     def throw(self, typ, val, tb):
         raise StopIteration
@@ -50,7 +60,10 @@ class CameraIterator(Generator):
         self.camera = None
 
     def send(self, value):
-        image = numpy_to_base64(self.camera()) if self.camera else b''
+        image = self.camera()
+        w, h = image.shape
+        res = cv2.putText(image, f"{self.frame_number}", (h-200, w-100), cv2.FONT_HERSHEY_SIMPLEX, 2, 0, 2)
+        image = numpy_to_base64(res) if self.camera else b''
         return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
 
 

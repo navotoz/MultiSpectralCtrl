@@ -12,7 +12,7 @@ from multiprocessing.dummy import Pool
 import dash_core_components as dcc
 from devices import valid_cameras_names_list, TIFF_MODEL_NAME
 from datetime import datetime
-
+import matplotlib.pyplot as plt
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
 
@@ -73,8 +73,9 @@ def base64_to_split_numpy_image(base64_string: str) -> list:
 def numpy_to_base64(image_: (np.ndarray, Image.Image)) -> bytes:
     if isinstance(image_, Image.Image):
         image_ = np.array(image_)
+    image_ = image_.astype('float')
     image_ -= np.amin(image_)
-    image_ = image_ / np.amax(image_)
+    image_ = image_ / (np.amax(image_)+np.finfo(image_.dtype).eps)
     image_ *= 255
     image_ = image_.astype('uint8')
     image_bytes = BytesIO()
@@ -139,3 +140,21 @@ def list_server_routes(server):
     for rule in server.url_map.iter_rules():
         routes.append('%s' % rule)
     return routes
+
+
+def show_image(image: (Image.Image, np.ndarray), title=None, v_min=None, v_max=None, to_close:bool=True):
+    if isinstance(image, Image.Image):
+        image = np.array([image])
+    if np.any(np.iscomplex(image)):
+        image = np.abs(image)
+    if len(image.shape) > 2:
+        if image.shape[0] == 3 or image.shape[0] == 1:
+            image = image.transpose((1, 2, 0))  # CH x W x H -> W x H x CH
+        elif image.shape[-1] != 3 and image.shape[-1] != 1:  # CH are not RGB or grayscale
+            image = image.mean(-1)
+    plt.imshow(image.squeeze(), cmap='gray', vmin=v_min, vmax=v_max)
+    if title is not None:
+        plt.title(title)
+    plt.axis('off')
+    plt.show()
+    plt.close() if to_close else None

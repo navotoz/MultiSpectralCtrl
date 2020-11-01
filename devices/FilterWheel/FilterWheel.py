@@ -1,12 +1,13 @@
 from time import sleep
 import serial.tools.list_ports
 import serial
-from utils.logger import make_logger
+from utils.logger import make_logger, make_device_logging_handler
 from devices.FilterWheel import *
 
 
 class FilterWheel(FilterWheelAbstract):
     def __init__(self, model_name: str = 'FW102C', logging_handlers: tuple = ()):
+        logging_handlers = make_device_logging_handler('FilterWheel', logging_handlers)
         self._log = make_logger('FilterWheel', logging_handlers)
 
         port = [p for p in serial.tools.list_ports.comports() if model_name in p]

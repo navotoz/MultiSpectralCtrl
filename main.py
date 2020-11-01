@@ -1,4 +1,9 @@
-from socket import gethostname, gethostbyname
+import sys
+from utils.logger import ExceptionsLogger
+sys.stderr = ExceptionsLogger()
+
+
+from socket import gethostname
 import dash
 from server.layouts import main_layout
 from server.app import app, cameras_dict
@@ -6,6 +11,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 from server.viewer import make_viewers, streamers_dict
+
 
 app.layout = html.Div([dcc.Location(id='url', refresh=False),
                        html.Div(id='page-content', children=main_layout)])
@@ -34,9 +40,13 @@ def display_page(pathname, current_layout):
 if __name__ == '__main__':
     PORT = 8000
     IP = "0.0.0.0"
-    print(f"http://{gethostbyname(gethostname()):s}:{PORT:d}/")
+    print(f"http://{gethostname():s}:{PORT:d}/")
     app.logger.disabled = True
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
+
+
+# todo: why does the autoexposure not wiorking? the camera exits all the time..
+
 
 # todo: change README file parsing section and all other..
 

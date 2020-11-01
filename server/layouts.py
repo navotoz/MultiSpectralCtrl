@@ -2,6 +2,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 from devices.FilterWheel import DEFAULT_FILTER_NAMES_DICT
 from server.utils import make_devices_names_radioitems
+from utils.constants import UPDATE_INTERVAL_SECONDS
 
 FONT_SIZE = {'font-size': '16px'}
 OPTICS_STYLE_DICT = dict(min=0.0, type='number', style=FONT_SIZE)
@@ -66,6 +67,6 @@ main_layout = [
                                         style={'padding': '6px 10px', 'text-align': 'center', 'font-size': '20px'}),
                             id='upload-img-button'))])),
     html.Ul(id='file-list'),
-    dcc.Interval(id='interval-component', interval=1 * 1e3),  # in milliseconds,
+    dcc.Interval(id='interval-component', interval=UPDATE_INTERVAL_SECONDS * 1e3),  # in milliseconds
     html.Div(id='after-photo-sync-label', hidden=True),
     html.Div(children=[], id='imgs')]

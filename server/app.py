@@ -4,7 +4,7 @@ from utils.logger import make_logging_handlers, make_logger
 from devices import valid_cameras_names_list, initialize_device
 
 logging.getLogger('werkzeug').disabled = True
-app = dash.Dash(__name__, suppress_callback_exceptions=False, prevent_initial_callbacks=True)
+app = dash.Dash(__name__, suppress_callback_exceptions=False, prevent_initial_callbacks=False)
 server = app.server
 
 LOGGING_LEVEL = logging.INFO
