@@ -31,7 +31,7 @@ class ThreadedGenerator(object):
         self._queue.append(self._iterator)
 
     def __call__(self):
-        self._iterator.camera = cameras_dict[self._camera_name] if self._camera_name else None
+        self._iterator._camera = cameras_dict[self._camera_name] if self._camera_name else None
         self._thread = Thread(target=self._run, daemon=True)
         self._thread.start()
         for value in self._queue.pop():
@@ -42,11 +42,11 @@ class ThreadedGenerator(object):
 class CameraIterator(Generator):
     def __init__(self, camera):
         super().__init__()
-        self.camera = camera
+        self._camera = camera
         self._frame_number = 0
 
     def __del__(self):
-        self.camera = None
+        self._camera = None
 
     @property
     def frame_number(self):
@@ -57,13 +57,13 @@ class CameraIterator(Generator):
         raise StopIteration
 
     def close(self) -> None:
-        self.camera = None
+        self._camera = None
 
     def send(self, value):
-        image = self.camera()
+        image = self._camera()
         w, h = image.shape
-        res = cv2.putText(image, f"{self.frame_number}", (h-200, w-100), cv2.FONT_HERSHEY_SIMPLEX, 2, 0, 2)
-        image = numpy_to_base64(res) if self.camera else b''
+        res = cv2.putText(image, f"{self.frame_number}", (h-200, w-200), cv2.FONT_HERSHEY_SIMPLEX, 3, 0, 2)
+        image = numpy_to_base64(res) if self._camera else b''
         return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
 
 

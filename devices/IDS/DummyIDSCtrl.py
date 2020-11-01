@@ -4,7 +4,6 @@ from utils.constants import FAILURE_PROBABILITY_IN_DUMMIES
 from utils.logger import make_logger
 from devices import CameraAbstract
 from devices import SPECS_DICT
-from server.utils import numpy_to_base64
 
 
 class IDSCtrl(CameraAbstract):
@@ -22,12 +21,13 @@ class IDSCtrl(CameraAbstract):
         self._log.info(f"Initialized Dummy {self.model_name} IDS cameras.")
 
     def __del__(self):
+        self._log.debug('Deleted')
         del self
 
     @property
     def is_dummy(self):
         return True
 
-    def __call__(self)->np.ndarray:
+    def __call__(self) -> np.ndarray:
         h, w = SPECS_DICT[self.model_name]['h'], SPECS_DICT[self.model_name]['w']
         return np.random.rand(h, w)

@@ -1,3 +1,4 @@
+from functools import wraps
 import struct
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ import dash_core_components as dcc
 from devices import valid_cameras_names_list, TIFF_MODEL_NAME
 from datetime import datetime
 import matplotlib.pyplot as plt
+
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
 
@@ -158,3 +160,12 @@ def show_image(image: (Image.Image, np.ndarray), title=None, v_min=None, v_max=N
     plt.axis('off')
     plt.show()
     plt.close() if to_close else None
+
+
+def decorate_all_functions(function_decorator):
+    def decorator(cls):
+        for name, obj in vars(cls).items():
+            if callable(obj):
+                setattr(cls, name, function_decorator(obj))
+        return cls
+    return decorator

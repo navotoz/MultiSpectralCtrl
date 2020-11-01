@@ -5,7 +5,8 @@ from importlib import import_module
 from abc import abstractmethod
 from devices.AlliedVision import init_alliedvision_camera
 from devices.IDS import init_ids_camera
-from utils.constants import TIFF_MODEL_NAME, TIFF_GAIN, TIFF_F_NUMBER, TIFF_EXPOSURE_TIME, TIFF_FOCAL_LENGTH, TIFF_NOTES
+from utils.constants import TIFF_MODEL_NAME, TIFF_GAIN, TIFF_F_NUMBER, TIFF_EXPOSURE_TIME, TIFF_FOCAL_LENGTH, \
+    TIFF_NOTES, MANUAL_EXPOSURE, AUTO_EXPOSURE
 
 ALLIEDVISION_VALID_MODEL_NAMES = import_module(f"devices.AlliedVision", f"AlliedVision").get_specs_dict().keys()
 IDS_VALID_MODEL_NAMES = import_module(f"devices.IDS", f"IDS").get_specs_dict().keys()
@@ -48,12 +49,12 @@ class CameraAbstract:
     def __init__(self, model_name: str, logger: Logger):
         self._model_name: str = model_name
         self._log: Logger = logger
-        self.__focal_length: float = -1
-        self.__f_number: float = -1
-        self.__gamma: float = 1.0
-        self.__gain: float = 0.0
-        self.__exposure_time: float = 5000.
-        self.__exposure_auto: str = 'Off'
+        self._focal_length: float = -1
+        self._f_number: float = -1
+        self._gamma: float = 1.0
+        self._gain: float = 0.0
+        self._exposure_time: float = 5000.
+        self._exposure_auto: str = MANUAL_EXPOSURE
 
     @property
     @abstractmethod
@@ -70,73 +71,73 @@ class CameraAbstract:
 
     @property
     def focal_length(self) -> float:
-        return self.__focal_length
+        return self._focal_length
 
     @focal_length.setter
     def focal_length(self, focal_length_to_set: (float, int)):
         if self.focal_length == focal_length_to_set:
             return
-        self.__focal_length = float(focal_length_to_set)
+        self._focal_length = float(focal_length_to_set)
         self._log.debug(f"Set focal length to {focal_length_to_set}mm.")
 
     @property
     def f_number(self) -> float:
-        return self.__f_number
+        return self._f_number
 
     @f_number.setter
     def f_number(self, f_number_to_set: (float, int)):
         if self.focal_length == f_number_to_set:
             return
-        self.__f_number = float(f_number_to_set)
+        self._f_number = float(f_number_to_set)
         self._log.debug(f"Set f# to {f_number_to_set}.")
 
     @property
     def gain(self) -> float:
-        return self.__gain
+        return self._gain
 
     @gain.setter
     def gain(self, gain_to_set: (float, int)):
         if self.gain == gain_to_set:
             return
-        self.__gain = float(gain_to_set)
+        self._gain = float(gain_to_set)
         self._log.debug(f"Set gain to {gain_to_set}dB.")
 
     @property
     def gamma(self) -> float:
-        return self.__gamma
+        return self._gamma
 
     @gamma.setter
     def gamma(self, gamma_to_set: (float, int)):
         if self.gamma == gamma_to_set:
             return
-        self.__gamma = float(gamma_to_set)
+        self._gamma = float(gamma_to_set)
         self._log.debug(f"Set gamma to {gamma_to_set}.")
 
     @property
     def exposure_time(self) -> float:
-        return self.__exposure_time
+        return self._exposure_time
 
     @exposure_time.setter
     def exposure_time(self, exposure_time_to_set: (float, int)):
         if self.exposure_time == exposure_time_to_set:
             return
-        self.__exposure_time = float(exposure_time_to_set)
+        self._exposure_time = float(exposure_time_to_set)
         self._log.debug(f"Set exposure time to {exposure_time_to_set} micro seconds.")
 
     @property
     def exposure_auto(self) -> str:
-        return self.__exposure_auto
+        return self._exposure_auto
 
     @exposure_auto.setter
     def exposure_auto(self, mode: (str, bool)):
         if not FEATURES_DICT[self.model_name].get('autoexposure', True):
-            self.__exposure_auto = None
+            self._exposure_auto = None
             return
         if isinstance(mode, str):
-            self.__exposure_auto = mode.capitalize()
+            self._exposure_auto = mode.capitalize()
         else:
-            self.__exposure_auto = 'Once' if mode else 'Off'
-        self._log.debug(f'Set to {self.__exposure_auto} auto exposure mode.')
+            self._exposure_auto = AUTO_EXPOSURE if mode else MANUAL_EXPOSURE
+        self._log.debug(f'Set to {self._exposure_auto} auto exposure mode.')
 
     def parse_specs_to_tiff(self) -> dict:
         """
@@ -152,6 +153,6 @@ class CameraAbstract:
                      (TIFF_FOCAL_LENGTH, f"{self.focal_length}"),
                      (TIFF_F_NUMBER, f"{self.f_number}"),
                      (TIFF_NOTES, f"PixelPitch{SPECS_DICT[self.model_name].get('pixel_size', 0.00345)};"
-                             f"SensorHeight{SPECS_DICT[self.model_name].get('sensor_size_h', 14.2)};"
-                             f"SensorWidth{SPECS_DICT[self.model_name].get('sensor_size_w', 10.4)};"
-                             f"SensorDiagonal{SPECS_DICT[self.model_name].get('sensor_size_diag', 17.6)};")))
+                                  f"SensorHeight{SPECS_DICT[self.model_name].get('sensor_size_h', 14.2)};"
+                                  f"SensorWidth{SPECS_DICT[self.model_name].get('sensor_size_w', 10.4)};"
+                                  f"SensorDiagonal{SPECS_DICT[self.model_name].get('sensor_size_diag', 17.6)};")))

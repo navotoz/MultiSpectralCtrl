@@ -23,7 +23,7 @@ class FilterWheel(FilterWheelAbstract):
             raise RuntimeError(err)
 
         if self._conn.is_open:
-            self._log.info("Connected to FilterWheel at {}.".format(port))
+            self._log.info(f"Connected to FilterWheel at {port}.")
             self._conn.flushInput()
             self._conn.flushOutput()
             self._conn.timeout = 3

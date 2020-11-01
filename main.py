@@ -1,8 +1,3 @@
-import sys
-from utils.logger import ExceptionsLogger
-sys.stderr = ExceptionsLogger()
-
-
 from socket import gethostname
 import dash
 from server.layouts import main_layout
@@ -28,7 +23,7 @@ def display_page(pathname, current_layout):
     if pathname == '/':
         for name in streamers_dict.keys():
             streamers_dict[name].flag_stream = False
-            streamers_dict[name].camera = None
+            streamers_dict[name]._camera = None
         return layout
     elif pathname == '/viewer':
         layout = current_layout
@@ -46,7 +41,6 @@ if __name__ == '__main__':
 
 
 # todo: why does the autoexposure not wiorking? the camera exits all the time..
-
 
 # todo: change README file parsing section and all other..
 

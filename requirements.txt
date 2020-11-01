@@ -1,4 +1,5 @@
 # python>=3.8
+matplotlib
 dash>=1.4.1
 numpy>=1.9
 Pillow>=7.2
@@ -7,5 +8,4 @@ flask>=1.1.2
 setuptools>=49.2.0
 opencv-python
 pyueye
-matplotlib
 # vimba>=4.1 should also be installed. Download it from the alliedvision site and follow instructions.

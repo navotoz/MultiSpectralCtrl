@@ -13,7 +13,7 @@ from server.app import app, server, logger, handlers, filterwheel, cameras_dict
 from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters_tags_images, \
     base64_to_split_numpy_image
 from server.utils import make_images_for_web_display, make_links_from_files, make_models_dropdown_options_list
-from utils.constants import SAVE_PATH, IMAGE_FORMAT
+from utils.constants import SAVE_PATH, IMAGE_FORMAT, MANUAL_EXPOSURE, AUTO_EXPOSURE
 import dash_html_components as html
 from threading import Event
 
@@ -42,9 +42,9 @@ def download(path: (str, Path)) -> Response:
 def update_exposure(camera_model_name: str):
     if not camera_model_name:
         return dash.no_update
-    exposure_options_list = [{'label': 'Manual', 'value': 'Off'}]
+    exposure_options_list = [{'label': 'Manual', 'value': MANUAL_EXPOSURE}]
     if FEATURES_DICT[camera_model_name].get('autoexposure', False):
-        exposure_options_list.append({'label': 'Auto', 'value': 'Once'})
+        exposure_options_list.append({'label': 'Auto', 'value': AUTO_EXPOSURE})
     return exposure_options_list, \
            FEATURES_DICT[camera_model_name].get('exposure_min'), \
            FEATURES_DICT[camera_model_name].get('exposure_max'), \
@@ -76,13 +76,13 @@ def update_gain_gamma(camera_model_name: str):
 def set_auto_exposure(exposure_type, interval, camera_model_name):
     if not camera_model_name or not cameras_dict[camera_model_name]:
         return True
-    if exposure_type == 'Once' and 'Off' in cameras_dict[camera_model_name].exposure_auto:
+    if exposure_type == AUTO_EXPOSURE and MANUAL_EXPOSURE in cameras_dict[camera_model_name].exposure_auto:
         cameras_dict[camera_model_name].exposure_auto = True
         return True
-    if exposure_type == 'Off' and 'Off' not in cameras_dict[camera_model_name].exposure_auto:
+    if exposure_type == MANUAL_EXPOSURE and MANUAL_EXPOSURE not in cameras_dict[camera_model_name].exposure_auto:
         cameras_dict[camera_model_name].exposure_auto = False
         return False
-    return False if exposure_type == 'Off' else True
+    return False if exposure_type == MANUAL_EXPOSURE else True
 
 
 @app.callback([Output('gain', 'disabled'),
@@ -101,14 +101,18 @@ def set_disabled_to_camera_values(camera_model_name, dummy):
               [Input('gain', 'value'),
                Input('gamma', 'value'),
                Input('exposure-time', 'value'),
+               Input('focal-length', 'value'),
+               Input('f-number', 'value'),
                Input('camera-model-dropdown', 'value')])
-def update_values_in_camera(gain, gamma, exposure_time, camera_model_name):
+def update_values_in_camera(gain, gamma, exposure_time, focal_length, f_number, camera_model_name):
     if not camera_model_name:
         return dash.no_update
     global cameras_dict
     cameras_dict[camera_model_name].gain = gain
     cameras_dict[camera_model_name].gamma = gamma
     cameras_dict[camera_model_name].exposure_time = exposure_time
+    cameras_dict[camera_model_name].f_number = f_number
+    cameras_dict[camera_model_name].focal_length = focal_length
     logger.debug(f"Updated camera values.")
     return 1
 

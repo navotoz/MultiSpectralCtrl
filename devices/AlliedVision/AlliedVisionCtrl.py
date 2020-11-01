@@ -1,3 +1,6 @@
+from functools import wraps
+from multiprocessing import RLock
+
 import numpy as np
 from utils.logger import make_logger, make_device_logging_handler
 from vimba import Vimba, MONO_PIXEL_FORMATS
@@ -6,10 +9,22 @@ from PIL import Image
 from devices import CameraAbstract
 from devices import SPECS_DICT, get_camera_model_name
 from server.utils import numpy_to_base64
+from server.utils import decorate_all_functions
+
 
 ERR_MSG = 'AlliedVision cameras were not detected. Check if cameras are connected to USB3 via USB3 cable.'
+_lock_allied_ = RLock()
 
 
+def lock(func, lock):
+    @wraps(func)
+    def wrapper(*args, **kw):
+        with lock:
+            return func(*args, **kw)
+    return wrapper
+
+
+@decorate_all_functions(lock)
 class AlliedVisionCtrl(CameraAbstract):
     def __init__(self, model_name: (str, None) = None, logging_handlers: (list, tuple) = ()):
         self._vimba = Vimba.get_instance()
@@ -45,6 +60,10 @@ class AlliedVisionCtrl(CameraAbstract):
             self._log.error(f"Camera timed out. Maybe try to reconnect it.")
             raise TimeoutError(f"Camera timed out. Maybe try to reconnect it.")
         frame.convert_pixel_format(MONO_PIXEL_FORMATS[7])
+
+        self._log.debug(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
+                        f"gain {self.gain}dB, gamma {self.gamma}, exposure {self.exposure_time:.3f}microseconds")
+
         return frame.as_numpy_ndarray().squeeze()
 
     def __call__(self) -> np.ndarray:
