@@ -2,9 +2,10 @@ from importlib import import_module
 
 
 def init_alliedvision_camera(model_name: (str, None), logging_handlers: (list, tuple), use_dummy: bool):
-    use_dummy = 'Dummy' if use_dummy else ''
-    path = "devices.AlliedVision"
-    m = import_module(f"{path}.{use_dummy}AlliedVisionCtrl", f"{use_dummy}AlliedVisionCtrl").AlliedVisionCtrl
+    if not use_dummy:
+        from devices.AlliedVision.AlliedVisionCtrl import AlliedVisionCtrl as m
+    else:
+        from devices.AlliedVision.DummyAlliedVisionCtrl import AlliedVisionCtrl as m
     return m(model_name=model_name, logging_handlers=logging_handlers)
 
 
