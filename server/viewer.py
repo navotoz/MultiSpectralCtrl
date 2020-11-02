@@ -1,15 +1,14 @@
-from typing import Dict
-
 from flask import Response, url_for
 import dash_html_components as html
 from utils.constants import DISPLAY_IMAGE_SIZE
 from server.app import server, cameras_dict
-from server.utils import numpy_to_base64
+from server.utils import numpy_to_base64, wait_for_time
 
 from threading import Thread
 from collections import deque
 from collections.abc import Generator
 import cv2
+import numpy as np
 from server.utils import show_image
 
 
@@ -31,7 +30,7 @@ class ThreadedGenerator(object):
         self._queue.append(self._iterator)
 
     def __call__(self):
-        self._iterator._camera = cameras_dict[self._camera_name] if self._camera_name else None
+        self._iterator.camera = cameras_dict[self._camera_name] if self._camera_name else None
         self._thread = Thread(target=self._run, daemon=True)
         self._thread.start()
         for value in self._queue.pop():
@@ -40,13 +39,25 @@ class ThreadedGenerator(object):
 
 
 class CameraIterator(Generator):
+    _get_image= None
+
     def __init__(self, camera):
         super().__init__()
-        self._camera = camera
+        self.camera = camera
         self._frame_number = 0
 
+    @property
+    def camera(self):
+        return self.__camera
+
+    @camera.setter
+    def camera(self, cam)->None:
+        self.__camera = cam
+        self._get_image = wait_for_time(self.__camera, wait_time_in_nsec=1e9)
+
     def __del__(self):
-        self._camera = None
+        self.__camera = None
+        self._get_image = None
 
     @property
     def frame_number(self):
@@ -57,13 +68,16 @@ class CameraIterator(Generator):
         raise StopIteration
 
     def close(self) -> None:
-        self._camera = None
+        self.__camera = None
+        self._get_image = None
 
     def send(self, value):
-        image = self._camera()
+        image = self._get_image()
         w, h = image.shape
-        res = cv2.putText(image, f"{self.frame_number}", (h-200, w-200), cv2.FONT_HERSHEY_SIMPLEX, 3, 0, 2)
-        image = numpy_to_base64(res) if self._camera else b''
+        image_upper_bound = np.iinfo(image.dtype).max
+        c = int(min(image_upper_bound, image.max()+1) if image.mean() < (image_upper_bound // 2) else 0)
+        res = cv2.putText(image, f"{self.frame_number}", (h-200, w-200), cv2.FONT_HERSHEY_SIMPLEX, 3, c, 2)
+        image = numpy_to_base64(res) if self.camera else b''
         return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
 
 

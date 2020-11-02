@@ -86,7 +86,7 @@ class CameraAbstract:
 
     @f_number.setter
     def f_number(self, f_number_to_set: (float, int)):
-        if self.focal_length == f_number_to_set:
+        if self._f_number == f_number_to_set:
             return
         self._f_number = float(f_number_to_set)
         self._log.debug(f"Set f# to {f_number_to_set}.")
@@ -124,12 +124,27 @@ class CameraAbstract:
         self._exposure_time = float(exposure_time_to_set)
         self._log.debug(f"Set exposure time to {exposure_time_to_set} micro seconds.")
 
-    @property
-    def exposure_auto(self) -> str:
-        return self._exposure_auto
+    # @property
+    # def exposure_auto(self) -> str:
+    #     return self._exposure_auto
+    #
+    # @exposure_auto.setter
+    # def exposure_auto(self, mode: (str, bool)):
+    #     if not FEATURES_DICT[self.model_name].get('autoexposure', True):
+    #         self._exposure_auto = None
+    #         return
+    #     if isinstance(mode, str):
+    #         self._exposure_auto = mode.capitalize()
+    #     else:
+    #         self._exposure_auto = AUTO_EXPOSURE if mode else MANUAL_EXPOSURE
+    #     self._log.debug(f'Set to {self._exposure_auto} auto exposure mode.')
 
-    @exposure_auto.setter
-    def exposure_auto(self, mode: (str, bool)):
+    @property
+    @abstractmethod
+    def exposure_auto(self):
+        pass
+
+    def _set_inner_exposure_auto(self, mode:(str,bool))->None:
         if not FEATURES_DICT[self.model_name].get('autoexposure', True):
             self._exposure_auto = None
             return
@@ -138,6 +153,11 @@ class CameraAbstract:
         else:
             self._exposure_auto = AUTO_EXPOSURE if mode else MANUAL_EXPOSURE
         self._log.debug(f'Set to {self._exposure_auto} auto exposure mode.')
+
+    @exposure_auto.setter
+    @abstractmethod
+    def exposure_auto(self, mode: (str, bool))->None:
+        pass
 
     def parse_specs_to_tiff(self) -> dict:
         """

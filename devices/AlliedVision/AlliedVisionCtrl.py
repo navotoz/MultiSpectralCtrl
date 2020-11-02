@@ -2,6 +2,8 @@ from functools import wraps
 from multiprocessing import RLock
 
 import numpy as np
+
+from utils.constants import AUTO_EXPOSURE
 from utils.logger import make_logger, make_device_logging_handler
 from vimba import Vimba, MONO_PIXEL_FORMATS
 from vimba.error import VimbaTimeout, VimbaFeatureError
@@ -11,16 +13,19 @@ from devices import SPECS_DICT, get_camera_model_name
 from server.utils import numpy_to_base64
 from server.utils import decorate_all_functions
 
-
 ERR_MSG = 'AlliedVision cameras were not detected. Check if cameras are connected to USB3 via USB3 cable.'
 _lock_allied_ = RLock()
 
 
-def lock(func, lock):
+def lock(func):
     @wraps(func)
     def wrapper(*args, **kw):
-        with lock:
-            return func(*args, **kw)
+        with _lock_allied_:
+            try:
+                return func(*args, **kw)
+            except Exception as err:
+                print(str(func), err)
+
     return wrapper
 
 
@@ -53,6 +58,20 @@ class AlliedVisionCtrl(CameraAbstract):
     def is_dummy(self):
         return False
 
+    @property
+    def exposure_auto(self) -> str:
+        return self._exposure_auto
+
+    @exposure_auto.setter
+    def exposure_auto(self, mode: (str, bool)) -> None:
+        self._set_inner_exposure_auto(mode)
+        with self._vimba:
+            with self._camera:
+                try:
+                    self._camera.ExposureAuto.set(self.exposure_auto)
+                except (VimbaFeatureError, AttributeError):
+                    pass
+
     def __take_image(self) -> np.ndarray:
         try:
             frame = self._camera.get_frame()
@@ -62,19 +81,18 @@ class AlliedVisionCtrl(CameraAbstract):
         frame.convert_pixel_format(MONO_PIXEL_FORMATS[7])
 
         self._log.debug(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
-                        f"gain {self.gain}dB, gamma {self.gamma}, exposure {self.exposure_time:.3f}microseconds")
+                        f"gain {self.gain}dB, gamma {self.gamma}, exposure {self._camera.ExposureTime.get():.3f}microseconds")
 
         return frame.as_numpy_ndarray().squeeze()
 
     def __call__(self) -> np.ndarray:
         with self._vimba:
             with self._camera:
-                self._camera.Gain.set(self.gain) if self.gain is not None and self.gain != self._camera.Gain.get() else None
-                try:
-                    self._camera.ExposureAuto.set(self.exposure_auto)
-                except (VimbaFeatureError, AttributeError):
-                    pass
-                if self._camera.ExposureTime.get() != self.exposure_time:
-                    self._camera.ExposureTime.set(self.exposure_time) if self.exposure_time is not None else None
-                self._camera.Gamma.set(self.gamma) if self.gamma is not None and self.gamma != self._camera.Gamma.get() else None
+                if self.gain and self.gain != self._camera.Gain.get():
+                    self._camera.Gain.set(self.gain)
+                if self.gamma and self.gamma != self._camera.Gamma.get():
+                    self._camera.Gamma.set(self.gamma)
+                if self.exposure_auto != AUTO_EXPOSURE and self._camera.ExposureTime.get() != self.exposure_time:
+                    self._camera.ExposureTime.set(self.exposure_time)
+                    self.exposure_time = self._camera.ExposureTime.get()
                 return self.__take_image()

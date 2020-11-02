@@ -40,8 +40,6 @@ if __name__ == '__main__':
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
 
-# todo: why does the autoexposure not wiorking? the camera exits all the time..
-
 # todo: change README file parsing section and all other..
 
 # todo: add documantiation

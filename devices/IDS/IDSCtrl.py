@@ -16,15 +16,15 @@ def lock(func):
     @wraps(func)
     def wrapper(*args, **kw):
         with _lock_ids_:
-            return func(*args, **kw)
-
+            try:
+                return func(*args, **kw)
+            except Exception as err:
+                print(str(func), err)
     return wrapper
 
 
 @decorate_all_functions(lock)
 class IDSCtrl(CameraAbstract):
-    _flag_exposure_auto = False
-
     def __init__(self, model_name: (str, None) = None, logging_handlers: (list, tuple) = ()):
         self._camera = Camera()
         self._sensor_info = ueye.SENSORINFO()
@@ -45,32 +45,38 @@ class IDSCtrl(CameraAbstract):
         self._log.info(f"Initialized {self.model_name} IDS cameras.")
 
     def __exit__(self, _type, value, traceback):
-        self._camera.__exit__(_type, value, traceback)
         self._log.debug('Exit')
+        self._camera.__exit__(_type, value, traceback)
 
     def __del__(self):
-        self._camera.__exit__(None, None, None)
         self._log.debug('Deleted')
+        self._camera.__exit__(None, None, None)
+
+    @property
+    def exposure_auto(self) -> str:
+        return self._exposure_auto
+
+    @exposure_auto.setter
+    def exposure_auto(self, mode: (str, bool)):
+        self._set_inner_exposure_auto(mode)
+        use_exposure_auto = False if MANUAL_EXPOSURE in self.exposure_auto else True
+        self._camera.set_exposure_auto(use_exposure_auto)
 
     @property
     def is_dummy(self):
         return False
 
     def __call__(self) -> ndarray:
+        exposure_time_to_set_milliseconds = self.exposure_time * 1e-3
         use_exposure_auto = False if MANUAL_EXPOSURE in self.exposure_auto else True
-        if not self._flag_exposure_auto and use_exposure_auto:
-            self._camera.set_exposure_auto(True)
-            self._flag_exposure_auto = True
-        if self._flag_exposure_auto and not use_exposure_auto:
-            self._camera.set_exposure_auto(False)
-            self._flag_exposure_auto = False
-        exposure_time_milliseconds = self.exposure_time * 1e-3
-        if not use_exposure_auto and self._camera.get_exposure() != exposure_time_milliseconds:
-            self._camera.set_exposure(exposure_time_milliseconds) if exposure_time_milliseconds is not None else None
+        if not use_exposure_auto and self._camera.get_exposure().value != exposure_time_to_set_milliseconds:
+            self._camera.set_exposure(exposure_time_to_set_milliseconds)
+            self.exposure_time = self._camera.get_exposure().value * 1e3
 
         self._camera.set_colormode(ueye.IS_CM_MONO8)  # todo: is this the only relevant colormode?
 
         self._log.debug(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
-                        f"gain {self.gain}dB, gamma {self.gamma}, exposure {self.exposure_time:.3f}milliseconds")
+                        f"gain {self.gain}dB, gamma {self.gamma}, "
+                        f"exposure {self._camera.get_exposure().value:.3f}milliseconds")
 
         return self._camera.capture_image()

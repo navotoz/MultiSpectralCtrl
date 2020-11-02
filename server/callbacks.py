@@ -18,7 +18,7 @@ import dash_html_components as html
 from threading import Event
 
 image_store_dict = dict()
-dict_flags_change_camera_mode: dict = dict().fromkeys(valid_cameras_names_list, False)
+dict_flags_change_camera_mode: Dict[str, Event] = dict().fromkeys(valid_cameras_names_list, Event())
 event_finished_image = Event()
 event_finished_image.set()
 
@@ -198,14 +198,13 @@ def is_equal_states(context_list):
               [Input(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list])
 def change_camera_status(*args):
     global cameras_dict
-    global dict_flags_change_camera_mode
     states_equal, radioitems_states = is_equal_states(dash.callback_context.inputs_list)
     if states_equal:
         return dash.no_update
     for name, state in radioitems_states:
-        if dict_flags_change_camera_mode[name]:
+        if dict_flags_change_camera_mode[name].is_set():
             return dash.no_update
-        dict_flags_change_camera_mode[name] = True
+        dict_flags_change_camera_mode[name].set()
         if 'none' in state and check_device_state(name) != 'none':
             if cameras_dict[name] and name in dash.callback_context.triggered[0]['prop_id']:
                 logger.info(f'{name} camera is not used.')
@@ -217,8 +216,19 @@ def change_camera_status(*args):
                 cameras_dict[name] = initialize_device(name, handlers, use_dummy=False)
             except RuntimeError as err:
                 cameras_dict[name] = None
-        dict_flags_change_camera_mode[name] = False
+        dict_flags_change_camera_mode[name].clear()
     return 1,
+
+
+@app.callback([Output(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list],
+              Input('interval-component', 'n_intervals'),
+              [State(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list])
+def disable_devices_radiobox_while_updating(*args):
+    opts = args[1:]
+    for idx, name in enumerate(cameras_dict):
+        for d in opts[idx]:
+            d['disabled'] = dict_flags_change_camera_mode[name].is_set()
+    return opts
 
 
 @app.callback([Output(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list],
@@ -226,7 +236,7 @@ def change_camera_status(*args):
 def update_devices_radiobox(*args):
     radioboxes_list = []
     for name in cameras_dict:
-        radioboxes_list.append(check_device_state(name) if not dict_flags_change_camera_mode[name] else dash.no_update)
+        radioboxes_list.append(check_device_state(name) if not dict_flags_change_camera_mode[name].is_set() else dash.no_update)
     return radioboxes_list
 
 

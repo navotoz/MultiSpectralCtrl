@@ -2,6 +2,8 @@ from functools import wraps
 import struct
 import os
 from pathlib import Path
+from time import time_ns, sleep
+
 import numpy as np
 from PIL import Image
 from base64 import b64encode, b64decode
@@ -128,7 +130,6 @@ def make_devices_names_radioitems():
                                options=[{'label': 'Real', 'value': 'real'},
                                         {'label': 'Dummy', 'value': 'dummy'},
                                         {'label': 'None', 'value': 'none'}],
-                               value='none',
                                labelStyle={'font-size': '20px', 'display': 'block'})], style=TAB_STYLE))
     return html.Table([html.Tr(tr_list)], style=TAB_STYLE, id='devices-radioitems-table')
 
@@ -169,3 +170,12 @@ def decorate_all_functions(function_decorator):
                 setattr(cls, name, function_decorator(obj))
         return cls
     return decorator
+
+
+def wait_for_time(func, wait_time_in_nsec: float = 1e9):
+    def do_func(*args, **kwargs):
+        start_time = time_ns()
+        res = func(*args, **kwargs)
+        sleep(max(0.0, 1e-9 * (start_time + wait_time_in_nsec - time_ns())))
+        return res
+    return do_func
