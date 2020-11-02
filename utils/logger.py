@@ -9,6 +9,8 @@ def make_device_logging_handler(name, logging_handlers):
         path = Path(handler[0].baseFilename).parent / path
     else:
         path = Path().cwd() / path
+    if not path.parent.is_dir():
+        path.parent.mkdir(parents=True)
     handler = logging.FileHandler(str(path), mode='w')
     handler.setLevel(logging.DEBUG)
     handler.setFormatter(make_fmt())
