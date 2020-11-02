@@ -15,10 +15,10 @@ from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters
 from server.utils import make_images_for_web_display, make_links_from_files, make_models_dropdown_options_list
 from utils.constants import SAVE_PATH, IMAGE_FORMAT, MANUAL_EXPOSURE, AUTO_EXPOSURE
 import dash_html_components as html
-from threading import Event
+from threading import Event, Lock
 
 image_store_dict = dict()
-dict_flags_change_camera_mode: Dict[str, Event] = dict().fromkeys(valid_cameras_names_list, Event())
+dict_flags_change_camera_mode: Dict[str, Event or Lock] = dict().fromkeys(valid_cameras_names_list, Event())
 event_finished_image = Event()
 event_finished_image.set()
 
@@ -346,17 +346,18 @@ def get_real_filterwheel(interval, value: str):
     global filterwheel
     if not interval:
         return dash.no_update
-    if not value and not filterwheel.is_dummy:  # use the dummy
-        filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
-        return []
-    elif 'real' in value and filterwheel.is_dummy:  # use the real FilterWheel
-        try:
-            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=False)
-            return [value]
-        except RuntimeError as err:
+    with dict_flags_change_camera_mode.setdefault('filterwheel', Lock()):
+        if not value and not filterwheel.is_dummy:  # use the dummy
+            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
             return []
-    else:
-        return dash.no_update
+        elif 'real' in value and filterwheel.is_dummy:  # use the real FilterWheel
+            try:
+                filterwheel = initialize_device('FilterWheel', handlers, use_dummy=False)
+                return [value]
+            except RuntimeError as err:
+                return []
+        else:
+            return dash.no_update
 
 
 @app.callback(Output('filter-names-label', 'n_clicks'),
