@@ -21,7 +21,10 @@ class IDSCtrl(CameraAbstract):
         self._log.info(f"Initialized Dummy {self.model_name} IDS cameras.")
 
     def __del__(self):
-        self._log.debug('Deleted')
+        try:
+            self._log.debug('Deleted')
+        except AttributeError:
+            pass
         del self
 
     @property

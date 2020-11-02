@@ -49,7 +49,10 @@ class IDSCtrl(CameraAbstract):
         self._camera.__exit__(_type, value, traceback)
 
     def __del__(self):
-        self._log.debug('Deleted')
+        try:
+            self._log.debug('Deleted')
+        except AttributeError:
+            pass
         self._camera.__exit__(None, None, None)
 
     @property
