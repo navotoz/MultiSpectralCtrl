@@ -85,7 +85,7 @@ class IDSCtrl(CameraAbstract):
         for _ in range(5):
             try:
                 return self._camera.capture_image()
-            except 208 as err:  # IS_SEQ_BUFFER_IS_LOCKED
+            except Exception as err:  # IS_SEQ_BUFFER_IS_LOCKED??
                 self._log.warning(f"Failed to capture image due to {err}")
         self._log.error(f"Failed to capture image")
         return empty(1)
