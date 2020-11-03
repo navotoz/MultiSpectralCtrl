@@ -383,8 +383,11 @@ class Camera(object):
             Colormode, as 'pyueye.IS_CM_BGR8_PACKED' for example.
         """
         for _ in range(5):
-            if check(ueye.is_SetColorMode(self.h_cam, colormode)) == ueye.IS_SUCCESS:
+            try:
+                check(ueye.is_SetColorMode(self.h_cam, colormode))
                 break
+            except uEyeException:
+                pass
 
     def get_colormode(self):
         """
