@@ -230,12 +230,12 @@ def disable_devices_radiobox_while_updating(*args):
     return opts
 
 
-@app.callback(Output('viewer-link', 'href'),
-              [Input('interval-component', 'n_intervals')]+
+@app.callback([Output('viewer-link', 'href')],
+              [Input('interval-component', 'n_intervals')] +
               [Input(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list])
 def disable_viewer_link_while_updating(*args):
     opts = args[1:]
-    if not any(map(lambda t:any(filter(lambda l: True in l.values(), t)), opts)):
+    if not any(map(lambda t: any(filter(lambda l: True in l.values(), t)), opts)):
         return '/viewer'
     return None
 
