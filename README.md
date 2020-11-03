@@ -68,6 +68,10 @@ The relevant version for the RaspberriPi4 is ARM.
 1. In `VimbaPython/Source`, using the pip *in the environment you use* run `pip install .`.
 
 
+##### Setting the RaspberryPi to be a Wifi hotspot #####
+1. Follow the link: https://www.raspberrypi.org/documentation/configuration/wireless/access-point-routed.md
+1. Access the server by the address `192.168.4.1:8000`
+
 #### Changing the default filter names ####
 Change **DEFAULT_FILTER_NAMES_DICT** in `devices/FilterWheel/__init.py`. 
 

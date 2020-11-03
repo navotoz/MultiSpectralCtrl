@@ -33,4 +33,4 @@ class IDSCtrl(CameraAbstract):
 
     def __call__(self) -> np.ndarray:
         h, w = SPECS_DICT[self.model_name]['h'], SPECS_DICT[self.model_name]['w']
-        return np.random.rand(h, w)
+        return np.random.rand(h, w).astype('uint16')

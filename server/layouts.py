@@ -7,7 +7,7 @@ from utils.constants import UPDATE_INTERVAL_SECONDS
 FONT_SIZE = {'font-size': '16px'}
 OPTICS_STYLE_DICT = dict(min=0.0, type='number', style=FONT_SIZE)
 main_layout = [
-    dcc.Link('Camera Viewer', href='/viewer', target='_blank'),
+    dcc.Link('Camera Viewer', id='viewer-link', href='/viewer', target='_blank'),
     html.Hr(),
 
     dcc.Checklist(id='use-real-filterwheel', options=[{'label': 'Real FilterWheel', 'value': 'real'}],

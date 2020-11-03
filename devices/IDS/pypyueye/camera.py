@@ -246,9 +246,14 @@ class Camera(object):
             Real exposure, can be slightly different than the asked one.
         """
         new_exposure = ueye.c_double(exposure)
-        check(ueye.is_Exposure(self.h_cam,
-                               ueye.IS_EXPOSURE_CMD_SET_EXPOSURE,
-                               new_exposure, 8))
+        for _ in range(5):
+            try:
+                check(ueye.is_Exposure(self.h_cam,
+                                       ueye.IS_EXPOSURE_CMD_SET_EXPOSURE,
+                                       new_exposure, 8))
+                break
+            except uEyeException:
+                pass
         return new_exposure
 
     def get_exposure(self):
@@ -261,8 +266,13 @@ class Camera(object):
             Current exposure.
         """
         exposure = ueye.c_double()
-        check(ueye.is_Exposure(self.h_cam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE,
+        for _ in range(5):
+            try:
+                check(ueye.is_Exposure(self.h_cam, ueye.IS_EXPOSURE_CMD_GET_EXPOSURE,
                                exposure, 8))
+                break
+            except uEyeException:
+                pass
         return exposure
 
     def set_exposure_auto(self, toggle):
@@ -383,11 +393,8 @@ class Camera(object):
             Colormode, as 'pyueye.IS_CM_BGR8_PACKED' for example.
         """
         for _ in range(5):
-            try:
-                check(ueye.is_SetColorMode(self.h_cam, colormode))
+            if ueye.is_SetColorMode(self.h_cam, colormode) == ueye.IS_SUCCESS:
                 break
-            except uEyeException:
-                pass
 
     def get_colormode(self):
         """

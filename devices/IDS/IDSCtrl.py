@@ -1,6 +1,7 @@
 import sys
 import traceback
 
+from devices.IDS.pypyueye.utils import uEyeException
 from utils.constants import MANUAL_EXPOSURE
 from utils.logger import make_logger, make_device_logging_handler
 from devices import CameraAbstract, get_camera_model_name
@@ -21,6 +22,8 @@ def lock(func):
         with _lock_ids_:
             try:
                 return func(*args, **kw)
+            except RuntimeError as err:
+                raise RuntimeError(err)
             except Exception as err:
                 traceback.print_exc(file=sys.stdout)
                 print(str(func), err)

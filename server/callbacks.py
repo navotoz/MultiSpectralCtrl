@@ -120,7 +120,7 @@ def update_values_in_camera(gain, gamma, exposure_time, focal_length, f_number, 
 @app.callback([Output('exposure-time', 'value'),
                Output('exposure-type-radio', 'value'),
                Output('gain', 'value'),
-               Output('gamma','value'),
+               Output('gamma', 'value'),
                Output('focal-length', 'value'),
                Output('f-number', 'value')],
               [Input('camera-model-dropdown', 'value')])
@@ -129,10 +129,10 @@ def get_values_from_selected_camera_to_spinboxes(camera_model_name):
         return dash.no_update
     global cameras_dict
     return cameras_dict[camera_model_name].exposure_time, \
-           cameras_dict[camera_model_name].exposure_auto,\
-           cameras_dict[camera_model_name].gain,\
-           cameras_dict[camera_model_name].gamma,\
-           cameras_dict[camera_model_name].focal_length,\
+           cameras_dict[camera_model_name].exposure_auto, \
+           cameras_dict[camera_model_name].gain, \
+           cameras_dict[camera_model_name].gamma, \
+           cameras_dict[camera_model_name].focal_length, \
            cameras_dict[camera_model_name].f_number
 
 
@@ -220,15 +220,21 @@ def change_camera_status(*args):
     return 1,
 
 
-@app.callback([Output(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list],
+@app.callback([Output(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list] +
+              [Output('viewer-link', 'href'), Output('viewer-link', 'target')],
               Input('interval-component', 'n_intervals'),
-              [State(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list])
+              [State(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list] +
+              [State('viewer-link', 'href')])
 def disable_devices_radiobox_while_updating(*args):
-    opts = args[1:]
+    href = args[-1]
+    opts = args[1:-1]
     for idx, name in enumerate(cameras_dict):
         for d in opts[idx]:
-            d['disabled'] = dict_flags_change_camera_mode[name].is_set()
-    return opts
+            flag = dict_flags_change_camera_mode[name].is_set()
+            d['disabled'] = flag
+            if flag:
+                href = None
+    return *opts, href, '_blank' if href else ''
 
 
 @app.callback([Output(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list],
@@ -236,7 +242,8 @@ def disable_devices_radiobox_while_updating(*args):
 def update_devices_radiobox(*args):
     radioboxes_list = []
     for name in cameras_dict:
-        radioboxes_list.append(check_device_state(name) if not dict_flags_change_camera_mode[name].is_set() else dash.no_update)
+        radioboxes_list.append(
+            check_device_state(name) if not dict_flags_change_camera_mode[name].is_set() else dash.no_update)
     return radioboxes_list
 
 

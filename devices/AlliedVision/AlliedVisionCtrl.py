@@ -25,6 +25,8 @@ def lock(func):
         with _lock_allied_:
             try:
                 return func(*args, **kw)
+            except RuntimeError as err:
+                raise RuntimeError(err)
             except Exception as err:
                 traceback.print_exc(file=sys.stdout)
                 print(str(func), err)
