@@ -124,21 +124,6 @@ class CameraAbstract:
         self._exposure_time = float(exposure_time_to_set)
         self._log.debug(f"Set exposure time to {exposure_time_to_set} micro seconds.")
 
-    # @property
-    # def exposure_auto(self) -> str:
-    #     return self._exposure_auto
-    #
-    # @exposure_auto.setter
-    # def exposure_auto(self, mode: (str, bool)):
-    #     if not FEATURES_DICT[self.model_name].get('autoexposure', True):
-    #         self._exposure_auto = None
-    #         return
-    #     if isinstance(mode, str):
-    #         self._exposure_auto = mode.capitalize()
-    #     else:
-    #         self._exposure_auto = AUTO_EXPOSURE if mode else MANUAL_EXPOSURE
-    #     self._log.debug(f'Set to {self._exposure_auto} auto exposure mode.')
-
     @property
     @abstractmethod
     def exposure_auto(self):

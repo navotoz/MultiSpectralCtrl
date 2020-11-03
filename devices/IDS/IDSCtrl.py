@@ -4,7 +4,7 @@ from devices import CameraAbstract, get_camera_model_name
 from devices import SPECS_DICT
 from pyueye import ueye
 from devices.IDS.pypyueye import Camera
-from numpy import ndarray, empty
+from numpy import ndarray, ones
 from multiprocessing import RLock
 from functools import wraps
 from server.utils import decorate_all_functions
@@ -29,12 +29,10 @@ class IDSCtrl(CameraAbstract):
         self._camera = Camera()
         self._sensor_info = ueye.SENSORINFO()
         self._camera_info = ueye.CAMINFO()
-        try:
-            self._camera.__enter__()
-        except Exception as err:
-            raise RuntimeError(f"IDS camera could not be initiated: {err}")
+        self._init_camera()
         ueye.is_GetSensorInfo(self._camera.h_cam, self._sensor_info)
         ueye.is_GetCameraInfo(self._camera.h_cam, self._camera_info)
+        self._h, self._w = self._sensor_info.nMaxHeight.value, self._sensor_info.nMaxWidth.value
         self._model_name = get_camera_model_name(self._sensor_info.strSensorName.decode())
         logging_handlers = make_device_logging_handler(f"{self._model_name}", logging_handlers)
         self._log = make_logger(f"{self._model_name}", handlers=logging_handlers)
@@ -54,6 +52,18 @@ class IDSCtrl(CameraAbstract):
         except AttributeError:
             pass
         self._camera.__exit__(None, None, None)
+
+    def _init_camera(self):
+        try:
+            self._camera.__enter__()
+        except Exception as err:
+            raise RuntimeError(f"IDS camera could not be initiated: {err}")
+
+    def _reset(self):
+        self._camera.__exit__(None, None, None)
+        self._camera = Camera()
+        self._init_camera()
+        self._log.debug('Reset')
 
     @property
     def exposure_auto(self) -> str:
@@ -82,10 +92,12 @@ class IDSCtrl(CameraAbstract):
                         f"gain {self.gain}dB, gamma {self.gamma}, "
                         f"exposure {self._camera.get_exposure().value:.3f}milliseconds")
 
-        for _ in range(5):
-            try:
-                return self._camera.capture_image()
-            except Exception as err:  # IS_SEQ_BUFFER_IS_LOCKED??
-                self._log.warning(f"Failed to capture image due to {err}")
-        self._log.error(f"Failed to capture image")
-        return empty(1)
+        for _ in range(2):
+            for _ in range(5):
+                try:
+                    return self._camera.capture_image()
+                except Exception as err:  # IS_SEQ_BUFFER_IS_LOCKED??
+                    self._log.warning(f"Failed to capture image due to {err}")
+            self._log.error(f"Failed to capture image")
+            self._reset()
+        return ones((self._h, self._w)).astype('uint8')
