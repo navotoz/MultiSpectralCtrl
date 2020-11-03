@@ -4,7 +4,7 @@ from devices import CameraAbstract, get_camera_model_name
 from devices import SPECS_DICT
 from pyueye import ueye
 from devices.IDS.pypyueye import Camera
-from numpy import ndarray
+from numpy import ndarray, empty
 from multiprocessing import RLock
 from functools import wraps
 from server.utils import decorate_all_functions
@@ -88,3 +88,4 @@ class IDSCtrl(CameraAbstract):
             except 208 as err:  # IS_SEQ_BUFFER_IS_LOCKED
                 self._log.warning(f"Failed to capture image due to {err}")
         self._log.error(f"Failed to capture image")
+        return empty(1)
