@@ -45,7 +45,8 @@ error_codes = {ueye.IS_INVALID_EXPOSURE_TIME: "Invalid exposure time",
                ueye.IS_SUCCESS: "Success",
                ueye.IS_CANT_OPEN_DEVICE: "Cannot open device",
                ueye.IS_ALL_DEVICES_BUSY: "All device busy",
-               ueye.IS_TRANSFER_ERROR: "Transfer error"}
+               ueye.IS_TRANSFER_ERROR: "Transfer error",
+               208: "IS_SEQ_BUFFER_IS_LOCKED"}
 
 bits_per_pixel = {ueye.IS_CM_SENSOR_RAW8: 8,
                   ueye.IS_CM_SENSOR_RAW10: 16,
@@ -92,8 +93,7 @@ class uEyeException(Exception):
                              "INVALID" in att or
                              "ERROR" in att or
                              "NOT" in att):
-                    return "Err: {} ({} ?)".format(str(self.error_code),
-                                                   att)
+                    return f"Err: {self.error_code} ({att} ?)"
             return "Err: " + str(self.error_code)
 
 

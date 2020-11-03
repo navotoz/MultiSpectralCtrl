@@ -1,3 +1,5 @@
+import sys
+import traceback
 from functools import wraps
 from multiprocessing import RLock
 
@@ -24,8 +26,8 @@ def lock(func):
             try:
                 return func(*args, **kw)
             except Exception as err:
+                traceback.print_exc(file=sys.stdout)
                 print(str(func), err)
-
     return wrapper
 
 

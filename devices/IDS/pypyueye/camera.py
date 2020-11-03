@@ -60,7 +60,8 @@ class Camera(object):
         bpp = get_bits_per_pixel(self.get_colormode())
         # Check that already existing buffers are free
         for buff in self.img_buffers:
-            check(ueye.is_FreeImageMem(self.h_cam, buff.mem_ptr, buff.mem_id))
+            if ueye.is_UnlockSeqBuf(self.h_cam, ueye.IS_IGNORE_PARAMETER, buff.mem_ptr) == ueye.IS_SUCCESS:
+                check(ueye.is_FreeImageMem(self.h_cam, buff.mem_ptr, buff.mem_id))
         self.img_buffers = []
         # Create asked buffers
         for i in range(self.buffer_count):

@@ -1,3 +1,6 @@
+import sys
+import traceback
+
 from utils.constants import MANUAL_EXPOSURE
 from utils.logger import make_logger, make_device_logging_handler
 from devices import CameraAbstract, get_camera_model_name
@@ -19,6 +22,7 @@ def lock(func):
             try:
                 return func(*args, **kw)
             except Exception as err:
+                traceback.print_exc(file=sys.stdout)
                 print(str(func), err)
     return wrapper
 
@@ -96,7 +100,8 @@ class IDSCtrl(CameraAbstract):
             for _ in range(5):
                 try:
                     return self._camera.capture_image()
-                except Exception as err:  # IS_SEQ_BUFFER_IS_LOCKED??
+                except Exception as err:
+                    traceback.print_exc(file=sys.stdout)
                     self._log.warning(f"Failed to capture image due to {err}")
             self._log.error(f"Failed to capture image")
             self._reset()
