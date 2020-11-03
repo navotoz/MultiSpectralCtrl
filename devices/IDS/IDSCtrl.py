@@ -82,4 +82,9 @@ class IDSCtrl(CameraAbstract):
                         f"gain {self.gain}dB, gamma {self.gamma}, "
                         f"exposure {self._camera.get_exposure().value:.3f}milliseconds")
 
-        return self._camera.capture_image()
+        for _ in range(5):
+            try:
+                return self._camera.capture_image()
+            except 208 as err:  # IS_SEQ_BUFFER_IS_LOCKED
+                self._log.warning(f"Failed to capture image due to {err}")
+        self._log.error(f"Failed to capture image")
