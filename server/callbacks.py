@@ -1,17 +1,16 @@
 import os
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict
 
 import dash
 from dash.dependencies import Input, Output, State
 from flask import Response, send_file
 
 from devices import initialize_device, valid_cameras_names_list
-from devices import SPECS_DICT, FEATURES_DICT
+from devices import FEATURES_DICT
 from server.app import app, server, logger, handlers, filterwheel, cameras_dict
-from server.utils import find_files_in_savepath, save_image_to_tiff, get_filters_tags_images, \
-    base64_to_split_numpy_image
+from server.utils import find_files_in_savepath, save_image_to_tiff, base64_to_split_numpy_image
 from server.utils import make_images_for_web_display, make_links_from_files, make_models_dropdown_options_list
 from utils.constants import SAVE_PATH, IMAGE_FORMAT, MANUAL_EXPOSURE, AUTO_EXPOSURE
 import dash_html_components as html
@@ -220,21 +219,25 @@ def change_camera_status(*args):
     return 1,
 
 
-@app.callback([Output(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list] +
-              [Output('viewer-link', 'href'), Output('viewer-link', 'target')],
+@app.callback([Output(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list],
               Input('interval-component', 'n_intervals'),
-              [State(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list] +
-              [State('viewer-link', 'href')])
+              [State(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list])
 def disable_devices_radiobox_while_updating(*args):
-    href = args[-1]
-    opts = args[1:-1]
+    opts = args[1:]
     for idx, name in enumerate(cameras_dict):
         for d in opts[idx]:
-            flag = dict_flags_change_camera_mode[name].is_set()
-            d['disabled'] = flag
-            if flag:
-                href = None
-    return *opts, href, '_blank' if href else ''
+            d['disabled'] = dict_flags_change_camera_mode[name].is_set()
+    return opts
+
+
+@app.callback(Output('viewer-link', 'href'),
+              [Input('interval-component', 'n_intervals')]+
+              [Input(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list])
+def disable_viewer_link_while_updating(*args):
+    opts = args[1:]
+    if not any(map(lambda t:any(filter(lambda l: True in l.values(), t)), opts)):
+        return '/viewer'
+    return None
 
 
 @app.callback([Output(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list],
