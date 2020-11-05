@@ -42,7 +42,7 @@ UserPasswdVerifier=VncAuth
 1. In the project folder, make `venv` and enter into it.
 1. Setup a venv inside `/venv`:
     - `python3 -m venv .`
-1. Activate it by `source /bin/activate`
+1. Activate it by `source bin/activate`
 1. Make a new file on the desktop named `Multispectral.desktop`
 1. Write inside:
 ```
