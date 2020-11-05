@@ -1,3 +1,4 @@
+from flask import request
 import os
 from io import BytesIO
 from pathlib import Path
@@ -384,3 +385,19 @@ def change_filter_names(*args):
     if filterwheel.position_names_dict != position_names_dict:
         filterwheel.position_names_dict = position_names_dict
     return 1
+
+
+@app.callback(Output('kill-button', 'children'),
+              Input('kill-button', 'n_clicks'))
+def kill_server(n_clicks):
+    if not n_clicks:
+        return dash.no_update
+    for name in cameras_dict.keys():
+        if 'none' not in check_device_state(name):
+            cameras_dict[name] = None
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
+    exit()
+
