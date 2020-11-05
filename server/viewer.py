@@ -19,7 +19,7 @@ class ThreadedGenerator(object):
     variables referenced in the calling thread.
     """
 
-    def __init__(self, camera_name:(str,None)):
+    def __init__(self, camera_name: (str, None)):
         self._camera_name = camera_name
         self._iterator = CameraIterator(None)
         self._queue = deque(maxlen=1)
@@ -39,7 +39,7 @@ class ThreadedGenerator(object):
 
 
 class CameraIterator(Generator):
-    _get_image= None
+    _get_image = None
 
     def __init__(self, camera):
         super().__init__()
@@ -51,9 +51,9 @@ class CameraIterator(Generator):
         return self.__camera
 
     @camera.setter
-    def camera(self, cam)->None:
+    def camera(self, cam) -> None:
         self.__camera = cam
-        self._get_image = wait_for_time(self.__camera, wait_time_in_nsec=1e9)
+        self._get_image = wait_for_time(self.__camera, wait_time_in_nsec=5e8)
 
     def __del__(self):
         self.__camera = None
@@ -75,8 +75,8 @@ class CameraIterator(Generator):
         image = self._get_image()
         w, h = image.shape
         image_upper_bound = np.iinfo(image.dtype).max
-        c = int(min(image_upper_bound, image.max()+1) if image.mean() < (image_upper_bound // 2) else 0)
-        res = cv2.putText(image, f"{self.frame_number}", (h-200, w-200), cv2.FONT_HERSHEY_SIMPLEX, 3, c, 2)
+        c = int(min(image_upper_bound, image.max() + 1) if image.mean() < (image_upper_bound // 2) else 0)
+        res = cv2.putText(image, f"{self.frame_number}", (h - 200, w - 200), cv2.FONT_HERSHEY_SIMPLEX, 3, c, 2)
         image = numpy_to_base64(res) if self.camera else b''
         return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
 
