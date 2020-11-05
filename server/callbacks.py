@@ -214,12 +214,10 @@ def change_camera_status(*args):
             try:
                 cameras_dict[name] = initialize_device(name, handlers, use_dummy=False)
             except RuntimeError as err:
-                pass
+                cameras_dict[name] = None
             except ImportError as err:
                 logger.error(err)
-            finally:
                 cameras_dict[name] = None
-
         dict_flags_change_camera_mode[name].clear()
     return 1,
 
