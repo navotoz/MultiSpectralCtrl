@@ -36,19 +36,25 @@ def lock(func):
 @decorate_all_functions(lock)
 class AlliedVisionCtrl(CameraAbstract):
     def __init__(self, model_name: (str, None) = None, logging_handlers: (list, tuple) = ()):
+        print('entered')
         self._vimba = Vimba.get_instance()
+        print('got instance')
         with self._vimba:
+            print('passed with')
             camera_list = self._vimba.get_all_cameras()
             func = lambda x: model_name and model_name in get_camera_model_name(x)
             camera_list = list(filter(func, list(camera_list)))
+            print('camera list')
             if not camera_list:
                 raise RuntimeError(ERR_MSG)
             self._camera = camera_list[0]
             self._model_name = get_camera_model_name(self._camera)
             logging_handlers = make_device_logging_handler(f"{self._model_name}", logging_handlers)
+            print('logging handler')
             self._log = make_logger(f"{self._model_name}", handlers=logging_handlers)
             super().__init__(self._model_name, self._log)
             with self._camera:
+                print('entered camera')
                 self._camera.AcquisitionMode.set(0) if int(
                     self._camera.AcquisitionMode.get()) != 0 else None  # single image
                 pix_format_max = self._camera.get_pixel_formats()[-1]
