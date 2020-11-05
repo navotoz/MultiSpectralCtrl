@@ -78,7 +78,7 @@ class AlliedVisionCtrl(CameraAbstract):
 
     def __take_image(self) -> np.ndarray:
         try:
-            frame = self._camera.get_frame(timeout_ms=1000 + self.exposure_time*1e-3)
+            frame = self._camera.get_frame(timeout_ms=1000 + int(np.ceil(self.exposure_time*1e-3)))
         except VimbaTimeout:
             self._log.error(f"Camera timed out. Maybe try to reconnect it.")
             raise TimeoutError(f"Camera timed out. Maybe try to reconnect it.")
