@@ -1,3 +1,4 @@
+from signal import SIGINT, signal,SIGKILL, SIGTERM
 from socket import gethostname
 import dash
 from server.layouts import main_layout
@@ -33,6 +34,8 @@ def display_page(pathname, current_layout):
 
 
 if __name__ == '__main__':
+    signal(SIGINT, server.callbacks.exit_handler)
+    signal(SIGTERM, server.callbacks.exit_handler)
     PORT = 8000
     IP = "0.0.0.0"
     print(f"http://{gethostname():s}:{PORT:d}/")

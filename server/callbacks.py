@@ -392,12 +392,16 @@ def change_filter_names(*args):
 def kill_server(n_clicks):
     if not n_clicks:
         return dash.no_update
-    for name in cameras_dict.keys():
-        if 'none' not in check_device_state(name):
-            cameras_dict[name] = None
+    exit_handler(None, None)
     func = request.environ.get('werkzeug.server.shutdown')
     if func is None:
         raise RuntimeError('Not running with the Werkzeug Server')
     func()
-    exit()
+    exit(0)
 
+
+def exit_handler(sig_type: int, frame) -> None:
+    for name in cameras_dict.keys():
+        if 'none' not in check_device_state(name):
+            cameras_dict[name] = None
+    exit(0)
