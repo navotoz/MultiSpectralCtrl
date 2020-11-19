@@ -72,6 +72,19 @@ The relevant version for the RaspberriPi4 is ARM.
 1. Follow the link: https://www.raspberrypi.org/documentation/configuration/wireless/access-point-routed.md
 1. Access the server by the address `192.168.4.1:8000`
 
+##### Setting the server to run on startup #####
+1. `sudo apt-get install xterm`
+1. `mkdir -p ~/.config/autostart`
+1. Open a terminal and type `cv ~/.config/autostart`
+1. Ope a text editor and a new file `nano autostart-server.desktop`
+1. Inside the file write and **Be sure to change the paths of the files**:
+```
+[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+Exec=/usr/bin/lxterm -e '/path/to/project/venv/bin/python3 /path/to/project/main.py | less'
+```
+
 #### Changing the default filter names ####
 Change **DEFAULT_FILTER_NAMES_DICT** in `devices/FilterWheel/__init.py`. 
 
