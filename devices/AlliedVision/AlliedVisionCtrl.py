@@ -15,6 +15,7 @@ from devices import SPECS_DICT, get_camera_model_name
 from server.utils import numpy_to_base64
 from server.utils import decorate_all_functions
 
+N_RETRIES =5
 ERR_MSG = 'AlliedVision cameras were not detected. Check if cameras are connected to USB3 via USB3 cable.'
 _lock_allied_ = RLock()
 
@@ -76,18 +77,25 @@ class AlliedVisionCtrl(CameraAbstract):
                 except (VimbaFeatureError, AttributeError):
                     pass
 
-    def __take_image(self) -> np.ndarray:
-        try:
-            frame = self._camera.get_frame(timeout_ms=1000 + int(np.ceil(self.exposure_time*1e-3)))
-        except VimbaTimeout:
-            self._log.error(f"Camera timed out. Maybe try to reconnect it.")
-            raise TimeoutError(f"Camera timed out. Maybe try to reconnect it.")
-        frame.convert_pixel_format(MONO_PIXEL_FORMATS[7])
-
+    def __take_image(self) -> (np.ndarray, None):
+        frame = None
+        for idx in range(1, N_RETRIES+1):
+            try:
+                frame = self._camera.get_frame(timeout_ms=1000 + int(np.ceil(self.exposure_time*1e-3)))
+            except VimbaTimeout:
+                self._log.error(f"Camera timed out. Maybe try to reconnect it.")
+                raise TimeoutError(f"Camera timed out. Maybe try to reconnect it.")
+            if frame.get_status() == 0:
+                frame.convert_pixel_format(MONO_PIXEL_FORMATS[7])
+                frame = frame.as_numpy_ndarray().squeeze()
+                break
+            self._log.debug(f'Frame was incomplete. Retry {idx} of {N_RETRIES}')
+        if frame is None:
+            return None
         self._log.debug(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
-                        f"gain {self.gain}dB, gamma {self.gamma}, exposure {self._camera.ExposureTime.get():.3f}microseconds")
-
-        return frame.as_numpy_ndarray().squeeze()
+                        f"gain {self.gain}dB, gamma {self.gamma}, "
+                        f"exposure {self._camera.ExposureTime.get():.3f}microseconds")
+        return frame
 
     def __call__(self) -> np.ndarray:
         with self._vimba:

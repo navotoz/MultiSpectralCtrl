@@ -320,7 +320,8 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
                 image_store_dict.setdefault(camera_name, []).append(cameras_dict[camera_name]())
             filterwheel.position = position
             image = cameras_dict[multispectral_camera_name]()
-            image_store_dict.setdefault(multispectral_camera_name, []).append((filterwheel.position['name'], image))
+            if image is not None:
+                image_store_dict.setdefault(multispectral_camera_name, []).append((filterwheel.position['name'], image))
 
         # get specs for all cameras
         for camera_name in camera_names_list + [multispectral_camera_name]:
