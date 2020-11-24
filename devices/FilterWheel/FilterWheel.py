@@ -86,12 +86,18 @@ class FilterWheel(FilterWheelAbstract):
         Returns:
             A dictionary with (number, name) for FilterWheel current position.
         """
-        pos_number = self.__send_and_recv(GET_POSITION)
-        while len(pos_number) < 2:  # busy-waiting for answer
+        for _ in range(5):
             pos_number = self.__send_and_recv(GET_POSITION)
-        pos_number = int(pos_number[1])
-        pos_name = self._position_names_dict[pos_number]
-        return dict(number=pos_number, name=pos_name)
+            while len(pos_number) < 2:  # busy-waiting for answer
+                pos_number = self.__send_and_recv(GET_POSITION)
+            pos_number = list(filter(lambda x: x.isdecimal(), pos_number))
+            if pos_number:
+                pos_number = int(pos_number[-1])
+            else:
+                continue
+            pos_name = self._position_names_dict[pos_number]
+            return dict(number=pos_number, name=pos_name)
+        return dict(number=None, name=None)
 
     @position.setter
     def position(self, next_position: (int, str)):

@@ -334,7 +334,7 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
             image = cameras_dict[multispectral_camera_name]()
             if image is not None:
                 image_store_dict.setdefault(multispectral_camera_name, []).append((filterwheel.position['name'], image))
-            logger.info(f"Taken an image with filter {position}#.")
+            logger.info(f"Taken an image in position {position}#.")
 
         # get specs for all cameras
         for camera_name in camera_names_list + [multispectral_camera_name]:
