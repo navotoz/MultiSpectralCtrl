@@ -107,9 +107,9 @@ class AlliedVisionCtrl(CameraAbstract):
             self._log.debug(f'Frame was incomplete. Retry {idx} of {N_RETRIES}')
         if frame is None:
             return None
-        self._log.debug(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
+        self._log.info(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
                         f"gain {self.gain}dB, gamma {self.gamma}, "
-                        f"exposure {self._camera.ExposureTime.get():.3f}microseconds")
+                        f"exposure {1e-3*self._camera.ExposureTime.get():.2f}milliseconds")
         return frame
 
     def __call__(self) -> np.ndarray:

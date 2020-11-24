@@ -423,4 +423,5 @@ def exit_handler(sig_type: int, frame) -> None:
     Output('log-div', 'children'),
     Input('interval-component', 'n_intervals'))
 def log_content(n_intervals):
-    return [html.Div(log) for log in dash_logger.logs]
+    return [html.Div(([html.Div(children=[html.Div(l) for l in log],
+                     style=dict(height='200px', overflow='auto'))] + [html.Hr()])) for log in dash_logger.logs.values()]

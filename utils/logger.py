@@ -5,13 +5,13 @@ from pathlib import Path
 class DashLogger(logging.StreamHandler):
     def __init__(self, stream=None):
         super().__init__(stream=stream)
-        self.logs = list()
+        self.logs = dict()
 
     def emit(self, record):
         try:
             msg = self.format(record)
-            self.logs.append(msg)
-            self.logs = self.logs[-1000:]
+            self.logs.setdefault(record.name, []).append(msg)
+            self.logs[record.name] = self.logs[record.name][-20:]
             self.flush()
         except Exception:
             self.handleError(record)
@@ -56,6 +56,8 @@ def make_logger(name: str, handlers: (list, tuple), level: int = logging.INFO) -
     for idx in range(len(handlers)):
         if handlers[idx].name == 'stdout':
             handlers[idx].setLevel(level)
+        elif handlers[idx].name == 'dash_logger':
+            continue
         else:
             handlers[idx].setLevel(logging.DEBUG)
     for handler in handlers:
@@ -82,5 +84,6 @@ class ExceptionsLogger:
 
 
 dash_logger = DashLogger()
+dash_logger.name = 'dash_logger'
 dash_logger.setFormatter(make_fmt())
-dash_logger.setLevel(logging.DEBUG)
+dash_logger.setLevel(logging.INFO)
