@@ -326,6 +326,7 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
             return 1
 
         # take images for different filters
+        logger.info(f"Taking a sequence of {length_sequence} filters.")
         for position in range(1, length_sequence + 1):
             for camera_name in camera_names_list:  # photo with un-filtered cameras
                 image_store_dict.setdefault(camera_name, []).append(cameras_dict[camera_name]())
@@ -333,6 +334,7 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
             image = cameras_dict[multispectral_camera_name]()
             if image is not None:
                 image_store_dict.setdefault(multispectral_camera_name, []).append((filterwheel.position['name'], image))
+            logger.info(f"Taken an image with filter {position}#.")
 
         # get specs for all cameras
         for camera_name in camera_names_list + [multispectral_camera_name]:
@@ -341,7 +343,7 @@ def images_handler_callback(button_state, to_save: str, multispectral_camera_nam
         # save images (if to_save)
         for camera_name in camera_names_list + [multispectral_camera_name]:  # photo with un-filtered cameras
             save_image_to_tiff(image_store_dict[camera_name]) if to_save else None
-        logger.info("Taken an image." if 'save' not in to_save else "Saved an image.")
+        logger.info("Taken a sequence." if 'save' not in to_save else "Saved a sequence.")
         event_finished_image.set()
         return 1
     return dash.no_update

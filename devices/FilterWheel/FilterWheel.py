@@ -91,7 +91,6 @@ class FilterWheel(FilterWheelAbstract):
             pos_number = self.__send_and_recv(GET_POSITION)
         pos_number = int(pos_number[1])
         pos_name = self._position_names_dict[pos_number]
-        self._log.debug(f"PosNum{pos_number}_PosName{pos_name}.")
         return dict(number=pos_number, name=pos_name)
 
     @position.setter
@@ -109,6 +108,8 @@ class FilterWheel(FilterWheelAbstract):
             while curr_position != next_position:  # busy-waiting until position stabilizes
                 self.__send_and_recv(SET_POSITION(next_position))
                 curr_position = self.position['number']
+            curr_position = self.position
+            self._log.info(f"Set position {curr_position['number']}# with filter {curr_position['name']}.")
         else:
             self._log.warning(f'Position {next_position} is invalid.')
 
