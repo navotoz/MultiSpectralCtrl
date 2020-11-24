@@ -2,6 +2,21 @@ import logging
 from pathlib import Path
 
 
+class DashLogger(logging.StreamHandler):
+    def __init__(self, stream=None):
+        super().__init__(stream=stream)
+        self.logs = list()
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            self.logs.append(msg)
+            self.logs = self.logs[-1000:]
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
+
 def make_device_logging_handler(name, logging_handlers):
     handler = [handler for handler in logging_handlers if isinstance(handler, logging.FileHandler)]
     path = Path('log') / f'{name.lower()}.txt'
@@ -30,6 +45,7 @@ def make_logging_handlers(logfile_path: (None, Path) = None, verbose: bool = Fal
     handlers_list.append(logging.FileHandler(str(logfile_path), mode='w')) if logfile_path else None
     for handler in handlers_list:
         handler.setFormatter(fmt)
+    handlers_list.append(dash_logger)
     return tuple(handlers_list)
 
 
@@ -61,3 +77,7 @@ class ExceptionsLogger:
     def write(self, message):
         if message != '\n':
             self._logger.critical(message.split('\n')[0])
+
+dash_logger = DashLogger()
+dash_logger.setFormatter(        make_fmt())
+dash_logger.setLevel(logging.DEBUG)

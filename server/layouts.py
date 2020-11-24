@@ -73,4 +73,7 @@ main_layout = [
     html.Ul(id='file-list'),
     dcc.Interval(id='interval-component', interval=UPDATE_INTERVAL_SECONDS * 1e3),  # in milliseconds
     html.Div(id='after-photo-sync-label', hidden=True),
-    html.Div(children=[], id='imgs')]
+    html.Div(children=html.Table(html.Tr(id='imgs', children=[]))),
+    html.Hr(),
+
+    html.Div(id='log-div',style=dict(height='300px', overflow='auto'))]

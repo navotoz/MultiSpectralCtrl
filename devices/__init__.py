@@ -7,6 +7,7 @@ from devices.AlliedVision import init_alliedvision_camera
 from devices.IDS import init_ids_camera
 from utils.constants import TIFF_MODEL_NAME, TIFF_GAIN, TIFF_F_NUMBER, TIFF_EXPOSURE_TIME, TIFF_FOCAL_LENGTH, \
     TIFF_NOTES, MANUAL_EXPOSURE, AUTO_EXPOSURE
+from utils.logger import make_logging_handlers
 
 ALLIEDVISION_VALID_MODEL_NAMES = import_module(f"devices.AlliedVision", f"AlliedVision").get_specs_dict().keys()
 IDS_VALID_MODEL_NAMES = import_module(f"devices.IDS", f"IDS").get_specs_dict().keys()

@@ -2,9 +2,8 @@ from abc import abstractmethod
 from logging import Logger
 
 # constants
-FILTERWHEEL_SETTLING_TIME = 1  # seconds
-DEFAULT_FILTER_NAMES_DICT = {1: '480', 2: '520', 3: '550', 4: '670', 5: '700', 6: '0'}  # 0 is glass
-FILTERWHEEL_RECV_WAIT_TIME_IN_SEC = 0.5  # seconds
+DEFAULT_FILTER_NAMES_DICT = {1: '0', 2: '480', 3: '520', 4: '550', 5: '670', 6: '700'}  # 0 is glass
+FILTERWHEEL_RECV_WAIT_TIME_IN_SEC = 0.2  # seconds
 
 
 # FilterWheel command encodings for serial connection

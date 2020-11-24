@@ -16,6 +16,7 @@ from server.utils import make_images_for_web_display, make_links_from_files, mak
 from utils.constants import SAVE_PATH, IMAGE_FORMAT, MANUAL_EXPOSURE, AUTO_EXPOSURE
 import dash_html_components as html
 from threading import Event, Lock
+from utils.logger import dash_logger
 
 image_store_dict = dict()
 dict_flags_change_camera_mode: Dict[str, Event or Lock] = dict().fromkeys(valid_cameras_names_list, Event())
@@ -157,7 +158,7 @@ def make_downloads_list(dummy1, dummy2):
 @app.callback(Output("imgs", 'children'),
               [Input('file-list', 'n_clicks'),
                Input('after-photo-sync-label', 'n_clicks')])
-def show_images(dummy1, dummy2):
+def show_images(trigger1, trigger2):
     global image_store_dict
     if not image_store_dict:
         return dash.no_update
@@ -173,9 +174,8 @@ def show_images(dummy1, dummy2):
             image = image_store_dict[camera_name][idx]
             image_list.append(image if isinstance(image, tuple) else ('0', image))
         table_cells_list.append(make_images_for_web_display(image_list))
-    table = html.Table(html.Tr(children=[*table_cells_list]))
-    logger.debug('Showing download.')
-    return table
+    logger.debug('Showing images.')
+    return table_cells_list
 
 
 def check_device_state(name: str) -> str:
@@ -406,3 +406,10 @@ def exit_handler(sig_type: int, frame) -> None:
         if 'none' not in check_device_state(name):
             cameras_dict[name] = None
     exit(0)
+
+
+@app.callback(
+  Output('log-div','children'),
+  Input('interval-component','n_intervals'))
+def log_content(n_intervals):
+    return [html.Div(log) for log in dash_logger.logs]

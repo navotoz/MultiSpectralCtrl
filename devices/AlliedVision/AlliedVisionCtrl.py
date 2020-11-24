@@ -5,14 +5,12 @@ from multiprocessing import RLock
 
 import numpy as np
 
-from utils.constants import AUTO_EXPOSURE
+from utils.constants import *
 from utils.logger import make_logger, make_device_logging_handler
 from vimba import Vimba, MONO_PIXEL_FORMATS
 from vimba.error import VimbaTimeout, VimbaFeatureError
-from PIL import Image
 from devices import CameraAbstract
 from devices import SPECS_DICT, get_camera_model_name
-from server.utils import numpy_to_base64
 from server.utils import decorate_all_functions
 
 N_RETRIES =5
@@ -81,8 +79,8 @@ class AlliedVisionCtrl(CameraAbstract):
         frame = None
         for idx in range(1, N_RETRIES+1):
             try:
-                frame = self._camera.get_frame(timeout_ms=1000 + int(np.ceil(self.exposure_time*1e-3)))
-            except VimbaTimeout:
+                frame = self._camera.get_frame(timeout_ms=10000 + int(np.ceil(self.exposure_time*1e-3)))
+            except VimbaTimeout as err:
                 self._log.error(f"Camera timed out. Maybe try to reconnect it.")
                 raise TimeoutError(f"Camera timed out. Maybe try to reconnect it.")
             if frame.get_status() == 0:
@@ -104,7 +102,10 @@ class AlliedVisionCtrl(CameraAbstract):
                     self._camera.Gain.set(self.gain)
                 if self.gamma and self.gamma != self._camera.Gamma.get():
                     self._camera.Gamma.set(self.gamma)
-                if self.exposure_auto != AUTO_EXPOSURE and self._camera.ExposureTime.get() != self.exposure_time:
-                    self._camera.ExposureTime.set(self.exposure_time)
-                    self.exposure_time = self._camera.ExposureTime.get()
+                if self.exposure_auto == MANUAL_EXPOSURE:
+                    if self._camera.ExposureTime.get() != self.exposure_time:
+                        self._camera.ExposureTime.set(self.exposure_time)
+                        self.exposure_time = self._camera.ExposureTime.get()
+                else:
+                    self._camera.ExposureAuto.set(ONCE_EXPOSURE)
                 return self.__take_image()
