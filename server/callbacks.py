@@ -109,12 +109,13 @@ def update_values_in_camera(gain, gamma, exposure_time, focal_length, f_number, 
     if not camera_model_name:
         return dash.no_update
     global cameras_dict
-    cameras_dict[camera_model_name].gain = gain
-    cameras_dict[camera_model_name].gamma = gamma
-    cameras_dict[camera_model_name].exposure_time = exposure_time
-    cameras_dict[camera_model_name].f_number = f_number
-    cameras_dict[camera_model_name].focal_length = focal_length
-    logger.debug(f"Updated camera values.")
+    if camera_model_name in cameras_dict and cameras_dict[camera_model_name]:
+        cameras_dict[camera_model_name].gain = gain
+        cameras_dict[camera_model_name].gamma = gamma
+        cameras_dict[camera_model_name].exposure_time = exposure_time
+        cameras_dict[camera_model_name].f_number = f_number
+        cameras_dict[camera_model_name].focal_length = focal_length
+        logger.debug(f"Updated camera values.")
     return 1
 
 
@@ -129,12 +130,14 @@ def get_values_from_selected_camera_to_spinboxes(camera_model_name):
     if not camera_model_name:
         return dash.no_update
     global cameras_dict
-    return cameras_dict[camera_model_name].exposure_time, \
-           cameras_dict[camera_model_name].exposure_auto, \
-           cameras_dict[camera_model_name].gain, \
-           cameras_dict[camera_model_name].gamma, \
-           cameras_dict[camera_model_name].focal_length, \
-           cameras_dict[camera_model_name].f_number
+    if camera_model_name in cameras_dict and cameras_dict[camera_model_name]:
+        return cameras_dict[camera_model_name].exposure_time, \
+               cameras_dict[camera_model_name].exposure_auto, \
+               cameras_dict[camera_model_name].gain, \
+               cameras_dict[camera_model_name].gamma, \
+               cameras_dict[camera_model_name].focal_length, \
+               cameras_dict[camera_model_name].f_number
+    return [None] * 6
 
 
 @app.callback(Output('file-list', 'children'),
@@ -234,14 +237,14 @@ def disable_devices_radiobox_while_updating(*args):
     return opts
 
 
-@app.callback([Output('viewer-link', 'href')],
+@app.callback(Output('viewer-link', 'href'),
               [Input('interval-component', 'n_intervals')] +
               [Input(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list])
 def disable_viewer_link_while_updating(*args):
     opts = args[1:]
     if not any(map(lambda t: any(filter(lambda l: True in l.values(), t)), opts)):
         return '/viewer'
-    return None
+    return ''
 
 
 @app.callback([Output(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list],
@@ -254,16 +257,24 @@ def update_devices_radiobox(*args):
     return radioboxes_list
 
 
-@app.callback([Output('camera-model-dropdown', 'options'),
+@app.callback([Output('camera-model-dropdown', 'value'),
+               Output('camera-model-dropdown', 'options'),
                Output('multispectral-camera-radioitems', 'options')],
               Input('interval-component', 'n_intervals'),
-              State('camera-model-dropdown', 'options'))
-def update_camera_models_dropdown_list(dummy, *models):
+              [State('camera-model-dropdown', 'options'),
+               State('camera-model-dropdown', 'value')])
+def update_camera_models_dropdown_list(dummy, models, curr_value):
     device_state_list = list(map(lambda name: (name, check_device_state(name)), cameras_dict.keys()))
     dropdown_options = make_models_dropdown_options_list(device_state_list)
-    if models[0] == dropdown_options:
+    if not dropdown_options:
+        curr_value = None
+    # elif curr_value and not any(map(lambda x: curr_value.lower() in x['value'].lower(), dropdown_options)):
+    #     curr_value = dropdown_options[0]['value']
+    else:
+        curr_value = dropdown_options[0]['value']
+    if models == dropdown_options:
         return dash.no_update
-    return dropdown_options, dropdown_options
+    return curr_value, dropdown_options,dropdown_options
 
 
 @app.callback(Output('multispectral-camera-radioitems', 'value'),
@@ -409,7 +420,7 @@ def exit_handler(sig_type: int, frame) -> None:
 
 
 @app.callback(
-  Output('log-div','children'),
-  Input('interval-component','n_intervals'))
+    Output('log-div', 'children'),
+    Input('interval-component', 'n_intervals'))
 def log_content(n_intervals):
     return [html.Div(log) for log in dash_logger.logs]

@@ -130,7 +130,7 @@ class CameraAbstract:
     def exposure_auto(self):
         pass
 
-    def _set_inner_exposure_auto(self, mode:(str,bool))->None:
+    def _set_inner_exposure_auto(self, mode: (str, bool)) -> None:
         if not FEATURES_DICT[self.model_name].get('autoexposure', True):
             self._exposure_auto = None
             return
@@ -142,7 +142,7 @@ class CameraAbstract:
 
     @exposure_auto.setter
     @abstractmethod
-    def exposure_auto(self, mode: (str, bool))->None:
+    def exposure_auto(self, mode: (str, bool)) -> None:
         pass
 
     def parse_specs_to_tiff(self) -> dict:

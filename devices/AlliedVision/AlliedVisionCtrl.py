@@ -13,7 +13,7 @@ from devices import CameraAbstract
 from devices import SPECS_DICT, get_camera_model_name
 from server.utils import decorate_all_functions
 
-N_RETRIES =5
+N_RETRIES = 5
 ERR_MSG = 'AlliedVision cameras were not detected. Check if cameras are connected to USB3 via USB3 cable.'
 _lock_allied_ = RLock()
 
@@ -29,6 +29,7 @@ def lock(func):
             except Exception as err:
                 traceback.print_exc(file=sys.stdout)
                 print(str(func), err)
+
     return wrapper
 
 
@@ -53,6 +54,7 @@ class AlliedVisionCtrl(CameraAbstract):
                 pix_format_max = self._camera.get_pixel_formats()[-1]
                 self._camera.set_pixel_format(
                     pix_format_max) if self._camera.get_pixel_format() != pix_format_max else None
+                self._set_inner_exposure_auto(str(self._camera.ExposureAuto.get()))
         self.focal_length = SPECS_DICT[self.model_name].get('focal_length', -1)
         self.f_number = SPECS_DICT[self.model_name].get('f_number', -1)
         self._log.info(f"Initialized {self.model_name} AlliedVision cameras.")
@@ -66,23 +68,38 @@ class AlliedVisionCtrl(CameraAbstract):
         return self._exposure_auto
 
     @exposure_auto.setter
-    def exposure_auto(self, mode: (str, bool)) -> None:
-        self._set_inner_exposure_auto(mode)
+    def exposure_auto(self, mode: str) -> None:
         with self._vimba:
             with self._camera:
                 try:
-                    self._camera.ExposureAuto.set(self.exposure_auto)
+                    if str(self._camera.ExposureAuto.get()) != mode:
+                        self._camera.ExposureAuto.set(mode)
+                    self._set_inner_exposure_auto(mode)
                 except (VimbaFeatureError, AttributeError):
                     pass
 
+    def _grabber(self):
+        frame = None
+        try:
+            frame = self._camera.get_frame(timeout_ms=10000 + int(np.ceil(self.exposure_time * 1e-3)))
+        except VimbaTimeout:
+            self._log.error(f"Camera timed out. Maybe try to reconnect it.")
+            # raise TimeoutError(f"Camera timed out. Maybe try to reconnect it.")
+        except Exception as err:
+            self._log.critical(err)
+            raise RuntimeError(err)
+        return frame
+
     def __take_image(self) -> (np.ndarray, None):
         frame = None
-        for idx in range(1, N_RETRIES+1):
-            try:
-                frame = self._camera.get_frame(timeout_ms=10000 + int(np.ceil(self.exposure_time*1e-3)))
-            except VimbaTimeout as err:
-                self._log.error(f"Camera timed out. Maybe try to reconnect it.")
-                raise TimeoutError(f"Camera timed out. Maybe try to reconnect it.")
+        idx = 0
+        while str(self._camera.ExposureAuto.get()) != MANUAL_EXPOSURE:
+            self._grabber()
+            idx += 1
+            if idx > 15:
+                break
+        for idx in range(1, N_RETRIES + 1):
+            frame = self._grabber()
             if frame.get_status() == 0:
                 frame.convert_pixel_format(MONO_PIXEL_FORMATS[7])
                 frame = frame.as_numpy_ndarray().squeeze()
@@ -96,6 +113,7 @@ class AlliedVisionCtrl(CameraAbstract):
         return frame
 
     def __call__(self) -> np.ndarray:
+        self.exposure_auto = self.exposure_auto
         with self._vimba:
             with self._camera:
                 if self.gain and self.gain != self._camera.Gain.get():
@@ -106,6 +124,6 @@ class AlliedVisionCtrl(CameraAbstract):
                     if self._camera.ExposureTime.get() != self.exposure_time:
                         self._camera.ExposureTime.set(self.exposure_time)
                         self.exposure_time = self._camera.ExposureTime.get()
-                else:
-                    self._camera.ExposureAuto.set(ONCE_EXPOSURE)
+                # else:
+                #     self._camera.ExposureAuto.set(ONCE_EXPOSURE)
                 return self.__take_image()

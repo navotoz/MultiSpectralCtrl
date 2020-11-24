@@ -1,3 +1,5 @@
+from time import sleep
+
 import numpy as np
 import random
 from utils.constants import FAILURE_PROBABILITY_IN_DUMMIES
@@ -29,5 +31,6 @@ class AlliedVisionCtrl(CameraAbstract):
         return True
 
     def __call__(self) -> np.ndarray:
+        sleep(0.5)
         h, w = SPECS_DICT[self.model_name]['h'], SPECS_DICT[self.model_name]['w']
         return np.random.rand(h, w).astype('uint16')

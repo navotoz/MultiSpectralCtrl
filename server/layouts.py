@@ -76,4 +76,4 @@ main_layout = [
     html.Div(children=html.Table(html.Tr(id='imgs', children=[]))),
     html.Hr(),
 
-    html.Div(id='log-div',style=dict(height='300px', overflow='auto'))]
+    html.Div(id='log-div',style=dict(height='300px'))]
