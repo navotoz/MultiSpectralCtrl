@@ -274,7 +274,7 @@ def update_camera_models_dropdown_list(dummy, models, curr_value):
         curr_value = dropdown_options[0]['value']
     if models == dropdown_options:
         return dash.no_update
-    return curr_value, dropdown_options,dropdown_options
+    return curr_value, dropdown_options, dropdown_options
 
 
 @app.callback(Output('multispectral-camera-radioitems', 'value'),
@@ -425,5 +425,10 @@ def exit_handler(sig_type: int, frame) -> None:
     Output('log-div', 'children'),
     Input('interval-component', 'n_intervals'))
 def log_content(n_intervals):
-    return [html.Div(([html.Div(children=[html.Div(l) for l in log],
-                     style=dict(height='200px', overflow='auto'))] + [html.Hr()])) for log in dash_logger.logs.values()]
+    if dash_logger.dirty_bit:
+        ret = [html.Div(([html.Div(children=[html.Div(l) for l in log],
+                                   style=dict(height='200px', overflow='auto'))] + [html.Hr()])) for log in
+               dash_logger.logs.values()]
+        dash_logger.dirty_bit = False
+        return ret
+    return dash.no_update

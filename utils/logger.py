@@ -1,11 +1,36 @@
 import logging
 from pathlib import Path
+from threading import Event
+
+
+class SyncFlag:
+    def __init__(self, init_state: bool = True) -> None:
+        self._event = Event()
+        self._event.set() if init_state else self._event.clear()
+
+    def __call__(self) -> bool:
+        return self._event.is_set()
+
+    def set(self, new_state: bool):
+        self._event.set() if new_state else self._event.clear()
+
+    def __bool__(self) -> bool:
+        return self._event.is_set()
 
 
 class DashLogger(logging.StreamHandler):
     def __init__(self, stream=None):
         super().__init__(stream=stream)
         self.logs = dict()
+        self._dirty_bit = SyncFlag(True)
+
+    @property
+    def dirty_bit(self) -> bool:
+        return self._dirty_bit()
+
+    @dirty_bit.setter
+    def dirty_bit(self, flag: bool):
+        self._dirty_bit.set(flag)
 
     def emit(self, record):
         try:
@@ -13,6 +38,7 @@ class DashLogger(logging.StreamHandler):
             self.logs.setdefault(record.name, []).append(msg)
             self.logs[record.name] = self.logs[record.name][-20:]
             self.flush()
+            self.dirty_bit = True
         except Exception:
             self.handleError(record)
 
