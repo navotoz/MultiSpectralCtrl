@@ -99,22 +99,23 @@ def set_disabled_to_camera_values(camera_model_name, dummy):
 
 
 @app.callback(Output('focal-length-label', 'n_clicks'),
-              [Input('gain', 'value'),
-               Input('gamma', 'value'),
-               Input('exposure-time', 'value'),
-               Input('focal-length', 'value'),
-               Input('f-number', 'value'),
-               Input('camera-model-dropdown', 'value')])
-def update_values_in_camera(gain, gamma, exposure_time, focal_length, f_number, camera_model_name):
+              [Input('interval-component', 'n_intervals'),
+Input('camera-model-dropdown', 'value')],
+               [State('gain', 'value'),
+               State('gamma', 'value'),
+               State('exposure-time', 'value'),
+               State('focal-length', 'value'),
+               State('f-number', 'value')])
+def update_values_in_camera(interval, gain, gamma, exposure_time, focal_length, f_number, camera_model_name):
     if not camera_model_name:
         return dash.no_update
     global cameras_dict
     if camera_model_name in cameras_dict and cameras_dict[camera_model_name]:
-        cameras_dict[camera_model_name].gain = gain
-        cameras_dict[camera_model_name].gamma = gamma
-        cameras_dict[camera_model_name].exposure_time = exposure_time
-        cameras_dict[camera_model_name].f_number = f_number
-        cameras_dict[camera_model_name].focal_length = focal_length
+        cameras_dict[camera_model_name].gain = gain if gain else None
+        cameras_dict[camera_model_name].gamma = gamma if gamma else None
+        cameras_dict[camera_model_name].exposure_time = exposure_time if exposure_time else None
+        cameras_dict[camera_model_name].f_number = f_number if f_number else None
+        cameras_dict[camera_model_name].focal_length = focal_length if focal_length else None
         logger.debug(f"Updated camera values.")
     return 1
 

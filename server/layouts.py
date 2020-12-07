@@ -54,7 +54,7 @@ main_layout = [
                                     value=DEFAULT_FILTER_NAMES_DICT[idx], style=FONT_SIZE,
                                     type='text') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)])]),
     html.Div([html.Div("Set number of filters to be photographed:", id='image-sequence-length-label'),
-              dcc.Input(id='image-sequence-length', value=1, type='number', min=1, style=FONT_SIZE,debounce=False,
+              dcc.Input(id='image-sequence-length', value=1, type='number', min=1, style=FONT_SIZE, debounce=False,
                         max=len(DEFAULT_FILTER_NAMES_DICT))]),
     html.Hr(),
 

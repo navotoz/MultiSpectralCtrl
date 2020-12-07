@@ -75,7 +75,7 @@ class CameraAbstract:
 
     @focal_length.setter
     def focal_length(self, focal_length_to_set: (float, int)):
-        if self.focal_length == focal_length_to_set:
+        if self.focal_length == focal_length_to_set  or not focal_length_to_set:
             return
         self._focal_length = float(focal_length_to_set)
         self._log.debug(f"Set focal length to {focal_length_to_set}mm.")
@@ -86,7 +86,7 @@ class CameraAbstract:
 
     @f_number.setter
     def f_number(self, f_number_to_set: (float, int)):
-        if self._f_number == f_number_to_set:
+        if self._f_number == f_number_to_set or not f_number_to_set:
             return
         self._f_number = float(f_number_to_set)
         self._log.debug(f"Set f# to {f_number_to_set}.")
@@ -97,7 +97,7 @@ class CameraAbstract:
 
     @gain.setter
     def gain(self, gain_to_set: (float, int)):
-        if self.gain == gain_to_set:
+        if self.gain == gain_to_set  or not gain_to_set:
             return
         self._gain = float(gain_to_set)
         self._log.debug(f"Set gain to {gain_to_set}dB.")
@@ -108,7 +108,7 @@ class CameraAbstract:
 
     @gamma.setter
     def gamma(self, gamma_to_set: (float, int)):
-        if self.gamma == gamma_to_set:
+        if self.gamma == gamma_to_set or not gamma_to_set:
             return
         self._gamma = float(gamma_to_set)
         self._log.debug(f"Set gamma to {gamma_to_set}.")
@@ -119,11 +119,9 @@ class CameraAbstract:
 
     @exposure_time.setter
     def exposure_time(self, exposure_time_to_set: (str, float, int)):
-        if not exposure_time_to_set:
-            return
         if isinstance(exposure_time_to_set, str):
             exposure_time_to_set = float(exposure_time_to_set)
-        if self.exposure_time == exposure_time_to_set:
+        if self.exposure_time == exposure_time_to_set  or not exposure_time_to_set:
             return
         self._exposure_time = float(exposure_time_to_set)
         self._log.debug(f"Set exposure time to {exposure_time_to_set} micro seconds.")
