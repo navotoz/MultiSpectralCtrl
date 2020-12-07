@@ -99,14 +99,13 @@ def set_disabled_to_camera_values(camera_model_name, dummy):
 
 
 @app.callback(Output('focal-length-label', 'n_clicks'),
-              [Input('interval-component', 'n_intervals'),
-Input('camera-model-dropdown', 'value')],
-               [State('gain', 'value'),
-               State('gamma', 'value'),
-               State('exposure-time', 'value'),
-               State('focal-length', 'value'),
-               State('f-number', 'value')])
-def update_values_in_camera(interval, gain, gamma, exposure_time, focal_length, f_number, camera_model_name):
+               [Input('camera-model-dropdown', 'value'),
+               Input('gain', 'value'),
+               Input('gamma', 'value'),
+               Input('exposure-time', 'value'),
+               Input('focal-length', 'value'),
+               Input('f-number', 'value')])
+def update_values_in_camera(camera_model_name, gain, gamma, exposure_time, focal_length, f_number):
     if not camera_model_name:
         return dash.no_update
     global cameras_dict
