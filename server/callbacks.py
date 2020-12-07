@@ -40,7 +40,7 @@ def download(path: (str, Path)) -> Response:
                Output('exposure-time', 'max'),
                Output('exposure-time', 'step')],
               [Input('camera-model-dropdown', 'value')])
-def update_exposure(camera_model_name: str):
+def update_exposure_options(camera_model_name: str):
     if not camera_model_name:
         return dash.no_update
     exposure_options_list = [{'label': 'Manual', 'value': MANUAL_EXPOSURE}]

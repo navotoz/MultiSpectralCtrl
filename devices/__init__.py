@@ -118,7 +118,11 @@ class CameraAbstract:
         return self._exposure_time
 
     @exposure_time.setter
-    def exposure_time(self, exposure_time_to_set: (float, int)):
+    def exposure_time(self, exposure_time_to_set: (str, float, int)):
+        if not exposure_time_to_set:
+            return
+        if isinstance(exposure_time_to_set, str):
+            exposure_time_to_set = float(exposure_time_to_set)
         if self.exposure_time == exposure_time_to_set:
             return
         self._exposure_time = float(exposure_time_to_set)

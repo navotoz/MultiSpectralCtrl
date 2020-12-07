@@ -5,7 +5,7 @@ from server.utils import make_devices_names_radioitems
 from utils.constants import UPDATE_INTERVAL_SECONDS
 
 FONT_SIZE = {'font-size': '16px'}
-OPTICS_STYLE_DICT = dict(min=0.0, type='number', style=FONT_SIZE)
+OPTICS_STYLE_DICT = dict(min=0.0, type='number', style=FONT_SIZE, debounce=True)
 main_layout = [
     html.Table(html.Tr(
         [html.Td(dcc.Link('Camera Viewer', id='viewer-link', href='/viewer', target='_blank')),
@@ -31,32 +31,30 @@ main_layout = [
 
     html.Table([
         html.Tr([html.Td([html.Div(id='focal-length-label', children='Focal Length [mm]'),
-                          dcc.Input(id="focal-length", placeholder="Focal Length",
-                                    value=0, **OPTICS_STYLE_DICT)]),
+                          dcc.Input(id="focal-length", placeholder="Focal Length", value=0, **OPTICS_STYLE_DICT)]),
                  html.Td([html.Div(children='F#'),
-                          dcc.Input(id="f-number", placeholder="F#",
-                                    value=0, **OPTICS_STYLE_DICT)])])]),
+                          dcc.Input(id="f-number", placeholder="F#", value=0, **OPTICS_STYLE_DICT)])])]),
     html.Hr(),
 
     html.Div(id='exposure-label', children='Exposure Time [micro sec]'),
     dcc.RadioItems(id='exposure-type-radio', value='manual',
                    options=[{'label': 'Manual', 'value': 'manual'}, {'label': 'Auto', 'value': 'auto'}]),
-    dcc.Input(id="exposure-time", type='number', placeholder="Exposure Time", value=5000.0, style=FONT_SIZE),
+    dcc.Input(id="exposure-time", placeholder="Exposure Time", value=5000.0,  **OPTICS_STYLE_DICT),
     html.Hr(),
 
     html.Table([html.Tr([
         html.Td([html.Div(children='Gain [dB]'),
-                 dcc.Input(id="gain", type='number', placeholder="Gain", value=0.0, style=FONT_SIZE)]),
+                 dcc.Input(id="gain", placeholder="Gain", value=0.0, **OPTICS_STYLE_DICT)]),
         html.Td([html.Div(children='Gamma'),
-                 dcc.Input(id="gamma", type='number', placeholder="Gamma", value=1.0, style=FONT_SIZE)])])]),
+                 dcc.Input(id="gamma", placeholder="Gamma", value=1.0,  **OPTICS_STYLE_DICT)])])]),
     html.Hr(),
 
     html.Div([html.Div("Give names to the filters. 0 is for glass:", id='filter-names-label'),
-              html.Table([dcc.Input(id=f"filter-{idx}",
+              html.Table([dcc.Input(id=f"filter-{idx}",debounce=True,
                                     value=DEFAULT_FILTER_NAMES_DICT[idx], style=FONT_SIZE,
                                     type='text') for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)])]),
     html.Div([html.Div("Set number of filters to be photographed:", id='image-sequence-length-label'),
-              dcc.Input(id='image-sequence-length', value=1, type='number', min=1, style=FONT_SIZE,
+              dcc.Input(id='image-sequence-length', value=1, type='number', min=1, style=FONT_SIZE,debounce=True,
                         max=len(DEFAULT_FILTER_NAMES_DICT))]),
     html.Hr(),
 

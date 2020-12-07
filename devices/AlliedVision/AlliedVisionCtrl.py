@@ -126,6 +126,4 @@ class AlliedVisionCtrl(CameraAbstract):
                     if self._camera.ExposureTime.get() != self.exposure_time:
                         self._camera.ExposureTime.set(self.exposure_time)
                         self.exposure_time = self._camera.ExposureTime.get()
-                # else:
-                #     self._camera.ExposureAuto.set(ONCE_EXPOSURE)
                 return self.__take_image()
