@@ -86,20 +86,8 @@ def set_auto_exposure(exposure_type, interval, camera_model_name):
     return False if exposure_type == MANUAL_EXPOSURE else True
 
 
-@app.callback([Output('gain', 'disabled'),
-               Output('gamma', 'disabled'),
-               Output('focal-length', 'disabled'),
-               Output('f-number', 'disabled')],
-              [Input('camera-model-dropdown', 'value'),
-               Input('interval-component', 'n_intervals')])
-def set_disabled_to_camera_values(camera_model_name, dummy):
-    if not camera_model_name:
-        return [True] * len(dash.callback_context.outputs_list)
-    return [False] * len(dash.callback_context.outputs_list)
-
-
 @app.callback(Output('focal-length-label', 'n_clicks'),
-               [Input('camera-model-dropdown', 'value'),
+              [Input('camera-model-dropdown', 'value'),
                Input('gain', 'value'),
                Input('gamma', 'value'),
                Input('exposure-time', 'value'),

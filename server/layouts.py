@@ -5,7 +5,7 @@ from server.utils import make_devices_names_radioitems
 from utils.constants import UPDATE_INTERVAL_SECONDS
 
 FONT_SIZE = {'font-size': '16px'}
-OPTICS_STYLE_DICT = dict(min=0.0, type='number', style=FONT_SIZE, debounce=False)
+OPTICS_STYLE_DICT = dict(min=0.0, type='number', style=FONT_SIZE, debounce=True)
 main_layout = [
     html.Table(html.Tr(
         [html.Td(dcc.Link('Camera Viewer', id='viewer-link', href='/viewer', target='_blank')),

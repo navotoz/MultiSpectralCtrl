@@ -40,11 +40,9 @@ if __name__ == '__main__':
     IP = "0.0.0.0"
     print(f"http://{gethostname():s}:{PORT:d}/")
     app.logger.disabled = True
-    app.run_server(debug=False, host=IP, port=PORT, threaded=True)
+    app.run_server(debug=True, host=IP, port=PORT, threaded=True)
 
-
-# todo: add ability to take single image from every filter
 
 # todo: change README file parsing section and all other..
 
-# todo: add documantiation
+# todo: add documentation
