@@ -7,7 +7,6 @@ from devices.AlliedVision import init_alliedvision_camera
 from devices.IDS import init_ids_camera
 from utils.constants import TIFF_MODEL_NAME, TIFF_GAIN, TIFF_F_NUMBER, TIFF_EXPOSURE_TIME, TIFF_FOCAL_LENGTH, \
     TIFF_NOTES, MANUAL_EXPOSURE, AUTO_EXPOSURE
-from utils.logger import make_logging_handlers
 
 ALLIEDVISION_VALID_MODEL_NAMES = import_module(f"devices.AlliedVision", f"AlliedVision").get_specs_dict().keys()
 IDS_VALID_MODEL_NAMES = import_module(f"devices.IDS", f"IDS").get_specs_dict().keys()
@@ -55,7 +54,7 @@ class CameraAbstract:
         self._gamma: float = 1.0
         self._gain: float = 0.0
         self._exposure_time: float = 5000.
-        self._exposure_auto: str = MANUAL_EXPOSURE
+        self._exposure_auto: (str, None) = MANUAL_EXPOSURE
 
     @property
     @abstractmethod
@@ -130,20 +129,20 @@ class CameraAbstract:
     def exposure_auto(self):
         pass
 
+    @exposure_auto.setter
+    @abstractmethod
+    def exposure_auto(self, mode: (str, bool)) -> None:
+        pass
+
     def _set_inner_exposure_auto(self, mode: (str, bool)) -> None:
-        if not FEATURES_DICT[self.model_name].get('autoexposure', True):
-            self._exposure_auto = None
+        if not FEATURES_DICT[self.model_name].get('autoexposure', False):
+            self._exposure_auto = MANUAL_EXPOSURE
             return
         if isinstance(mode, str):
             self._exposure_auto = mode.capitalize()
         else:
             self._exposure_auto = AUTO_EXPOSURE if mode else MANUAL_EXPOSURE
         self._log.debug(f'Set to {self._exposure_auto} auto exposure mode.')
-
-    @exposure_auto.setter
-    @abstractmethod
-    def exposure_auto(self, mode: (str, bool)) -> None:
-        pass
 
     def parse_specs_to_tiff(self) -> dict:
         """

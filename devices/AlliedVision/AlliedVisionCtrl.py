@@ -10,7 +10,7 @@ from utils.logger import make_logger, make_device_logging_handler
 from vimba import Vimba, MONO_PIXEL_FORMATS
 from vimba.error import VimbaTimeout, VimbaFeatureError
 from devices import CameraAbstract
-from devices import SPECS_DICT, get_camera_model_name
+from devices import SPECS_DICT, get_camera_model_name, FEATURES_DICT
 from server.utils import decorate_all_functions
 
 N_RETRIES = 5
@@ -54,7 +54,8 @@ class AlliedVisionCtrl(CameraAbstract):
                 pix_format_max = self._camera.get_pixel_formats()[-1]
                 self._camera.set_pixel_format(
                     pix_format_max) if self._camera.get_pixel_format() != pix_format_max else None
-                self._set_inner_exposure_auto(str(self._camera.ExposureAuto.get()))
+                is_exposure_auto = FEATURES_DICT.get(model_name, {}).get('autoexposure', False)
+                self._set_inner_exposure_auto(str(self._camera.ExposureAuto.get()) if is_exposure_auto else MANUAL_EXPOSURE)
         self.focal_length = SPECS_DICT[self.model_name].get('focal_length', -1)
         self.f_number = SPECS_DICT[self.model_name].get('f_number', -1)
         self._log.info(f"Initialized {self.model_name} AlliedVision cameras.")
@@ -93,11 +94,12 @@ class AlliedVisionCtrl(CameraAbstract):
     def __take_image(self) -> (np.ndarray, None):
         frame = None
         idx = 0
-        while str(self._camera.ExposureAuto.get()) != MANUAL_EXPOSURE:
-            self._grabber()
-            idx += 1
-            if idx > 15:
-                break
+        if self.exposure_auto != MANUAL_EXPOSURE:
+            while str(self._camera.ExposureAuto.get()) != MANUAL_EXPOSURE:
+                self._grabber()
+                idx += 1
+                if idx > 15:
+                    break
         for idx in range(1, N_RETRIES + 1):
             frame = self._grabber()
             if frame.get_status() == 0:
