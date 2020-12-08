@@ -177,3 +177,12 @@ def wait_for_time(func, wait_time_in_nsec: float = 1e9):
         sleep(max(0.0, 1e-9 * (start_time + wait_time_in_nsec - time_ns())))
         return res
     return do_func
+
+
+def only_numerics(seq):
+    if seq is None:
+        return -1
+    if isinstance(seq, str):
+        seq_type = type(seq)
+        return int(seq_type().join(filter(seq_type.isdigit, seq)))
+    return seq

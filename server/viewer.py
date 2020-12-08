@@ -53,7 +53,7 @@ class CameraIterator(Generator):
     @camera.setter
     def camera(self, cam) -> None:
         self.__camera = cam
-        self._get_image = wait_for_time(self.__camera, wait_time_in_nsec=5e8)
+        self._get_image = wait_for_time(self.__camera, wait_time_in_nsec=1e8)
 
     def __del__(self):
         self.__camera = None

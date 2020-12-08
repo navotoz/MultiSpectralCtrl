@@ -11,7 +11,7 @@ from flask import Response, send_file
 from devices import initialize_device, valid_cameras_names_list
 from devices import FEATURES_DICT
 from server.app import app, server, logger, handlers, filterwheel, cameras_dict
-from server.utils import find_files_in_savepath, save_image_to_tiff, base64_to_split_numpy_image
+from server.utils import find_files_in_savepath, save_image_to_tiff, base64_to_split_numpy_image, only_numerics
 from server.utils import make_images_for_web_display, make_links_from_files, make_models_dropdown_options_list
 from utils.constants import SAVE_PATH, IMAGE_FORMAT, MANUAL_EXPOSURE, AUTO_EXPOSURE
 import dash_html_components as html
@@ -70,22 +70,6 @@ def update_gain_gamma(camera_model_name: str):
            FEATURES_DICT[camera_model_name].get('gamma_increment')
 
 
-@app.callback(Output('exposure-time', 'disabled'),
-              [Input('exposure-type-radio', 'value'),
-               Input('interval-component', 'n_intervals')],
-              State('camera-model-dropdown', 'value'))
-def set_auto_exposure(exposure_type, interval, camera_model_name):
-    if not camera_model_name or not cameras_dict[camera_model_name]:
-        return True
-    if exposure_type == AUTO_EXPOSURE and MANUAL_EXPOSURE in cameras_dict[camera_model_name].exposure_auto:
-        cameras_dict[camera_model_name].exposure_auto = True
-        return True
-    if exposure_type == MANUAL_EXPOSURE and MANUAL_EXPOSURE not in cameras_dict[camera_model_name].exposure_auto:
-        cameras_dict[camera_model_name].exposure_auto = False
-        return False
-    return False if exposure_type == MANUAL_EXPOSURE else True
-
-
 @app.callback(Output('focal-length-label', 'n_clicks'),
               [Input('camera-model-dropdown', 'value'),
                Input('gain', 'value'),
@@ -93,10 +77,11 @@ def set_auto_exposure(exposure_type, interval, camera_model_name):
                Input('exposure-time', 'value'),
                Input('focal-length', 'value'),
                Input('f-number', 'value')])
-def update_values_in_camera(camera_model_name, gain, gamma, exposure_time, focal_length, f_number):
+def update_values_in_camera(camera_model_name, *values):
     if not camera_model_name:
         return dash.no_update
     global cameras_dict
+    gain, gamma, exposure_time, focal_length, f_number = [only_numerics(x) for x in values]
     if camera_model_name in cameras_dict and cameras_dict[camera_model_name]:
         cameras_dict[camera_model_name].gain = gain if gain else None
         cameras_dict[camera_model_name].gamma = gamma if gamma else None
