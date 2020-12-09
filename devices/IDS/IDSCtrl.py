@@ -99,6 +99,7 @@ class IDSCtrl(CameraAbstract):
                         f"gain {self.gain}dB, gamma {self.gamma}, "
                         f"exposure {self._camera.get_exposure().value:.2f}milliseconds")
 
+        self.exposure_auto = self.exposure_auto
         for _ in range(2):
             for _ in range(5):
                 try:
