@@ -81,6 +81,7 @@ class IDSCtrl(CameraAbstract):
         self._set_inner_exposure_auto(mode)
         use_exposure_auto = False if MANUAL_EXPOSURE in self.exposure_auto else True
         self._camera.set_exposure_auto(use_exposure_auto)
+        self._log.info(f"AutoExposure to {self.exposure_auto}")
 
     @property
     def is_dummy(self):
