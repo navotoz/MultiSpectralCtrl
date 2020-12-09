@@ -92,6 +92,16 @@ def update_values_in_camera(camera_model_name, *values):
     return 1
 
 
+@app.callback(Output('exposure-type-radio', 'n_clicks'),
+              Input('exposure-type-radio', 'value'),
+              State('camera-model-dropdown', 'value'))
+def change_autoexposure(autoexposure_mode, camera_model_name):
+    if not camera_model_name:
+        return dash.no_update
+    cameras_dict[camera_model_name].exposure_auto = autoexposure_mode
+    return dash.no_update
+
+
 @app.callback([Output('exposure-time', 'value'),
                Output('exposure-type-radio', 'value'),
                Output('gain', 'value'),

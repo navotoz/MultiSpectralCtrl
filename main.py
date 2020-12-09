@@ -1,4 +1,4 @@
-from signal import SIGINT, signal,SIGKILL, SIGTERM
+from signal import SIGINT, signal,SIGTERM
 from socket import gethostname
 import dash
 from server.layouts import main_layout

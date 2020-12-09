@@ -95,9 +95,9 @@ class IDSCtrl(CameraAbstract):
 
         self._camera.set_colormode(ueye.IS_CM_MONO8)  # todo: is this the only relevant colormode?
 
-        self._log.debug(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
+        self._log.info(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
                         f"gain {self.gain}dB, gamma {self.gamma}, "
-                        f"exposure {self._camera.get_exposure().value:.3f}milliseconds")
+                        f"exposure {self._camera.get_exposure().value:.2f}milliseconds")
 
         for _ in range(2):
             for _ in range(5):
