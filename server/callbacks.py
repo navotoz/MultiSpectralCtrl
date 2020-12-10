@@ -415,3 +415,14 @@ def log_content(n_intervals):
         dash_logger.dirty_bit = False
         return ret
     return dash.no_update
+
+
+@app.callback(Output('center-crop-div', 'n_clicks'),
+              [Input('crop-height', 'value'),
+               Input('crop-width', 'value'),
+               Input('camera-model-dropdown', 'value')])
+def center_crop(h, w, model_name):
+    if h is None or w is None or model_name is None:
+        return dash.no_update
+    cameras_dict[model_name].aoi = (int(h), int(w))
+    return dash.no_update

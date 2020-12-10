@@ -6,6 +6,7 @@ from utils.constants import UPDATE_INTERVAL_SECONDS
 
 FONT_SIZE = {'font-size': '16px'}
 OPTICS_STYLE_DICT = dict(type='text', style=FONT_SIZE, debounce=True)
+    # html.Div(id='log-div',style=dict(height='200px', overflow='auto'))]
 main_layout = [
     html.Table(html.Tr(
         [html.Td(dcc.Link('Camera Viewer', id='viewer-link', href='/viewer', target='_blank')),
@@ -49,6 +50,14 @@ main_layout = [
                  dcc.Input(id="gamma", placeholder="Gamma", value=1,  **OPTICS_STYLE_DICT)])])]),
     html.Hr(),
 
+    html.Div('Center Crop', id='center-crop-div'),
+    html.Table([html.Tr([
+        html.Td([html.Div(children='Height'),
+                 dcc.Input(id="crop-height", placeholder="Height", **OPTICS_STYLE_DICT)]),
+        html.Td([html.Div(children='Width'),
+                 dcc.Input(id="crop-width", placeholder="Width", **OPTICS_STYLE_DICT)])])]),
+    html.Hr(),
+
     html.Div([html.Div("Give names to the filters. 0 is for glass:", id='filter-names-label'),
               html.Table([dcc.Input(id=f"filter-{idx}", **OPTICS_STYLE_DICT,value=DEFAULT_FILTER_NAMES_DICT[idx])
                           for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)])]),
@@ -76,4 +85,3 @@ main_layout = [
     html.Div(id='log-div', children=[])
 
     ]
-    # html.Div(id='log-div',style=dict(height='200px', overflow='auto'))]

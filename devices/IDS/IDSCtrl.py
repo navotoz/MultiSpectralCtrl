@@ -84,6 +84,19 @@ class IDSCtrl(CameraAbstract):
         self._camera.set_exposure_auto(use_exposure_auto)
 
     @property
+    def aoi(self)->tuple:
+        return self._camera.get_aoi()
+
+    @aoi.setter
+    def aoi(self, args):
+        y, x = args
+        x, y = int(x), int(y)
+        new_h = self._h - y * 2
+        new_w =  self._w - x * 2
+        if x >= 16:   # magic number
+            self._camera.set_aoi(x, y, new_w, new_h)
+
+    @property
     def is_dummy(self):
         return False
 
