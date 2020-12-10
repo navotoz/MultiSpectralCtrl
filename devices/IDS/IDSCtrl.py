@@ -28,6 +28,7 @@ def lock(func):
             except Exception as err:
                 traceback.print_exc(file=sys.stdout)
                 print(str(func), err)
+
     return wrapper
 
 
@@ -84,7 +85,7 @@ class IDSCtrl(CameraAbstract):
         self._camera.set_exposure_auto(use_exposure_auto)
 
     @property
-    def aoi(self)->tuple:
+    def aoi(self) -> tuple:
         return self._camera.get_aoi()
 
     @aoi.setter
@@ -92,8 +93,8 @@ class IDSCtrl(CameraAbstract):
         y, x = args
         x, y = int(x), int(y)
         new_h = self._h - y * 2
-        new_w =  self._w - x * 2
-        if x >= 16:   # magic number
+        new_w = self._w - x * 2
+        if x >= 16:  # magic number
             self._camera.set_aoi(x, y, new_w, new_h)
 
     @property
