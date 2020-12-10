@@ -2,6 +2,7 @@ import sys
 import traceback
 
 from devices.IDS.pypyueye.utils import uEyeException
+from collections import deque
 from utils.constants import MANUAL_EXPOSURE
 from utils.logger import make_logger, make_device_logging_handler
 from devices import CameraAbstract, get_camera_model_name
@@ -107,15 +108,17 @@ class IDSCtrl(CameraAbstract):
 
         self._camera.set_colormode(ueye.IS_CM_MONO8)  # todo: is this the only relevant colormode?
 
-        self._log.info(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
-                        f"gain {self.gain}dB, gamma {self.gamma}, "
-                        f"exposure {self._camera.get_exposure().value:.2f}milliseconds")
-
         if use_exposure_auto:
-            exp_list = []
-            for _ in range(30):
-                exp_list.append(self._camera.get_exposure())
-                b=a
-        else:
-            return self._grab()
-
+            queue = deque(maxlen=6)
+            for _ in range(200):
+                self._grab()
+                val = self._camera.get_exposure().value
+                queue.append(val)
+                diff = list(map(lambda x: abs(x - val) < 5e-2, queue))
+                if diff and len(diff) == 6 and all(diff):
+                    break
+        image = self._grab()
+        self._log.info(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
+                       f"gain {self.gain}dB, gamma {self.gamma}, "
+                       f"exposure {self._camera.get_exposure().value:.2f}milliseconds")
+        return image
