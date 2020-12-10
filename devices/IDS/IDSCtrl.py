@@ -121,15 +121,16 @@ class IDSCtrl(CameraAbstract):
             self.exposure_time = self._camera.get_exposure().value * 1e3
 
         self._camera.set_colormode(ueye.IS_CM_MONO8)  # todo: is this the only relevant colormode?
+        self.exposure_auto = self.exposure_auto
 
         if use_exposure_auto:
-            queue = deque(maxlen=6)
+            queue = deque(maxlen=10)
             for _ in range(200):
                 self._grab()
                 val = self._camera.get_exposure().value
                 queue.append(val)
                 diff = list(map(lambda x: abs(x - val) < 5e-2, queue))
-                if diff and len(diff) == 6 and all(diff):
+                if diff and len(diff) == 10 and all(diff):
                     break
         image = self._grab()
         self._log.info(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
