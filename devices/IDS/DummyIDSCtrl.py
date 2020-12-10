@@ -31,6 +31,22 @@ class IDSCtrl(CameraAbstract):
     def is_dummy(self):
         return True
 
+    @property
+    def exposure_auto(self) -> str:
+        return 'Off'
+
+    @exposure_auto.setter
+    def exposure_auto(self, mode: (str, bool)):
+        pass
+
+    @property
+    def aoi(self)->tuple:
+        return (0,0,1280, 1024)
+
+    @aoi.setter
+    def aoi(self, args):
+        pass
+
     def __call__(self) -> np.ndarray:
         h, w = SPECS_DICT[self.model_name]['h'], SPECS_DICT[self.model_name]['w']
         return np.random.rand(h, w).astype('uint16')
