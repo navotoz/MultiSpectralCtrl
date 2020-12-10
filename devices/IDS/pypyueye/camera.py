@@ -284,12 +284,52 @@ class Camera(object):
         toggle: integer
             1 activate the auto gain, 0 deactivate it
         """
+        value = ueye.c_double(True)
+        value_to_return = ueye.c_double()
+        check(ueye.is_SetAutoParameter(self.h_cam,
+                                       ueye.IS_SET_AUTO_BRIGHTNESS_ONCE,
+                                       value,
+                                       value_to_return))
         value = ueye.c_double(toggle)
         value_to_return = ueye.c_double()
         check(ueye.is_SetAutoParameter(self.h_cam,
                                        ueye.IS_SET_ENABLE_AUTO_SHUTTER,
                                        value,
                                        value_to_return))
+
+    def get_exposure_auto(self):
+        """
+        Get auto expose to on/off.
+
+        Params
+        =======
+        toggle: integer
+            1 activate the auto gain, 0 deactivate it
+        """
+        value_to_return = ueye.c_double()
+        check(ueye.is_SetAutoParameter(self.h_cam,
+                                       ueye.IS_GET_ENABLE_AUTO_SHUTTER,
+                                       value_to_return,
+                                       ueye.c_double()))
+        return bool(value_to_return)
+
+    def wait_for_auto_exposure(self, timeout=None):
+        if not timeout:
+            timeout = self.__get_timeout()
+        self.capture_video(wait=timeout)
+        for i in range(500):
+            img_buffer = ImageBuffer()
+            ret = ueye.is_WaitForNextImage(self.handle(),
+                                           timeout,
+                                           img_buffer.mem_ptr,
+                                           img_buffer.mem_id)
+            is_auto = self.get_exposure_auto()
+            if ret == ueye.IS_SUCCESS:
+                imdata = ImageData(self.handle(), img_buffer)
+                imdata.unlock()
+            if not is_auto:
+                break
+        self.stop_video()
 
     def set_gain_auto(self, toggle):
         """

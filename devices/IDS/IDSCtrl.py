@@ -1,5 +1,6 @@
 import sys
 import traceback
+from time import sleep
 
 from devices.IDS.pypyueye.utils import uEyeException
 from collections import deque
@@ -13,7 +14,7 @@ from numpy import ndarray, ones
 from multiprocessing import RLock
 from functools import wraps
 from server.utils import decorate_all_functions
-
+N_IMAGES_AUTO_EXP = 20
 _lock_ids_ = RLock()
 
 
@@ -124,14 +125,9 @@ class IDSCtrl(CameraAbstract):
         self.exposure_auto = self.exposure_auto
 
         if use_exposure_auto:
-            queue = deque(maxlen=10)
-            for _ in range(200):
-                self._grab()
-                val = self._camera.get_exposure().value
-                queue.append(val)
-                diff = list(map(lambda x: abs(x - val) < 5e-2, queue))
-                if diff and len(diff) == 10 and all(diff):
-                    break
+            self._camera.set_fps(self._camera.get_fps_range()[0])
+            self._camera.set_exposure_auto(True)
+            self._camera.wait_for_auto_exposure()
         image = self._grab()
         self._log.info(f"Image was taken with #{self.f_number}, focal length {self.focal_length}mm, "
                        f"gain {self.gain}dB, gamma {self.gamma}, "
