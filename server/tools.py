@@ -11,9 +11,9 @@ from urllib.parse import quote as urlquote
 from utils.constants import SAVE_PATH, IMAGE_FORMAT, DISPLAY_IMAGE_SIZE, TIFF_NOTES, TIFF_X_RESOLUTION, TIFF_Y_RESOLUTION
 from multiprocessing.dummy import Pool
 import dash_core_components as dcc
-from devices import valid_cameras_names_list, TIFF_MODEL_NAME
 from datetime import datetime
 import matplotlib.pyplot as plt
+import utils.constants as const
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
@@ -21,7 +21,7 @@ if not SAVE_PATH.is_dir():
 
 def get_image_filename(tiff_tags: dict, filter_names_list: list) -> Path:
     filename = datetime.now().strftime('d20%y%m%d_h%Hm%Ms%S_')
-    filename += f"{tiff_tags.get(TIFF_MODEL_NAME, '')}"
+    filename += f"{tiff_tags.get(const.TIFF_MODEL_NAME, '')}"
     if filter_names_list:
         filename += f"_{len(filter_names_list)}Filters_"
         filename += '_'.join(filter_names_list)
@@ -115,25 +115,6 @@ def make_image_html(input_tuple: tuple) -> html.Td:
 def make_images_for_web_display(image_list: list) -> html.Tr:
     with Pool(len(image_list)) as pool:
         return html.Tr(list(pool.imap(make_image_html, image_list)))
-
-
-def make_devices_names_radioitems():
-    TAB_STYLE = {'border': '1px solid black'}
-    tr_list = []
-    for name in valid_cameras_names_list:
-        tr_list.append(
-            html.Td([
-                html.Div(id=f'{name}-type-radioboxes-label', children=f'{name}'),
-                dcc.RadioItems(id=f'{name}-camera-type-radio',
-                               options=[{'label': 'Real', 'value': 'real'},
-                                        {'label': 'Dummy', 'value': 'dummy'},
-                                        {'label': 'None', 'value': 'none'}],
-                               labelStyle={'font-size': '20px', 'display': 'block'})], style=TAB_STYLE))
-    return html.Table([html.Tr(tr_list)], style=TAB_STYLE, id='devices-radioitems-table')
-
-
-def make_models_dropdown_options_list(camera_state_list: list):
-    return [{'label': name, 'value': name} for name, state in camera_state_list if 'none' not in state]
 
 
 def list_server_routes(server):

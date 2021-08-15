@@ -2,7 +2,7 @@ from signal import SIGINT, signal,SIGTERM
 from socket import gethostname
 import dash
 from server.layouts import main_layout
-from server.app import app, cameras_dict
+from server.app import app
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
@@ -40,9 +40,4 @@ if __name__ == '__main__':
     IP = "0.0.0.0"
     print(f"http://{gethostname():s}:{PORT:d}/")
     app.logger.disabled = True
-    app.run_server(debug=False, host=IP, port=PORT, threaded=True)
-
-
-# todo: change README file parsing section and all other..
-
-# todo: add documentation
+    app.run_server(debug=True, host=IP, port=PORT, threaded=True)

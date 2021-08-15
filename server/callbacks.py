@@ -8,18 +8,16 @@ import dash
 from dash.dependencies import Input, Output, State
 from flask import Response, send_file
 
-from devices import initialize_device, valid_cameras_names_list
-from devices import FEATURES_DICT
-from server.app import app, server, logger, handlers, filterwheel, cameras_dict
-from server.utils import find_files_in_savepath, save_image_to_tiff, base64_to_split_numpy_image, only_numerics
-from server.utils import make_images_for_web_display, make_links_from_files, make_models_dropdown_options_list
-from utils.constants import SAVE_PATH, IMAGE_FORMAT, MANUAL_EXPOSURE, AUTO_EXPOSURE
+from server.app import app, server, logger, handlers, filterwheel, camera
+from server.tools import find_files_in_savepath, save_image_to_tiff, base64_to_split_numpy_image, only_numerics
+from server.tools import make_images_for_web_display, make_links_from_files
+from utils.constants import SAVE_PATH, IMAGE_FORMAT
 import dash_html_components as html
 from threading import Event, Lock
 from utils.logger import dash_logger
 
 image_store_dict = dict()
-dict_flags_change_camera_mode: Dict[str, Event or Lock] = dict().fromkeys(valid_cameras_names_list, Event())
+dict_flags_change_camera_mode: Dict[str, Event or Lock] = dict().fromkeys(["Tau2"], Event())
 event_finished_image = Event()
 event_finished_image.set()
 
@@ -33,94 +31,6 @@ def download(path: (str, Path)) -> Response:
     file_stream.seek(0)
     os.remove(SAVE_PATH / str(path))
     return send_file(file_stream, as_attachment=True, attachment_filename=path)
-
-
-@app.callback([Output('exposure-type-radio', 'options'),
-               Output('exposure-time', 'min'),
-               Output('exposure-time', 'max'),
-               Output('exposure-time', 'step')],
-              [Input('camera-model-dropdown', 'value')])
-def update_exposure_options(camera_model_name: str):
-    if not camera_model_name:
-        return dash.no_update
-    exposure_options_list = [{'label': 'Manual', 'value': MANUAL_EXPOSURE}]
-    if FEATURES_DICT[camera_model_name].get('autoexposure', False):
-        exposure_options_list.append({'label': 'Auto', 'value': AUTO_EXPOSURE})
-    return exposure_options_list, \
-           FEATURES_DICT[camera_model_name].get('exposure_min'), \
-           FEATURES_DICT[camera_model_name].get('exposure_max'), \
-           FEATURES_DICT[camera_model_name].get('exposure_increment')
-
-
-@app.callback([Output('gain', 'min'),
-               Output('gain', 'max'),
-               Output('gain', 'step'),
-               Output('gamma', 'min'),
-               Output('gamma', 'max'),
-               Output('gamma', 'step')],
-              [Input('camera-model-dropdown', 'value')])
-def update_gain_gamma(camera_model_name: str):
-    if not camera_model_name:
-        return dash.no_update
-    return FEATURES_DICT[camera_model_name].get('gain_min'), \
-           FEATURES_DICT[camera_model_name].get('gain_max'), \
-           FEATURES_DICT[camera_model_name].get('gain_increment'), \
-           FEATURES_DICT[camera_model_name].get('gamma_min'), \
-           FEATURES_DICT[camera_model_name].get('gamma_max'), \
-           FEATURES_DICT[camera_model_name].get('gamma_increment')
-
-
-@app.callback(Output('focal-length-label', 'n_clicks'),
-              [Input('camera-model-dropdown', 'value'),
-               Input('gain', 'value'),
-               Input('gamma', 'value'),
-               Input('exposure-time', 'value'),
-               Input('focal-length', 'value'),
-               Input('f-number', 'value')])
-def update_values_in_camera(camera_model_name, *values):
-    if not camera_model_name:
-        return dash.no_update
-    global cameras_dict
-    gain, gamma, exposure_time, focal_length, f_number = [only_numerics(x) for x in values]
-    if camera_model_name in cameras_dict and cameras_dict[camera_model_name]:
-        cameras_dict[camera_model_name].gain = gain if gain else None
-        cameras_dict[camera_model_name].gamma = gamma if gamma else None
-        cameras_dict[camera_model_name].exposure_time = exposure_time if exposure_time else None
-        cameras_dict[camera_model_name].f_number = f_number if f_number else None
-        cameras_dict[camera_model_name].focal_length = focal_length if focal_length else None
-        logger.debug(f"Updated camera values.")
-    return 1
-
-
-@app.callback(Output('exposure-type-radio', 'n_clicks'),
-              Input('exposure-type-radio', 'value'),
-              State('camera-model-dropdown', 'value'))
-def change_autoexposure(autoexposure_mode, camera_model_name):
-    if not camera_model_name:
-        return dash.no_update
-    cameras_dict[camera_model_name].exposure_auto = autoexposure_mode
-    return dash.no_update
-
-
-@app.callback([Output('exposure-time', 'value'),
-               Output('exposure-type-radio', 'value'),
-               Output('gain', 'value'),
-               Output('gamma', 'value'),
-               Output('focal-length', 'value'),
-               Output('f-number', 'value')],
-              [Input('camera-model-dropdown', 'value')])
-def get_values_from_selected_camera_to_spinboxes(camera_model_name):
-    if not camera_model_name:
-        return dash.no_update
-    global cameras_dict
-    if camera_model_name in cameras_dict and cameras_dict[camera_model_name]:
-        return cameras_dict[camera_model_name].exposure_time, \
-               cameras_dict[camera_model_name].exposure_auto, \
-               cameras_dict[camera_model_name].gain, \
-               cameras_dict[camera_model_name].gamma, \
-               cameras_dict[camera_model_name].focal_length, \
-               cameras_dict[camera_model_name].f_number
-    return [None] * 6
 
 
 @app.callback(Output('file-list', 'children'),
@@ -164,109 +74,6 @@ def show_images(trigger1, trigger2):
     return table_cells_list
 
 
-def check_device_state(name: str) -> str:
-    if not cameras_dict[name]:
-        return 'none'
-    if cameras_dict[name].is_dummy:
-        return 'dummy'
-    return 'real'
-
-
-def is_equal_states(context_list):
-    radioitems_states = list(map(lambda state: (state['id'].split('-')[0], state['value'].lower()), context_list))
-    devices_state = list(map(lambda name: check_device_state(name), cameras_dict.keys()))
-    if all([dev == radio[-1] for dev, radio in zip(devices_state, radioitems_states)]):
-        return True, radioitems_states
-    return False, radioitems_states
-
-
-@app.callback([Output('devices-radioitems-table', 'n_clicks'), ],
-              [Input(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list])
-def change_camera_status(*args):
-    global cameras_dict
-    states_equal, radioitems_states = is_equal_states(dash.callback_context.inputs_list)
-    if states_equal:
-        return dash.no_update
-    for name, state in radioitems_states:
-        if dict_flags_change_camera_mode[name].is_set():
-            return dash.no_update
-        dict_flags_change_camera_mode[name].set()
-        if 'none' in state and check_device_state(name) != 'none':
-            if cameras_dict[name] and name in dash.callback_context.triggered[0]['prop_id']:
-                logger.info(f'{name} camera is not used.')
-            cameras_dict[name] = None
-        elif 'dummy' in state and (not cameras_dict[name] or check_device_state(name) != 'dummy'):
-            cameras_dict[name] = initialize_device(name, handlers, use_dummy=True)
-        elif 'real' in state and (not cameras_dict[name] or check_device_state(name) != 'real'):
-            try:
-                cameras_dict[name] = initialize_device(name, handlers, use_dummy=False)
-            except RuntimeError as err:
-                cameras_dict[name] = None
-            except ImportError as err:
-                logger.error(err)
-                cameras_dict[name] = None
-        dict_flags_change_camera_mode[name].clear()
-    return 1,
-
-
-@app.callback([Output(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list],
-              Input('interval-component', 'n_intervals'),
-              [State(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list])
-def disable_devices_radiobox_while_updating(*args):
-    opts = args[1:]
-    for idx, name in enumerate(cameras_dict):
-        for d in opts[idx]:
-            d['disabled'] = dict_flags_change_camera_mode[name].is_set()
-    return opts
-
-
-@app.callback(Output('viewer-link', 'href'),
-              [Input('interval-component', 'n_intervals')] +
-              [Input(f'{name}-camera-type-radio', 'options') for name in valid_cameras_names_list])
-def disable_viewer_link_while_updating(*args):
-    opts = args[1:]
-    if not any(map(lambda t: any(filter(lambda l: True in l.values(), t)), opts)):
-        return '/viewer'
-    return ''
-
-
-@app.callback([Output(f'{name}-camera-type-radio', 'value') for name in valid_cameras_names_list],
-              [Input('interval-component', 'n_intervals')])
-def update_devices_radiobox(*args):
-    radioboxes_list = []
-    for name in cameras_dict:
-        radioboxes_list.append(
-            check_device_state(name) if not dict_flags_change_camera_mode[name].is_set() else dash.no_update)
-    return radioboxes_list
-
-
-@app.callback([Output('camera-model-dropdown', 'value'),
-               Output('camera-model-dropdown', 'options'),
-               Output('multispectral-camera-radioitems', 'options')],
-              Input('interval-component', 'n_intervals'),
-              [State('camera-model-dropdown', 'options'),
-               State('camera-model-dropdown', 'value')])
-def update_camera_models_dropdown_list(dummy, models, curr_value):
-    device_state_list = list(map(lambda name: (name, check_device_state(name)), cameras_dict.keys()))
-    dropdown_options = make_models_dropdown_options_list(device_state_list)
-    if not dropdown_options:
-        curr_value = None
-    # elif curr_value and not any(map(lambda x: curr_value.lower() in x['value'].lower(), dropdown_options)):
-    #     curr_value = dropdown_options[0]['value']
-    else:
-        curr_value = dropdown_options[0]['value']
-    if models == dropdown_options:
-        return dash.no_update
-    return curr_value, dropdown_options, dropdown_options
-
-
-@app.callback(Output('multispectral-camera-radioitems', 'value'),
-              Input('multispectral-camera-radioitems', 'options'))
-def update_camera_models_dropdown_list(dropdown_options):
-    ms_name = dropdown_options[0]['value'] if dropdown_options else None
-    return ms_name
-
-
 @app.callback([Output('take-photo-button', 'disabled')],
               [Input('take-photo-button', 'n_clicks'),
                Input('interval-component', 'n_intervals')])
@@ -292,9 +99,8 @@ def set_image_sequence_length(image_sequence_length: int):
 @app.callback(Output('after-photo-sync-label', 'n_clicks'),
               Input('take-photo-button', 'disabled'),
               [State('save-image-checkbox', 'value'),
-               State('multispectral-camera-radioitems', 'value'),
                State(f"image-sequence-length", 'value')])
-def images_handler_callback(button_state, to_save: str, multispectral_camera_name: str, length_sequence: int):
+def images_handler_callback(button_state, to_save: str, length_sequence: int):
     if button_state:
         global event_finished_image
         event_finished_image.clear()
@@ -350,27 +156,6 @@ def upload_image(content, name):
     return 1
 
 
-@app.callback(Output('use-real-filterwheel', 'value'),
-              Input('interval-component', 'n_intervals'),
-              State('use-real-filterwheel', 'value'))
-def get_real_filterwheel(interval, value: str):
-    global filterwheel
-    if not interval:
-        return dash.no_update
-    with dict_flags_change_camera_mode.setdefault('filterwheel', Lock()):
-        if not value and not filterwheel.is_dummy:  # use the dummy
-            filterwheel = initialize_device('FilterWheel', handlers, use_dummy=True)
-            return []
-        elif 'real' in value and filterwheel.is_dummy:  # use the real FilterWheel
-            try:
-                filterwheel = initialize_device('FilterWheel', handlers, use_dummy=False)
-                return [value]
-            except RuntimeError as err:
-                return []
-        else:
-            return dash.no_update
-
-
 @app.callback(Output('filter-names-label', 'n_clicks'),
               [Input('image-sequence-length-label', 'n_clicks')] +
               [Input(f"filter-{idx}", 'n_submit') for idx in range(1, filterwheel.position_count + 1)] +
@@ -398,9 +183,7 @@ def kill_server(n_clicks):
 
 
 def exit_handler(sig_type: int, frame) -> None:
-    for name in cameras_dict.keys():
-        if 'none' not in check_device_state(name):
-            cameras_dict[name] = None
+    camera.__del__()
     exit(0)
 
 
@@ -417,12 +200,33 @@ def log_content(n_intervals):
     return dash.no_update
 
 
-@app.callback(Output('center-crop-div', 'n_clicks'),
-              [Input('crop-height', 'value'),
-               Input('crop-width', 'value'),
-               Input('camera-model-dropdown', 'value')])
-def center_crop(h, w, model_name):
-    if h is None or w is None or model_name is None:
-        return dash.no_update
-    cameras_dict[model_name].aoi = (int(h), int(w))
+@app.callback(
+    [Output('filterwheel-status', 'style'),
+    Output('filterwheel-status', 'children')],
+    Input('interval-component', 'n_intervals'),
+    State('filterwheel-status', 'style'))
+def check_valid_filterwheel(n_intervals, style):
+    if n_intervals:
+        if filterwheel.is_dummy:
+            style['background'] = None
+            return style, 'Dummy'
+        else:
+            style['background'] = 'green'
+            return style, 'Real'
+    return dash.no_update
+
+
+@app.callback(
+    [Output('tau2-status', 'style'),
+    Output('tau2-status', 'children')],
+    Input('interval-component', 'n_intervals'),
+    State('tau2-status', 'style'))
+def check_valid_filterwheel(n_intervals, style):
+    if n_intervals:
+        if camera.is_dummy:
+            style['background'] = None
+            return style, 'Dummy'
+        else:
+            style['background'] = 'green'
+            return style, 'Real'
     return dash.no_update

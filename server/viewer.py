@@ -1,15 +1,15 @@
 from flask import Response, url_for
 import dash_html_components as html
 from utils.constants import DISPLAY_IMAGE_SIZE
-from server.app import server, cameras_dict
-from server.utils import numpy_to_base64, wait_for_time
+from server.app import server
+from server.tools import numpy_to_base64, wait_for_time
 
 from threading import Thread
 from collections import deque
 from collections.abc import Generator
 import cv2
 import numpy as np
-from server.utils import show_image
+from server.tools import show_image
 
 
 class ThreadedGenerator(object):

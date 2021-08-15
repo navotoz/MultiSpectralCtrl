@@ -1,8 +1,8 @@
 import dash_core_components as dcc
 import dash_html_components as html
 from devices.FilterWheel import DEFAULT_FILTER_NAMES_DICT
-from server.utils import make_devices_names_radioitems
 from utils.constants import UPDATE_INTERVAL_SECONDS
+
 
 FONT_SIZE = {'font-size': '16px'}
 OPTICS_STYLE_DICT = dict(type='text', style=FONT_SIZE, debounce=True)
@@ -15,47 +15,25 @@ main_layout = [
                  id='kill-button')])),
     html.Hr(),
 
-    dcc.Checklist(id='use-real-filterwheel', options=[{'label': 'Real FilterWheel', 'value': 'real'}],
-                  value=['real'], labelStyle={'font-size': '24px', 'display': 'block'}),
-    html.Hr(),
-
-    make_devices_names_radioitems(),
-    html.Hr(),
-
-    html.Div(children='Camera Model'),
-    dcc.Dropdown(id='camera-model-dropdown', clearable=False, options=[]),
-    html.Hr(),
-
-    html.Div(children='Which camera is connected to the FilterWheel'),
-    dcc.RadioItems(id='multispectral-camera-radioitems', options=[]),
-    html.Hr(),
-
-    html.Table([
-        html.Tr([html.Td([html.Div(id='focal-length-label', children='Focal Length [mm]'),
-                          dcc.Input(id="focal-length", placeholder="Focal Length", value=0, **OPTICS_STYLE_DICT)]),
-                 html.Td([html.Div(children='F#'),
-                          dcc.Input(id="f-number", placeholder="F#", value=0, **OPTICS_STYLE_DICT)])])]),
-    html.Hr(),
-
-    html.Div(id='exposure-label', children='Exposure Time [micro sec]'),
-    dcc.RadioItems(id='exposure-type-radio', value='manual',
-                   options=[{'label': 'Manual', 'value': 'manual'}, {'label': 'Auto', 'value': 'auto'}]),
-    dcc.Input(id="exposure-time", placeholder="Exposure Time", value=5000,  **OPTICS_STYLE_DICT),
-    html.Hr(),
-
-    html.Table([html.Tr([
-        html.Td([html.Div(children='Gain [dB]'),
-                 dcc.Input(id="gain", placeholder="Gain", value=0, **OPTICS_STYLE_DICT)]),
-        html.Td([html.Div(children='Gamma'),
-                 dcc.Input(id="gamma", placeholder="Gamma", value=1,  **OPTICS_STYLE_DICT)])])]),
-    html.Hr(),
-
-    html.Div('Center Crop', id='center-crop-div'),
-    html.Table([html.Tr([
-        html.Td([html.Div(children='Height'),
-                 dcc.Input(id="crop-height", placeholder="Height", **OPTICS_STYLE_DICT)]),
-        html.Td([html.Div(children='Width'),
-                 dcc.Input(id="crop-width", placeholder="Width", **OPTICS_STYLE_DICT)])])]),
+    html.Table(
+        html.Tr([
+            html.Td(html.Div('Filterwheel', id='filterwheel-status-label',
+                             style={'padding': '6px 10px', 'border': None, 'text-align': 'center', 'font-size': '20px'})),
+            html.Td(html.Div('Dummy', id='filterwheel-status',
+                             style={'padding': '6px 10px', 'border': '1px solid black',
+                                    'text-align': 'center', 'font-size': '20px'}))
+         ])
+    ),
+    html.Table(
+        html.Tr([
+            html.Td(html.Div('Tau2', id='tau2-status-label',
+                             style={'padding': '6px 10px', 'border': None, 'text-align': 'center',
+                                    'font-size': '20px'})),
+            html.Td(html.Div('Dummy', id='tau2-status',
+                             style={'padding': '6px 10px', 'border': '1px solid black',
+                                    'text-align': 'center', 'font-size': '20px'}))
+        ])
+    ),
     html.Hr(),
 
     html.Div([html.Div("Give names to the filters. 0 is for glass:", id='filter-names-label'),
