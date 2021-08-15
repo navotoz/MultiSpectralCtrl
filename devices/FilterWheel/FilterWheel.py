@@ -10,7 +10,7 @@ class FilterWheel(FilterWheelAbstract):
         logging_handlers = make_device_logging_handler('FilterWheel', logging_handlers)
         self._log = make_logger('FilterWheel', logging_handlers)
 
-        port = [p for p in serial.tools.list_ports.comports() if model_name in p]
+        port = [p for p in serial.tools.list_ports.comports() if model_name in p.description]
         if len(port) == 0:
             raise RuntimeError('This model was not detected.')
         port = port[0]  # only one port should remain
