@@ -12,7 +12,6 @@ class FilterWheel(FilterWheelAbstract):
 
         port = [p for p in serial.tools.list_ports.comports() if model_name in p]
         if len(port) == 0:
-            self._log.error(f"FilterWheel {model_name} not detected.")
             raise RuntimeError('This model was not detected.')
         port = port[0]  # only one port should remain
         try:

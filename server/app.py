@@ -2,7 +2,7 @@ import dash
 import logging
 
 from devices.Camera.CameraProcess import CameraCtrl
-from devices.FilterWheel.FilterWheelProcess import FilterWheelProc
+from devices.FilterWheel.FilterWheelThread import FilterWheelCtrl
 
 from utils.logger import make_logging_handlers, make_logger
 from utils.tools import make_duplex_pipe
@@ -22,11 +22,11 @@ event_stop.clear()
 
 
 # FilterWheel
-_fw_cmd_proc, filterwheel_cmd = make_duplex_pipe(flag_run=None)
-filterwheel = FilterWheelProc(logging_handlers=handlers, event_stop=event_stop, cmd_pipe=filterwheel_cmd)
+filterwheel = FilterWheelCtrl(logging_handlers=handlers)
+filterwheel.start()
 
 # FLIR Tau2 Camera
-image_store_dict = {}
+image_storage = {}
 _mp_manager = mp.Manager()
 mp_values_dict = _mp_manager.dict({const.T_FPA: 0.0,
                                    const.T_HOUSING: 0.0

@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import threading as th
+from time import sleep
 
 import utils.constants as const
 from devices import DeviceAbstract
@@ -48,19 +49,16 @@ class CameraCtrl(DeviceAbstract):
         self._workers_dict['img_sender'].start()
 
     def _th_check_dummy(self):
-        def get():
-            # try to change to real blackbody
-            if self._camera.is_dummy is True:
-                try:
-                    camera = Tau2Grabber(logging_handlers=make_logging_handlers(None, False))
-                    self._camera_type = const.DEVICE_REAL
-                    self._camera = camera
-                except (RuntimeError, BrokenPipeError):
-                    pass
-
-        getter = wait_for_time(get, 1)
         while self._flag_run:
-            getter()
+            sleep(1)
+            with self._lock_camera:
+                if self._camera.is_dummy is True:
+                    try:
+                        camera = Tau2Grabber(logging_handlers=make_logging_handlers(None, False))
+                        self._camera_type = const.DEVICE_REAL
+                        self._camera = camera
+                    except (RuntimeError, BrokenPipeError):
+                        pass
 
     def _th_get_temperatures(self) -> None:
         def get() -> None:
@@ -171,7 +169,3 @@ class CameraCtrl(DeviceAbstract):
                     self._camera.log.critical(f'FFC at {float(t_fpa):.1f}C Failed.')
                     self._flag_ffc_temperature = None
                 return
-
-    @property
-    def is_dummy(self):
-        return self._camera.is_dummy

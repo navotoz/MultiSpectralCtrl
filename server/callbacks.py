@@ -1,3 +1,8 @@
+from datetime import datetime
+
+import utils.constants as const
+import pandas as pd
+import numpy as np
 from flask import request
 import os
 from io import BytesIO
@@ -8,7 +13,7 @@ import dash
 from dash.dependencies import Input, Output, State
 from flask import Response, send_file
 
-from server.app import app, server, logger, handlers, filterwheel, camera
+from server.app import app, server, logger, handlers, filterwheel, camera, image_grabber, camera_cmd, event_stop
 from server.tools import find_files_in_savepath, save_image_to_tiff, base64_to_split_numpy_image, only_numerics
 from server.tools import make_images_for_web_display, make_links_from_files
 from utils.constants import SAVE_PATH, IMAGE_FORMAT
@@ -16,7 +21,7 @@ import dash_html_components as html
 from threading import Event, Lock
 from utils.logger import dash_logger
 
-image_store_dict = dict()
+image_storage = list()
 dict_flags_change_camera_mode: Dict[str, Event or Lock] = dict().fromkeys(["Tau2"], Event())
 event_finished_image = Event()
 event_finished_image.set()
@@ -55,21 +60,11 @@ def make_downloads_list(dummy1, dummy2):
               [Input('file-list', 'n_clicks'),
                Input('after-photo-sync-label', 'n_clicks')])
 def show_images(trigger1, trigger2):
-    global image_store_dict
-    if not image_store_dict:
+    global image_storage
+    if not image_storage:
         return dash.no_update
-    camera_names_list = list(image_store_dict.keys())
-    ms_name = list(filter(lambda name: isinstance(image_store_dict[name][0], tuple), camera_names_list))[-1]
-    camera_names_list.remove(ms_name)
-    camera_names_list.insert(0, ms_name)
-    table_cells_list = [html.Tr([html.Td(name) for name in camera_names_list])]
-    num_of_filters = len(image_store_dict[ms_name]) - 1  # -1 for the spec dict in the end
-    for idx in range(num_of_filters):
-        image_list = []
-        for camera_name in camera_names_list:
-            image = image_store_dict[camera_name][idx]
-            image_list.append(image if isinstance(image, tuple) else ('0', image))
-        table_cells_list.append(make_images_for_web_display(image_list))
+    table_cells_list = []
+    table_cells_list.append(make_images_for_web_display(list(image_storage.items())))
     logger.debug('Showing images.')
     return table_cells_list
 
@@ -104,35 +99,38 @@ def images_handler_callback(button_state, to_save: str, length_sequence: int):
     if button_state:
         global event_finished_image
         event_finished_image.clear()
-        global image_store_dict
-        global cameras_dict
-        global filterwheel
-        image_store_dict = dict()
-        camera_names_list = filter(lambda name: cameras_dict[name], cameras_dict.keys())
-        camera_names_list = list(filter(lambda name: multispectral_camera_name not in name, camera_names_list))
-        if not multispectral_camera_name:
-            event_finished_image.set()
-            return 1
 
         # take images for different filters
         logger.info(f"Taking a sequence of {length_sequence} filters.")
+        t_fpa_list = []
+        t_housing_list = []
+        images_list = []
+        names_list = []
         for position in range(1, length_sequence + 1):
-            for camera_name in camera_names_list:  # photo with un-filtered cameras
-                image_store_dict.setdefault(camera_name, []).append(cameras_dict[camera_name]())
             filterwheel.position = position
-            image = cameras_dict[multispectral_camera_name]()
+            image_grabber.send(1)
+            image = image_grabber.recv()
             if image is not None:
-                image_store_dict.setdefault(multispectral_camera_name, []).append((filterwheel.position['name'], image))
+                (t_fpa, t_housing, _), image = list(image.items())[0]
+                t_fpa_list.append(t_fpa)
+                t_housing_list.append(t_housing)
+                names_list.append(int(filterwheel.position.get('name', 0)))
+                images_list.append(image)
             logger.info(f"Taken an image in position {position}#.")
 
-        # get specs for all cameras
-        for camera_name in camera_names_list + [multispectral_camera_name]:
-            image_store_dict.setdefault(camera_name, []).append(cameras_dict[camera_name].parse_specs_to_tiff())
-
         # save images (if to_save)
-        for camera_name in camera_names_list + [multispectral_camera_name]:  # photo with un-filtered cameras
-            save_image_to_tiff(image_store_dict[camera_name]) if to_save else None
+        if to_save:
+            path = SAVE_PATH / datetime.now().strftime("%Y%m%d_h%Hm%Ms%S")
+            image = np.stack(images_list)
+            np.save(file=path.with_suffix('.npy'), arr=image)
+            df = pd.DataFrame(columns=[const.T_FPA, const.T_HOUSING, 'Wavelength'],
+                              data=np.vstack([t_fpa_list, t_housing_list, names_list]).transpose())
+            df.to_csv(path_or_buf=path.with_suffix('.csv'))
         logger.info("Taken a sequence." if 'save' not in to_save else "Saved a sequence.")
+
+        global image_storage
+        image_storage = {k:v for k,v in zip(names_list, images_list)}
+
         event_finished_image.set()
         return 1
     return dash.no_update
@@ -147,12 +145,12 @@ def upload_image(content, name):
         if IMAGE_FORMAT not in path.suffix.lower():
             logger.error(f"Given image suffix is {path.suffix}, different than required {IMAGE_FORMAT}.")
             return 1
-        global image_store_dict
+        global image_storage
         num_of_filters = int(path.stem.split('Filters')[0].split('_')[-1])
         filters_names = path.stem.split('Filters')[-1].split('_')[-num_of_filters:]
         image = base64_to_split_numpy_image(content)
-        image_store_dict = {key: val for key, val in zip(filters_names, image)}
-        logger.info(f"Uploaded {len(image_store_dict.keys())} frames.")
+        image_storage = {key: val for key, val in zip(filters_names, image)}
+        logger.info(f"Uploaded {len(image_storage.keys())} frames.")
     return 1
 
 
@@ -183,6 +181,7 @@ def kill_server(n_clicks):
 
 
 def exit_handler(sig_type: int, frame) -> None:
+    event_stop.set()
     camera.__del__()
     exit(0)
 
@@ -221,12 +220,14 @@ def check_valid_filterwheel(n_intervals, style):
     Output('tau2-status', 'children')],
     Input('interval-component', 'n_intervals'),
     State('tau2-status', 'style'))
-def check_valid_filterwheel(n_intervals, style):
+def check_valid_tau(n_intervals, style):
     if n_intervals:
-        if camera.is_dummy:
+        camera_cmd.send((const.CAMERA_NAME, True))
+        res = camera_cmd.recv()
+        if res == const.DEVICE_DUMMY:
             style['background'] = None
             return style, 'Dummy'
-        else:
+        elif res == const.DEVICE_REAL:
             style['background'] = 'green'
             return style, 'Real'
     return dash.no_update

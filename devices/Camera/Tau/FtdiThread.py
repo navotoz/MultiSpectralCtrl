@@ -118,6 +118,7 @@ class FtdiIO(th.Thread):
             self._reset()
 
     def _th_reader_func(self) -> None:
+        data = None
         while self._flag_run:
             if self._event_read.is_set():
                 with self._lock_access_ftdi:

@@ -20,7 +20,6 @@ import server.callbacks
               State('page-content', 'children'))
 def display_page(pathname, current_layout):
     global layout
-    global cameras_dict
     if pathname == '/':
         for name in streamers_dict.keys():
             streamers_dict[name].flag_stream = False
@@ -36,8 +35,8 @@ def display_page(pathname, current_layout):
 if __name__ == '__main__':
     signal(SIGINT, server.callbacks.exit_handler)
     signal(SIGTERM, server.callbacks.exit_handler)
-    PORT = 8000
+    PORT = 8002
     IP = "0.0.0.0"
     print(f"http://{gethostname():s}:{PORT:d}/")
     app.logger.disabled = True
-    app.run_server(debug=True, host=IP, port=PORT, threaded=True)
+    app.run_server(debug=False, host=IP, port=PORT, threaded=True)
