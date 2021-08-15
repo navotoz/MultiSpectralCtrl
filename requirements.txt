@@ -12,3 +12,4 @@ numpy>=1.21
 pyusb
 pyyaml
 pyftdi
+pandas

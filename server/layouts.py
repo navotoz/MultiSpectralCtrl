@@ -40,12 +40,12 @@ main_layout = [
               html.Table([dcc.Input(id=f"filter-{idx}", **OPTICS_STYLE_DICT,value=DEFAULT_FILTER_NAMES_DICT[idx])
                           for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)])]),
     html.Div([html.Div("Set number of filters to be photographed:", id='image-sequence-length-label'),
-              dcc.Input(id='image-sequence-length', value=1, type='number', min=1, style=FONT_SIZE, debounce=True,
+              dcc.Input(id='image-sequence-length', value=6, type='number', min=1, style=FONT_SIZE, debounce=True,
                         max=len(DEFAULT_FILTER_NAMES_DICT))]),
     html.Hr(),
 
     dcc.Checklist(id='save-image-checkbox', options=[{'label': 'Save Image', 'value': 'save'}],
-                  value=[], labelStyle={'font-size': '20px', 'display': 'block'}),
+                  value=['save'], labelStyle={'font-size': '20px', 'display': 'block'}),
     html.Hr(),
 
     html.Table(html.Tr(

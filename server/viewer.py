@@ -1,7 +1,7 @@
 from flask import Response, url_for
 import dash_html_components as html
 from utils.constants import DISPLAY_IMAGE_SIZE
-from server.app import server
+from server.app import server, camera
 from server.tools import numpy_to_base64, wait_for_time
 
 from threading import Thread
@@ -30,7 +30,7 @@ class ThreadedGenerator(object):
         self._queue.append(self._iterator)
 
     def __call__(self):
-        self._iterator.camera = cameras_dict[self._camera_name] if self._camera_name else None
+        self._iterator.camera = camera if self._camera_name else None
         self._thread = Thread(target=self._run, daemon=True)
         self._thread.start()
         for value in self._queue.pop():
@@ -87,14 +87,12 @@ def video_feed(name):
 
 
 def make_viewers() -> html.Div:
-    global cameras_dict
-    dict_available_cameras = list(filter(lambda item: item[-1], cameras_dict.items()))
+    name = 'Tau2'
     children_list = []
-    for name, camera in dict_available_cameras:
-        children_list.append(html.Div(name))
-        children_list.append(html.Img(src=url_for(f'video_feed', name=name), style={'width': DISPLAY_IMAGE_SIZE}))
-        streamers_dict.setdefault(name, ThreadedGenerator(name))
-        children_list.append(html.Hr())
+    children_list.append(html.Div(name))
+    children_list.append(html.Img(src=url_for(f'video_feed', name=name), style={'width': DISPLAY_IMAGE_SIZE}))
+    streamers_dict.setdefault(name, ThreadedGenerator(name))
+    children_list.append(html.Hr())
     return html.Div([*children_list])
 
 
