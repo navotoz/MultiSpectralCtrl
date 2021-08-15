@@ -1,7 +1,7 @@
 from flask import Response, url_for
 import dash_html_components as html
 from utils.constants import DISPLAY_IMAGE_SIZE
-from server.app import server, camera
+from server.app import server, camera, image_grabber
 from server.tools import numpy_to_base64, wait_for_time
 
 from threading import Thread
@@ -30,7 +30,7 @@ class ThreadedGenerator(object):
         self._queue.append(self._iterator)
 
     def __call__(self):
-        self._iterator.camera = camera if self._camera_name else None
+        self._iterator.camera = image_grabber
         self._thread = Thread(target=self._run, daemon=True)
         self._thread.start()
         for value in self._queue.pop():
@@ -50,10 +50,16 @@ class CameraIterator(Generator):
     def camera(self):
         return self.__camera
 
+    def _getter(self):
+        image_grabber.send(1)
+        image = image_grabber.recv()
+        if image is not None:
+            return list(image.values())[0]
+
     @camera.setter
     def camera(self, cam) -> None:
         self.__camera = cam
-        self._get_image = wait_for_time(self.__camera, wait_time_in_nsec=1e8)
+        self._get_image = wait_for_time(self._getter, wait_time_in_nsec=1e8)
 
     def __del__(self):
         self.__camera = None
