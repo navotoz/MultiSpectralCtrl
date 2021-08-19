@@ -176,7 +176,10 @@ class FtdiIO(th.Thread):
     def _is_8bit_image_borders_valid(self, raw_image_8bit: np.ndarray) -> bool:
         if raw_image_8bit is None:
             return False
-        if np.nonzero(raw_image_8bit[:, 0] != 0)[0]:
+        try:
+            if np.nonzero(raw_image_8bit[:, 0] != 0)[0]:
+                return False
+        except ValueError:
             return False
         valid_idx = np.nonzero(raw_image_8bit[:, -1] != BORDER_VALUE)
         if len(valid_idx) != 1:
