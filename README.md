@@ -15,13 +15,13 @@ The server is run using python 3.7 with requirements detailed in requirements.tx
 #### RaspberryPi setup ####
 ##### Setting up the connection #####
 1. Add a file name `ssh` to the **boot* partition of the Pi.
-1. The default hostname and password are *pi* and *raspberry* respectivly.
+1. The default hostname and password are *pi* and *raspberry* respectively.
 1. Log into the Pi via ssh by typing `ssh pi@raspberrypi.local`
-1. Change the relevent options by typing `sudo raspi-config`.
+1. Change the relevant options by typing `sudo raspi-config`.
 1. Change the password to `12345678` (one to eight).
 1. Under *Network Options* (2.) change Hostname to `multispectralpi`.
 1. Go to the options menu again, and enable VNC under *Interface options*.
-1. Change the default resolution under *Advenced options*. 
+1. Change the default resolution under *Advanced options*. 
     It doesn't really matter what resolution is set, as long as not the default one.
 1. Go back to the terminal.
 1. Type `sudo vncpasswd -service`
