@@ -122,3 +122,7 @@ class FilterWheelAbstract:
             self._log.warning(f"Given position name {name} not in position names dict.")
             return -1
         return self._reversed_positions_names_dict[name]
+
+    @property
+    def log(self):
+        return self._log

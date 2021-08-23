@@ -70,12 +70,12 @@ class FilterWheelCtrl(th.Thread):
         sorted_keys.sort()
         if len(sorted_keys) < positions_count:
             msg = f'Not enough keys in given names dict {names_dict}.'
-            self._filterwheel._log.error(msg)
+            self._filterwheel.log.error(msg)
             raise ValueError(msg)
         if list(range(1, positions_count + 1)) != sorted_keys:
             msg = f'The given names keys does not have all the positions. ' \
                   f'Expected {self.position_count} and got {len(names_dict)}.'
-            self._filterwheel._log.error(msg)
+            self._filterwheel.log.error(msg)
             raise ValueError(msg)
         self._position_names_dict = names_dict.copy()  # create numbers to names dict
         if len(set(names_dict.values())) == len(names_dict.values()):
@@ -83,7 +83,7 @@ class FilterWheelCtrl(th.Thread):
             self._reversed_positions_names_dict = {key: val for key, val in reversed_generator}
         else:
             msg = f'There are duplicates in the given position names dict {names_dict}.'
-            self._filterwheel._log.error(msg)
+            self._filterwheel.log.error(msg)
             raise ValueError(msg)
-        self._filterwheel._log.debug(
+        self._filterwheel.log.debug(
             f'Changed positions name dict to {list(self._reversed_positions_names_dict.keys())}.')
