@@ -11,6 +11,8 @@ from devices.Camera.Tau.FtdiThread import FtdiIO
 from devices.Camera.Tau.TauCameraCtrl import Tau, _make_packet
 from utils.logger import make_logger, make_logging_handlers
 
+KELVIN2CELSIUS = 273.15
+
 
 class Tau2Grabber(Tau):
     def __init__(self, vid=0x0403, pid=0x6010,
@@ -71,7 +73,7 @@ class Tau2Grabber(Tau):
                 raw_image_16bit = 0x3FFF & np.array(raw_image_8bit).view('uint16')[:, 1:-1]
 
                 if to_temperature:
-                    raw_image_16bit = 0.04 * raw_image_16bit - 273
+                    raw_image_16bit = 0.04 * raw_image_16bit - KELVIN2CELSIUS
                 return raw_image_16bit
         return None
 

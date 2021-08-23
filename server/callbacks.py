@@ -14,7 +14,7 @@ from flask import request, Response, send_file
 
 import utils.constants as const
 # noinspection PyUnresolvedReferences
-from server.app import app, server, logger, camera, image_grabber, camera_cmd, event_stop, filterwheel
+from server.app import app, server, logger, camera, image_grabber, event_stop, filterwheel, flag_alive_camera
 from server.tools import find_files_in_savepath, base64_to_split_numpy_image, make_images_for_web_display, \
     make_links_from_files
 from utils.constants import SAVE_PATH, IMAGE_FORMAT
@@ -218,9 +218,7 @@ def check_valid_filterwheel(n_intervals, style):
     State('tau2-status', 'style'))
 def check_valid_tau(n_intervals, style):
     if n_intervals and 'background' not in style:
-        camera_cmd.send((const.CAMERA_NAME, True))
-        res = camera_cmd.recv()
-        if res == const.DEVICE_REAL:
+        if flag_alive_camera.is_set():
             style['background'] = 'green'
             return style, 'Real'
     return dash.no_update

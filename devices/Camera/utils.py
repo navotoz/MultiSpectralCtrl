@@ -6,7 +6,7 @@ from typing import List
 
 from utils.tools import SyncFlag
 
-BUFFER_SIZE = int(2e7)  # 20 MBytes
+BUFFER_SIZE = int(2**22)  # 4 MBytes
 LEN_TEAX = 4
 
 
@@ -22,7 +22,6 @@ class BytesBuffer:
     def wait_for_size(self):
         while not self._event_buffer_bigger_than.wait(timeout=1) and self._flag_run:
             pass
-        return len(self._buffer)
 
     def __del__(self) -> None:
         if hasattr(self, '_event_buffer_bigger_than') and isinstance(self._event_buffer_bigger_than, th.Event):
@@ -33,33 +32,17 @@ class BytesBuffer:
             self._buffer = b''
             self._event_buffer_bigger_than.clear()
 
-    def rfind(self, substring: bytes) -> int:
-        with self._lock:
-            return self._buffer.rfind(substring)
-
-    def find(self, substring: bytes) -> int:
-        with self._lock:
-            return self._buffer.find(substring)
-
     def sync_teax(self) -> None:
-        with self._lock:
-            idx_sync = self._buffer.rfind(b'TEAX')
-            if idx_sync != -1:
-                self._buffer = self._buffer[idx_sync + LEN_TEAX:]
-                if len(self._buffer) >= self._size_to_signal:
-                    self._event_buffer_bigger_than.set()
-                else:
-                    self._event_buffer_bigger_than.clear()
-
-    def sync_uart(self) -> None:
-        with self._lock:
-            idx_sync = self._buffer.rfind(b'UART')
-            if idx_sync != -1:
-                self._buffer = self._buffer[idx_sync:]
-                if len(self._buffer) >= self._size_to_signal:
-                    self._event_buffer_bigger_than.set()
-                else:
-                    self._event_buffer_bigger_than.clear()
+        while self._flag_run:
+            with self._lock:
+                idx_sync = self._buffer.rfind(b'TEAX')
+                if idx_sync != -1:
+                    self._buffer = self._buffer[idx_sync + LEN_TEAX:]
+                    if len(self._buffer) >= self._size_to_signal:
+                        self._event_buffer_bigger_than.set()
+                    else:
+                        self._event_buffer_bigger_than.clear()
+                    return
 
     def __len__(self) -> int:
         with self._lock:

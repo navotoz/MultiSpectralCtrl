@@ -44,7 +44,7 @@ class FtdiIO(th.Thread):
         self._event_allow_all_commands.set()
         self._event_read = th.Event()
         self._event_read.clear()
-        self._buffer = BytesBuffer(self._flag_run, self._frame_size)
+        self._buffer = BytesBuffer(flag_run=self._flag_run, size_to_signal=self._frame_size)
         self._n_retries_image = 5
 
     def run(self) -> None:
@@ -153,10 +153,9 @@ class FtdiIO(th.Thread):
         with self._lock_parse_command:
             for _ in range(max(1, self._n_retries_image)):
                 self._event_read.set()
-                sleep(0.01)
                 self._buffer.sync_teax()
-                buffer_len = min(self._frame_size, self._buffer.wait_for_size())
-                res = self._buffer[:buffer_len]
+                self._buffer.wait_for_size()
+                res = self._buffer[:self._frame_size]
                 if res and struct.unpack('h', res[6:8])[0] != 0x4000:  # a magic word
                     continue
                 frame_width = struct.unpack('h', res[1:3])[0] - 2

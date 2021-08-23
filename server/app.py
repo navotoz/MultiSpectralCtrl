@@ -29,12 +29,13 @@ _mp_manager = mp.Manager()
 mp_values_dict = _mp_manager.dict({const.T_FPA: 0.0,
                                    const.T_HOUSING: 0.0
                                    })
-_cam_cmd_proc, camera_cmd = make_duplex_pipe(flag_run=None)
 _image_grabber_proc, image_grabber = make_duplex_pipe(flag_run=None)
+flag_alive_camera = mp.Event()
+flag_alive_camera.clear()
 
 camera = CameraCtrl(logging_handlers=handlers,
                     image_pipe=_image_grabber_proc,
                     event_stop=event_stop,
                     values_dict=mp_values_dict,
-                    cmd_pipe=_cam_cmd_proc)
+                    flag_alive=flag_alive_camera)
 camera.start()
