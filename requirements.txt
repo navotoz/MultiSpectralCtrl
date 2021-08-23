@@ -1,7 +1,7 @@
-# python>=3.8
+# python 3.7, to work with the RPI
+
 matplotlib
 dash>=1.4.1
-numpy>=1.9
 Pillow>=7.2
 pyserial>=3.4
 flask>=1.1.2

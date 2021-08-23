@@ -12,7 +12,17 @@ The computer **Must** have USB-3 socket to connect the camera, and only using a 
 
 The server is run using python 3.7 with requirements detailed in requirements.txt.
 
-#### RaspberryPi setup ####
+#### RaspberryPi setup
+##### Time and Date issue
+For some reason, the automatic time syncronization (NTP) does not work on the RPI.
+
+Every time `apt-get` is used, the time and date should be manually set.
+
+1. Open the terminal (CTRL+T)
+2. `sudo sh` and the admin password (12345678)
+3. `timedatectl set-time 2019-08-10`
+4. `timedatectl set-time 21:45:53`
+
 ##### Setting up the connection #####
 1. Add a file name `ssh` to the **boot* partition of the Pi.
 1. The default hostname and password are *pi* and *raspberry* respectively.

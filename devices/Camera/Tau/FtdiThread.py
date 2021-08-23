@@ -139,7 +139,8 @@ class FtdiIO(th.Thread):
             self._write(data)
             sleep(0.2)
             for _ in range(max(1, n_retry)):
-                if (parsed_func := self._parse_func(command)) is not None:
+                parsed_func = self._parse_func(command)
+                if parsed_func is not None:
                     self._event_read.clear()
                     self._log.debug(f"Recv {parsed_func}")
                     return parsed_func

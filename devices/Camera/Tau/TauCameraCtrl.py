@@ -429,7 +429,8 @@ class Tau(CameraAbstract):
         pass
 
     def ffc(self, length: bytes = ptc.FFC_LONG) -> bool:
-        if prev_flag := (self.ffc_mode == ptc.FFC_MODE_CODE_DICT['external']):
+        prev_flag = (self.ffc_mode == ptc.FFC_MODE_CODE_DICT['external'])
+        if prev_flag:
             self.ffc_mode = ptc.FFC_MODE_CODE_DICT['manual']
         res = self._send_and_recv_threaded(ptc.DO_FFC, length)
         if prev_flag:

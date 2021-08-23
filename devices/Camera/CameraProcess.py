@@ -99,7 +99,8 @@ class CameraCtrl(DeviceAbstract):
 
     def _th_cmd_parser(self):
         while self._flag_run:
-            if (cmd := self._cmd_pipe.recv()) is not None:
+            cmd = self._cmd_pipe.recv()
+            if cmd is not None:
                 cmd, value = cmd
                 if cmd == const.CAMERA_NAME:
                     if value is True:

@@ -69,7 +69,8 @@ class Tau2Grabber(Tau):
         # serial stream and we have some kind of helper function which responds
         # to commands and waits to see the answer from the camera.
         for _ in range(max(1, n_retries)):
-            if (raw_image_8bit := self._io.grab()) is not None:
+            raw_image_8bit = self._io.grab()
+            if raw_image_8bit is not None:
                 raw_image_16bit = 0x3FFF & np.array(raw_image_8bit).view('uint16')[:, 1:-1]
 
                 if to_temperature:
