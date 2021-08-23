@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import threading as th
+from itertools import cycle
 from time import sleep
 
 import utils.constants as const
@@ -60,20 +61,16 @@ class CameraCtrl(DeviceAbstract):
                         pass
 
     def _th_get_temperatures(self) -> None:
-        def get() -> None:
-            for t_type in [const.T_FPA, const.T_HOUSING]:
-                with self._lock_camera:
-                    t = self._camera.get_inner_temperature(t_type) if self._camera else None
-                if t and t != -float('inf'):
-                    try:
-                        self._values_dict[t_type] = t
-                    except BrokenPipeError:
-                        pass
-
-        getter = wait_for_time(get, const.FREQ_INNER_TEMPERATURE_SECONDS)
-        while self._flag_run:
+        for t_type in cycle([const.T_FPA, const.T_HOUSING]):
             self._event_get_temperatures.wait(timeout=60 * 10)
-            getter()
+            with self._lock_camera:
+                t = self._camera.get_inner_temperature(t_type) if self._camera else None
+            if t and t != -float('inf'):
+                try:
+                    self._values_dict[t_type] = t
+                except BrokenPipeError:
+                    pass
+            sleep(const.FREQ_INNER_TEMPERATURE_SECONDS)
 
     def _th_image_sender(self):
         def get() -> None:
@@ -87,13 +84,13 @@ class CameraCtrl(DeviceAbstract):
                 self._image_pipe.send(None)
                 continue
 
-            self._event_get_temperatures.clear()
             images = {}
             for n_image in range(1, n_images_to_grab + 1):
                 t_fpa = round(round(self._values_dict[const.T_FPA] * 100), -1)  # precision for the fpa is 0.1C
                 t_housing = round(self._values_dict[const.T_HOUSING] * 100)  # precision of the housing is 0.01C
+                self._event_get_temperatures.clear()
                 images[(t_fpa, t_housing, n_image)] = getter()
-            self._event_get_temperatures.set()
+                self._event_get_temperatures.set()
             self._image_pipe.send(images)
 
     def _th_cmd_parser(self):
