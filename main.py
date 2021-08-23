@@ -34,7 +34,7 @@ def display_page(pathname, current_layout):
 if __name__ == '__main__':
     signal(SIGINT, server.callbacks.exit_handler)
     signal(SIGTERM, server.callbacks.exit_handler)
-    PORT = 8000
+    PORT = 8080
     IP = "0.0.0.0"
     print(f"http://{gethostname():s}:{PORT:d}/")
     app.logger.disabled = True
