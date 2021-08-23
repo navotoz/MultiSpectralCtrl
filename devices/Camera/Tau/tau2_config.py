@@ -24,7 +24,6 @@ ARGUMENT_HOUSING = 0x0A
 TIMEOUT_IN_NSEC = 1e9  # 1 seconds
 MAGIC_IMAGE_ENDING = 0x0ff0
 
-
 # General Commands
 NO_OP = Code(0x00, 0, 0)
 SET_DEFAULTS = Code(0x01, 0, 0)

@@ -34,7 +34,7 @@ class FtdiIO(th.Thread):
         except RuntimeError:
             raise RuntimeError('Could not connect to the Tau2 camera.')
 
-        self._flag_run  = SyncFlag(init_state=True)
+        self._flag_run = SyncFlag(init_state=True)
         self._frame_size = frame_size
         self._width = width
         self._height = height

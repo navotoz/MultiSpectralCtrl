@@ -38,6 +38,7 @@ if __name__ == '__main__':
     signal(SIGTERM, server.callbacks.exit_handler)
     PORT = 8080
     IP = "0.0.0.0"
+    # noinspection HttpUrlsUsage
     print(f"http://{gethostname():s}:{PORT:d}/")
     app.logger.disabled = True
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)

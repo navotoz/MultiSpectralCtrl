@@ -6,7 +6,7 @@ from utils.constants import UPDATE_INTERVAL_SECONDS
 
 FONT_SIZE = {'font-size': '16px'}
 OPTICS_STYLE_DICT = dict(type='text', style=FONT_SIZE, debounce=True)
-    # html.Div(id='log-div',style=dict(height='200px', overflow='auto'))]
+# html.Div(id='log-div',style=dict(height='200px', overflow='auto'))]
 main_layout = [
     html.Table(html.Tr(
         [html.Td(dcc.Link('Camera Viewer', id='viewer-link', href='/viewer', target='_blank')),
@@ -18,11 +18,12 @@ main_layout = [
     html.Table(
         html.Tr([
             html.Td(html.Div('Filterwheel', id='filterwheel-status-label',
-                             style={'padding': '6px 10px', 'border': None, 'text-align': 'center', 'font-size': '20px'})),
+                             style={'padding': '6px 10px', 'border': None, 'text-align': 'center',
+                                    'font-size': '20px'})),
             html.Td(html.Div('Dummy', id='filterwheel-status',
                              style={'padding': '6px 10px', 'border': '1px solid black',
                                     'text-align': 'center', 'font-size': '20px'}))
-         ])
+        ])
     ),
     html.Table(
         html.Tr([
@@ -37,7 +38,7 @@ main_layout = [
     html.Hr(),
 
     html.Div([html.Div("Give names to the filters. 0 is for glass:", id='filter-names-label'),
-              html.Table([dcc.Input(id=f"filter-{idx}", **OPTICS_STYLE_DICT,value=DEFAULT_FILTER_NAMES_DICT[idx])
+              html.Table([dcc.Input(id=f"filter-{idx}", **OPTICS_STYLE_DICT, value=DEFAULT_FILTER_NAMES_DICT[idx])
                           for idx in range(1, len(DEFAULT_FILTER_NAMES_DICT) + 1)])]),
     html.Div([html.Div("Set number of filters to be photographed:", id='image-sequence-length-label'),
               dcc.Input(id='image-sequence-length', value=6, type='number', min=1, style=FONT_SIZE, debounce=True,
@@ -62,4 +63,4 @@ main_layout = [
 
     html.Div(id='log-div', children=[])
 
-    ]
+]

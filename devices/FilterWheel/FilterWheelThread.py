@@ -85,4 +85,5 @@ class FilterWheelCtrl(th.Thread):
             msg = f'There are duplicates in the given position names dict {names_dict}.'
             self._filterwheel._log.error(msg)
             raise ValueError(msg)
-        self._filterwheel._log.debug(f'Changed positions name dict to {list(self._reversed_positions_names_dict.keys())}.')
+        self._filterwheel._log.debug(
+            f'Changed positions name dict to {list(self._reversed_positions_names_dict.keys())}.')

@@ -109,7 +109,7 @@ class DuplexPipe:
         if not self._recv.poll(0.01):
             self._send.send(data)
 
-    def recv(self, timeout_seconds: (int,float) = 0) -> (bytes, None):
+    def recv(self, timeout_seconds: (int, float) = 0) -> (bytes, None):
         time_start, timeout = time_ns(), timeout_seconds * 1e9
         while self._flag_run:
             if self._recv.poll(timeout=1):

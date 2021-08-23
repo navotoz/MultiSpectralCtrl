@@ -8,7 +8,6 @@ from time import time_ns, sleep
 from urllib.parse import quote as urlquote
 
 import dash_html_components as html
-import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
@@ -50,21 +49,21 @@ def save_image_to_tiff(image_list: list):
     image_list = list(map(lambda image: Image.fromarray(image.astype('uint16')), image_list))
     full_path = SAVE_PATH / get_image_filename(tiff_tags, filter_names_list)
     first_image = image_list.pop(0)
-    h,w = first_image.size
-    tiff_tags[TIFF_Y_RESOLUTION], tiff_tags[TIFF_X_RESOLUTION] = h,w
+    h, w = first_image.size
+    tiff_tags[TIFF_Y_RESOLUTION], tiff_tags[TIFF_X_RESOLUTION] = h, w
     tiff_tags[TIFF_NOTES] += f'Height{h};Width{w};'
     first_image.save(full_path, format=IMAGE_FORMAT, tiffinfo=tiff_tags,
                      append_images=image_list, save_all=True, compression=None, quality=100)
 
 
 def base64_to_split_numpy_image(base64_string: str) -> list:
-    text_base64  = base64_string.split('base64,')[-1]
+    text_base64 = base64_string.split('base64,')[-1]
     bytes_base64 = text_base64.encode()
     buffer = b64decode(bytes_base64)
     height, width = buffer.find(b';Height'), buffer.find(b';Width')
-    height = buffer[height:height + buffer[height+1:].find(b';')+1].decode()
+    height = buffer[height:height + buffer[height + 1:].find(b';') + 1].decode()
     height = int(''.join([x for x in height if x.isdigit()]))
-    width = buffer[width:width + buffer[width+1:].find(b';')+1].decode()
+    width = buffer[width:width + buffer[width + 1:].find(b';') + 1].decode()
     width = int(''.join([x for x in width if x.isdigit()]))
     image_numpy = np.frombuffer(buffer, dtype='uint16')
     image_numpy = image_numpy[len(image_numpy) % (height * width):]
@@ -78,7 +77,7 @@ def numpy_to_base64(image_: (np.ndarray, Image.Image)) -> bytes:
         image_ = np.array(image_)
     image_ = image_.astype('float')
     image_ -= np.amin(image_)
-    image_ = image_ / (np.amax(image_)+np.finfo(image_.dtype).eps)
+    image_ = image_ / (np.amax(image_) + np.finfo(image_.dtype).eps)
     image_ *= 255
     image_ = image_.astype('uint8')
     image_bytes = BytesIO()
@@ -125,30 +124,13 @@ def list_server_routes(server):
     return routes
 
 
-def show_image(image: (Image.Image, np.ndarray), title=None, v_min=None, v_max=None, to_close:bool=True):
-    if isinstance(image, Image.Image):
-        image = np.array([image])
-    if np.any(np.iscomplex(image)):
-        image = np.abs(image)
-    if len(image.shape) > 2:
-        if image.shape[0] == 3 or image.shape[0] == 1:
-            image = image.transpose((1, 2, 0))  # CH x W x H -> W x H x CH
-        elif image.shape[-1] != 3 and image.shape[-1] != 1:  # CH are not RGB or grayscale
-            image = image.mean(-1)
-    plt.imshow(image.squeeze(), cmap='gray', vmin=v_min, vmax=v_max)
-    if title is not None:
-        plt.title(title)
-    plt.axis('off')
-    plt.show()
-    plt.close() if to_close else None
-
-
 def decorate_all_functions(function_decorator):
     def decorator(cls):
         for name, obj in vars(cls).items():
             if callable(obj):
                 setattr(cls, name, function_decorator(obj))
         return cls
+
     return decorator
 
 
@@ -158,6 +140,7 @@ def wait_for_time(func, wait_time_in_nsec: float = 1e9):
         res = func(*args, **kwargs)
         sleep(max(0.0, 1e-9 * (start_time + wait_time_in_nsec - time_ns())))
         return res
+
     return do_func
 
 

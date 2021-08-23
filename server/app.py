@@ -19,7 +19,6 @@ logger = make_logger('Server', handlers=handlers, level=LOGGING_LEVEL)
 event_stop = mp.Event()  # This event signals all process in the program to stop
 event_stop.clear()
 
-
 # FilterWheel
 filterwheel = FilterWheelCtrl(logging_handlers=handlers)
 filterwheel.start()

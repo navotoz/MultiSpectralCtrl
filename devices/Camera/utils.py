@@ -45,7 +45,7 @@ class BytesBuffer:
         with self._lock:
             idx_sync = self._buffer.rfind(b'TEAX')
             if idx_sync != -1:
-                self._buffer = self._buffer[idx_sync+LEN_TEAX:]
+                self._buffer = self._buffer[idx_sync + LEN_TEAX:]
                 if len(self._buffer) >= self._size_to_signal:
                     self._event_buffer_bigger_than.set()
                 else:

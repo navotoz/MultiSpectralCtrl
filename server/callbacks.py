@@ -13,7 +13,8 @@ from dash.dependencies import Input, Output, State
 from flask import request, Response, send_file
 
 import utils.constants as const
-from server.app import app, server, logger, camera, image_grabber, camera_cmd, event_stop
+# noinspection PyUnresolvedReferences
+from server.app import app, server, logger, camera, image_grabber, camera_cmd, event_stop, filterwheel
 from server.tools import find_files_in_savepath, base64_to_split_numpy_image, make_images_for_web_display, \
     make_links_from_files
 from utils.constants import SAVE_PATH, IMAGE_FORMAT
@@ -127,7 +128,7 @@ def images_handler_callback(button_state, to_save: str, length_sequence: int):
         logger.info("Taken a sequence." if 'save' not in to_save else "Saved a sequence.")
 
         global image_storage
-        image_storage = {k:v for k,v in zip(names_list, images_list)}
+        image_storage = {k: v for k, v in zip(names_list, images_list)}
 
         event_finished_image.set()
         return 1
@@ -199,7 +200,7 @@ def log_content(n_intervals):
 
 @app.callback(
     [Output('filterwheel-status', 'style'),
-    Output('filterwheel-status', 'children')],
+     Output('filterwheel-status', 'children')],
     Input('interval-component', 'n_intervals'),
     State('filterwheel-status', 'style'))
 def check_valid_filterwheel(n_intervals, style):
@@ -212,7 +213,7 @@ def check_valid_filterwheel(n_intervals, style):
 
 @app.callback(
     [Output('tau2-status', 'style'),
-    Output('tau2-status', 'children')],
+     Output('tau2-status', 'children')],
     Input('interval-component', 'n_intervals'),
     State('tau2-status', 'style'))
 def check_valid_tau(n_intervals, style):
