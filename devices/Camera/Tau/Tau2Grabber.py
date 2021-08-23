@@ -26,7 +26,7 @@ class Tau2Grabber(Tau):
             pass
         self._n_retry = 3
 
-        self._frame_size = 2 * self.height * self.width + 10 + 4 * self.height  # 10 byte header, 4 bytes pad per row
+        self._frame_size = 2 * self.height * self.width + 6 + 4 * self.height  # 6 byte header, 4 bytes pad per row
         self._width = self.width
         self._height = self.height
         try:

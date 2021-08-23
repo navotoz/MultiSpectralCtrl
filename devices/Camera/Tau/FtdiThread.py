@@ -158,15 +158,15 @@ class FtdiIO(th.Thread):
                 self._event_read.set()
                 sleep(0.01)
                 self._buffer.sync_teax()
-                buffer_len = self._buffer.wait_for_size()
-                res = self._buffer[:min(self._frame_size, buffer_len)]
-                if res and struct.unpack('h', res[10:12])[0] != 0x4000:  # a magic word
+                buffer_len = min(self._frame_size, self._buffer.wait_for_size())
+                res = self._buffer[:buffer_len]
+                if res and struct.unpack('h', res[6:8])[0] != 0x4000:  # a magic word
                     continue
-                frame_width = struct.unpack('h', res[5:7])[0] - 2
+                frame_width = struct.unpack('h', res[1:3])[0] - 2
                 if frame_width != self._width:
                     self._log.debug(f"Received frame has incorrect width of {frame_width}.")
                     continue
-                raw_image_8bit = np.frombuffer(res[10:], dtype='uint8').reshape((-1, 2 * (self._width + 2)))
+                raw_image_8bit = np.frombuffer(res[6:], dtype='uint8').reshape((-1, 2 * (self._width + 2)))
                 if not self._is_8bit_image_borders_valid(raw_image_8bit):
                     continue
                 self._event_allow_all_commands.set()

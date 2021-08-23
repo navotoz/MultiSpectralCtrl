@@ -78,13 +78,14 @@ class CameraIterator(Generator):
         self._get_image = None
 
     def send(self, value):
-        image = self._get_image()
-        w, h = image.shape
-        image_upper_bound = np.iinfo(image.dtype).max
-        c = int(min(image_upper_bound, image.max() + 1) if image.mean() < (image_upper_bound // 2) else 0)
-        res = cv2.putText(image, f"{self.frame_number}", (h - int(0.15 * h), w - int(0.15 * w)), cv2.FONT_HERSHEY_SIMPLEX, 3, c, 2)
-        image = numpy_to_base64(res) if self.camera else b''
-        return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
+        return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + numpy_to_base64(self._get_image()) + b'\r\n'
+        # image = self._get_image()
+        # w, h = image.shape
+        # image_upper_bound = np.iinfo(image.dtype).max
+        # c = int(min(image_upper_bound, image.max() + 1) if image.mean() < (image_upper_bound // 2) else 0)
+        # res = cv2.putText(image, f"{self.frame_number}", (h - int(0.15 * h), w - int(0.15 * w)), cv2.FONT_HERSHEY_SIMPLEX, 3, c, 2)
+        # image = numpy_to_base64(res) if self.camera else b''
+        # return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
 
 
 @server.route("/video_feed/<name>")

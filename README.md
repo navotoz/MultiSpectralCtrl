@@ -48,20 +48,28 @@ UserPasswdVerifier=VncAuth
 
 ##### Setting up the Pythoh venv #####
 1. Clone/Copy the *Multispectral* project.
-1. In the terminal run `sudo apt-get install libatlas-base-dev`
-1. In the project folder, make `venv` and enter into it.
-1. Setup a venv inside `/venv`:
+2. In the terminal run `sudo apt-get install libatlas-base-dev`
+3. In the project folder, make `venv` and enter into it.
+4. Setup a venv inside `/venv`:
     - `python3 -m venv .`
-1. Activate it by `source bin/activate`
-1. Make a new file on the desktop named `Multispectral.desktop`
-1. Write inside:
+5. Activate it by `source bin/activate`
+6. Make a file in `pi/home/` called `run.sh` containing:
+```
+#! /bin/bash
+source /path/to/multispectral/venv/bin/activate
+cd /path/to/main
+git reset --hard HEAD
+git pull
+python3 main.py
+```
+8. Make a new file on the desktop named `Multispectral.desktop` containing:
 ```
 [Desktop Entry]
 Terminal=true
 Type=Application
 X-KeepTerminal=true
 StartupNotify=true
-Exec=/path/to/project/venv/bin/python3 /path/to/project/main.py
+Exec=sudo /home/pi/run.sh
 ```
 
 
