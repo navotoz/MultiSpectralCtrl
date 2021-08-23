@@ -58,6 +58,7 @@ class CameraCtrl(DeviceAbstract):
                         self._camera_type = const.DEVICE_REAL
                         self._camera = camera
                         self._camera.set_params_by_dict(const.INIT_CAMERA_PARAMETERS)
+                        break
                     except (RuntimeError, BrokenPipeError):
                         pass
 
