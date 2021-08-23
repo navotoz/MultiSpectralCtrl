@@ -2,11 +2,10 @@ import dash_core_components as dcc
 import dash_html_components as html
 
 from devices.FilterWheel import DEFAULT_FILTER_NAMES_DICT
-from utils.constants import UPDATE_INTERVAL_SECONDS
+from utils.constants import UPDATE_INTERVAL_SECONDS, N_IMAGE_INIT
 
 FONT_SIZE = {'font-size': '16px'}
 OPTICS_STYLE_DICT = dict(type='text', style=FONT_SIZE, debounce=True)
-# html.Div(id='log-div',style=dict(height='200px', overflow='auto'))]
 main_layout = [
     html.Table(html.Tr(
         [html.Td(dcc.Link('Camera Viewer', id='viewer-link', href='/viewer', target='_blank')),
@@ -43,6 +42,8 @@ main_layout = [
     html.Div([html.Div("Set number of filters to be photographed:", id='image-sequence-length-label'),
               dcc.Input(id='image-sequence-length', value=6, type='number', min=1, style=FONT_SIZE, debounce=True,
                         max=len(DEFAULT_FILTER_NAMES_DICT))]),
+    html.Div([html.Div("Number of images in each filter:", id='image-number-label'),
+              dcc.Input(id='image-number', value=N_IMAGE_INIT, type='number', min=1, style=FONT_SIZE, debounce=True)]),
     html.Hr(),
 
     dcc.Checklist(id='save-image-checkbox', options=[{'label': 'Save Image', 'value': 'save'}],
