@@ -205,11 +205,8 @@ def log_content(n_intervals):
     Input('interval-component', 'n_intervals'),
     State('filterwheel-status', 'style'))
 def check_valid_filterwheel(n_intervals, style):
-    if n_intervals:
-        if filterwheel.is_dummy:
-            style['background'] = None
-            return style, 'Dummy'
-        else:
+    if n_intervals and 'background' not in style:
+        if not filterwheel.is_dummy:
             style['background'] = 'green'
             return style, 'Real'
     return dash.no_update
@@ -221,13 +218,10 @@ def check_valid_filterwheel(n_intervals, style):
     Input('interval-component', 'n_intervals'),
     State('tau2-status', 'style'))
 def check_valid_tau(n_intervals, style):
-    if n_intervals:
+    if n_intervals and 'background' not in style:
         camera_cmd.send((const.CAMERA_NAME, True))
         res = camera_cmd.recv()
-        if res == const.DEVICE_DUMMY:
-            style['background'] = None
-            return style, 'Dummy'
-        elif res == const.DEVICE_REAL:
+        if res == const.DEVICE_REAL:
             style['background'] = 'green'
             return style, 'Real'
     return dash.no_update

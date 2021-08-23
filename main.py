@@ -1,4 +1,4 @@
-from signal import SIGINT, signal,SIGTERM
+from signal import SIGINT, signal, SIGTERM
 from socket import gethostname
 import dash
 from server.layouts import main_layout
@@ -7,7 +7,6 @@ import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 from server.viewer import make_viewers, streamers_dict
-
 
 app.layout = html.Div([dcc.Location(id='url', refresh=False),
                        html.Div(id='page-content', children=main_layout)])
@@ -35,7 +34,7 @@ def display_page(pathname, current_layout):
 if __name__ == '__main__':
     signal(SIGINT, server.callbacks.exit_handler)
     signal(SIGTERM, server.callbacks.exit_handler)
-    PORT = 8002
+    PORT = 8000
     IP = "0.0.0.0"
     print(f"http://{gethostname():s}:{PORT:d}/")
     app.logger.disabled = True
