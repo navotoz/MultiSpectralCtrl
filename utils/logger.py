@@ -43,24 +43,6 @@ class DashLogger(logging.StreamHandler):
             self.handleError(record)
 
 
-def make_device_logging_handler(name, logging_handlers):
-    handler = [handler for handler in logging_handlers if isinstance(handler, logging.FileHandler)]
-    path = Path('log') / f'{name.lower()}.txt'
-    if handler:
-        path = Path(handler[0].baseFilename).parent / path
-    else:
-        path = Path().cwd() / path
-    if not path.parent.is_dir():
-        path.parent.mkdir(parents=True)
-    try:
-        handler = logging.FileHandler(str(path), mode='w')
-        handler.setLevel(logging.DEBUG)
-        handler.setFormatter(make_fmt())
-    except:
-        pass
-    return logging_handlers + (handler,)
-
-
 def make_fmt():
     return logging.Formatter("%(asctime)s %(name)s:%(levelname)s:%(message)s", datefmt='%Y-%m-%d %H:%M:%S')
 
