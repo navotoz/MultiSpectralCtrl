@@ -52,9 +52,12 @@ def make_device_logging_handler(name, logging_handlers):
         path = Path().cwd() / path
     if not path.parent.is_dir():
         path.parent.mkdir(parents=True)
-    handler = logging.FileHandler(str(path), mode='w')
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(make_fmt())
+    try:
+        handler = logging.FileHandler(str(path), mode='w')
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(make_fmt())
+    except:
+        pass
     return logging_handlers + (handler,)
 
 
@@ -70,7 +73,10 @@ def make_logging_handlers(logfile_path: (None, Path) = None, verbose: bool = Fal
         handlers_list[0].name = 'stdout'
     if logfile_path and not logfile_path.parent.is_dir():
         logfile_path.parent.mkdir(parents=True)
-    handlers_list.append(logging.FileHandler(str(logfile_path), mode='w')) if logfile_path else None
+    try:
+        handlers_list.append(logging.FileHandler(str(logfile_path), mode='w')) if logfile_path else None
+    except:
+        pass
     for handler in handlers_list:
         handler.setFormatter(fmt)
     handlers_list.append(dash_logger)

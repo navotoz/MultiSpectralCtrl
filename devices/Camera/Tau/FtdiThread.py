@@ -16,7 +16,7 @@ from devices.Camera import _make_device_from_vid_pid
 from devices.Camera.Tau.tau2_config import Code, READ_SENSOR_TEMPERATURE
 from devices.Camera.utils import BytesBuffer, generate_subsets_indices_in_string, generate_overlapping_list_chunks, \
     get_crc
-from utils.logger import make_logger, make_device_logging_handler
+from utils.logger import make_logger, make_device_logging_handler, make_logging_handlers
 from utils.tools import SyncFlag, DuplexPipe
 
 BORDER_VALUE = 64
@@ -30,7 +30,6 @@ class FtdiIO(th.Thread):
     def __init__(self, vid, pid, frame_size: int, width: int, height: int,
                  logging_handlers: (list, tuple), logging_level: int):
         super().__init__()
-        logging_handlers = make_device_logging_handler('FtdiIO', logging_handlers)
         self._log = make_logger('FtdiIO', logging_handlers, logging_level)
         try:
             self._ftdi = connect_ftdi(vid, pid)

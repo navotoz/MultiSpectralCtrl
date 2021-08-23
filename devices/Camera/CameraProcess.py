@@ -57,6 +57,7 @@ class CameraCtrl(DeviceAbstract):
                         camera = Tau2Grabber(logging_handlers=make_logging_handlers(None, False))
                         self._camera_type = const.DEVICE_REAL
                         self._camera = camera
+                        self._camera.set_params_by_dict(const.INIT_CAMERA_PARAMETERS)
                     except (RuntimeError, BrokenPipeError):
                         pass
 

@@ -21,7 +21,6 @@ class Tau(CameraAbstract):
                  baud=921600, logging_handlers: tuple = make_logging_handlers(None, True),
                  logging_level: int = logging.INFO, logger: (logging.Logger, None) = None):
         if not logger:
-            logging_handlers = make_device_logging_handler('Tau2', logging_handlers)
             logger = make_logger('Tau2', logging_handlers, logging_level)
         super().__init__(logger)
         self._log.info("Connecting to camera.")

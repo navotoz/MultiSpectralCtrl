@@ -4,8 +4,6 @@ import threading as th
 from time import sleep
 
 import utils.constants as const
-from utils.logger import make_logging_handlers, make_logger, make_device_logging_handler
-from utils.tools import wait_for_time, DuplexPipe
 from devices.FilterWheel.FilterWheel import FilterWheel
 from devices.FilterWheel.DummyFilterWheel import FilterWheel as DummyFilterWheel
 
@@ -16,7 +14,7 @@ class FilterWheelCtrl(th.Thread):
     def __init__(self, logging_handlers: (tuple, list)):
         super().__init__()
         self.daemon = True
-        self._logging_handlers = make_device_logging_handler(f'{const.FILTERWHEEL_NAME}', logging_handlers)
+        self._logging_handlers = logging_handlers
         self._filterwheel_type = const.DEVICE_DUMMY
         self._filterwheel: (FilterWheel, DummyFilterWheel, None) = DummyFilterWheel()
         self._position_names_dict = {}

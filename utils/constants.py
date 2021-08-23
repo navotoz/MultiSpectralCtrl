@@ -41,7 +41,7 @@ DEVICE_REAL = 100
 
 CAMERA_PARAMETERS = 'camera_params'
 INIT_CAMERA_PARAMETERS = dict(
-    ffc_mode='external',
+    ffc_mode='auto',
     isotherm=0x0000,
     dde=0x0000,
     tlinear=0x0000,
@@ -51,7 +51,7 @@ INIT_CAMERA_PARAMETERS = dict(
     contrast=0,
     brightness=0,
     brightness_bias=0,
-    fps=0x0004,  # 60Hz   # TODO: CHANGE TO 30HZ (ADDS EXTRA LAYER OF AVG)
+    fps=0x0000,  # 30Hz
     lvds=0x0000,  # disabled
     lvds_depth=0x0000,  # 14bit
     xp=0x0002,  # 14bit w/ 1 discrete

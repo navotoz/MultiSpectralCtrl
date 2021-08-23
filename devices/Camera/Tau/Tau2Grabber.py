@@ -18,8 +18,7 @@ class Tau2Grabber(Tau):
     def __init__(self, vid=0x0403, pid=0x6010,
                  logging_handlers: tuple = make_logging_handlers(None, True),
                  logging_level: int = logging.INFO):
-        logging_handlers_ = make_device_logging_handler('TeaxGrabber', logging_handlers)
-        logger = make_logger('TeaxGrabber', logging_handlers_, logging_level)
+        logger = make_logger('TeaxGrabber', logging_handlers, logging_level)
         try:
             super().__init__(logger=logger)
         except IOError:
@@ -39,7 +38,7 @@ class Tau2Grabber(Tau):
         self._io.setDaemon(True)
         self._io.start()
         sleep(1)
-        # self.ffc_mode = ptc.FFC_MODE_CODE_DICT['external']
+        self.ffc_mode = ptc.FFC_MODE_CODE_DICT['external']
 
     def __del__(self) -> None:
         if hasattr(self, '_io') and isinstance(self._io, Thread):
