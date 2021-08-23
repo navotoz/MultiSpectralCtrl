@@ -90,51 +90,6 @@ def set_image_sequence_length(image_sequence_length: int):
     return 1
 
 
-@app.callback(Output('after-photo-sync-label', 'n_clicks'),
-              Input('take-photo-button', 'disabled'),
-              [State('save-image-checkbox', 'value'),
-               State(f"image-sequence-length", 'value')])
-def images_handler_callback(button_state, to_save: str, length_sequence: int):
-    if button_state:
-        global event_finished_image
-        event_finished_image.clear()
-
-        # take images for different filters
-        logger.info(f"Taking a sequence of {length_sequence} filters.")
-        t_fpa_list = []
-        t_housing_list = []
-        images_list = []
-        names_list = []
-        for position in range(1, length_sequence + 1):
-            filterwheel.position = position
-            image_grabber.send(1)
-            image = image_grabber.recv()
-            if image is not None:
-                (t_fpa, t_housing, _), image = list(image.items())[0]
-                t_fpa_list.append(t_fpa)
-                t_housing_list.append(t_housing)
-                names_list.append(int(filterwheel.position.get('name', 0)))
-                images_list.append(image)
-            logger.info(f"Taken an image in position {position}#.")
-
-        # save images (if to_save)
-        if to_save:
-            path = SAVE_PATH / datetime.now().strftime("%Y%m%d_h%Hm%Ms%S")
-            image = np.stack(images_list)
-            np.save(file=path.with_suffix('.npy'), arr=image)
-            df = pd.DataFrame(columns=[const.T_FPA, const.T_HOUSING, 'Wavelength'],
-                              data=np.vstack([t_fpa_list, t_housing_list, names_list]).transpose())
-            df.to_csv(path_or_buf=path.with_suffix('.csv'))
-        logger.info("Taken a sequence." if 'save' not in to_save else "Saved a sequence.")
-
-        global image_storage
-        image_storage = {k: v for k, v in zip(names_list, images_list)}
-
-        event_finished_image.set()
-        return 1
-    return dash.no_update
-
-
 @app.callback(Output('file-list', 'n_clicks'),
               [Input('upload-img-button', 'contents')],
               [State('upload-img-button', 'filename')])
@@ -221,4 +176,49 @@ def check_valid_tau(n_intervals, style):
         if flag_alive_camera.is_set():
             style['background'] = 'green'
             return style, 'Real'
+    return dash.no_update
+
+
+@app.callback(Output('after-photo-sync-label', 'n_clicks'),
+              Input('take-photo-button', 'disabled'),
+              [State('save-image-checkbox', 'value'),
+               State("image-sequence-length", 'value'),
+               State("image-number", 'value')])
+def images_handler_callback(button_state, to_save: str, length_sequence: int, num_of_images: int):
+    if button_state:
+        global event_finished_image
+        event_finished_image.clear()
+
+        # take images for different filters
+        logger.info(f"Taking a sequence of {length_sequence} filters.")
+        t_fpa_dict = {}
+        t_housing_dict = {}
+        images_dict = {}
+        names_list = []
+        for position in range(1, length_sequence + 1):
+            filterwheel.position = position
+            name = int(filterwheel.position.get('name', 0))
+            image_grabber.send(num_of_images)
+            images = image_grabber.recv()
+            if images is not None:
+                t_fpa_dict.setdefault(name, float(np.mean([p[0] for p in images.keys()])))
+                t_housing_dict.setdefault(name, float(np.mean([p[1] for p in images.keys()])))
+                images_dict.setdefault(name, np.stack(list(images.values())))
+            logger.info(f"Taken an image in position {position}#.")
+
+        # save images (if to_save)
+        if to_save:
+            path = SAVE_PATH / datetime.now().strftime("%Y%m%d_h%Hm%Ms%S")
+            for name in images_dict.keys():
+                np.save(file=path.with_suffix('.npy'), arr=images_dict[name])
+            df = pd.DataFrame(columns=[const.T_FPA, const.T_HOUSING, 'Wavelength'],
+                              data=np.stack([(t_fpa_dict[n], t_housing_dict[n], n) for n in t_fpa_dict.keys()]))
+            df.to_csv(path_or_buf=path.with_suffix('.csv'))
+        logger.info("Taken a sequence." if 'save' not in to_save else "Saved a sequence.")
+
+        global image_storage
+        image_storage = {k: v.mean(0) for k, v in images_dict.items()}
+
+        event_finished_image.set()
+        return 1
     return dash.no_update
