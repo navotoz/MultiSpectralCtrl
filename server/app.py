@@ -1,14 +1,13 @@
-import dash
 import logging
+import multiprocessing as mp
 
+import dash
+
+import utils.constants as const
 from devices.Camera.CameraProcess import CameraCtrl
 from devices.FilterWheel.FilterWheelThread import FilterWheelCtrl
-
 from utils.logger import make_logging_handlers, make_logger
 from utils.tools import make_duplex_pipe
-import utils.constants as const
-
-import multiprocessing as mp
 
 logging.getLogger('werkzeug').disabled = True
 app = dash.Dash(__name__, suppress_callback_exceptions=False, prevent_initial_callbacks=False)

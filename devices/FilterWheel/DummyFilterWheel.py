@@ -1,7 +1,8 @@
-from utils.constants import FAILURE_PROBABILITY_IN_DUMMIES
 import random
-from utils.logger import make_logger
+
 from devices.FilterWheel import FilterWheelAbstract
+from utils.constants import FAILURE_PROBABILITY_IN_DUMMIES
+from utils.logger import make_logger
 
 
 class FilterWheel(FilterWheelAbstract):

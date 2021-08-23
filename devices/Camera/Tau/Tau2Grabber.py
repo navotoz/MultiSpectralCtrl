@@ -1,17 +1,15 @@
+import logging
+from pathlib import Path
+from threading import Thread
 from time import sleep
 
 import numpy as np
-import logging
-from pathlib import Path
-
 import yaml
 
 import devices.Camera.Tau.tau2_config as ptc
 from devices.Camera.Tau.FtdiThread import FtdiIO
-
 from devices.Camera.Tau.TauCameraCtrl import Tau, _make_packet
-from utils.logger import make_logger, make_logging_handlers, make_device_logging_handler
-from threading import Thread
+from utils.logger import make_logger, make_logging_handlers
 
 
 class Tau2Grabber(Tau):

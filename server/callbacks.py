@@ -1,24 +1,22 @@
-from datetime import datetime
-
-import utils.constants as const
-import pandas as pd
-import numpy as np
-from flask import request
 import os
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
+from threading import Event, Lock
 from typing import Dict
 
 import dash
-from dash.dependencies import Input, Output, State
-from flask import Response, send_file
-
-from server.app import app, server, logger, handlers, filterwheel, camera, image_grabber, camera_cmd, event_stop
-from server.tools import find_files_in_savepath, save_image_to_tiff, base64_to_split_numpy_image, only_numerics
-from server.tools import make_images_for_web_display, make_links_from_files
-from utils.constants import SAVE_PATH, IMAGE_FORMAT
 import dash_html_components as html
-from threading import Event, Lock
+import numpy as np
+import pandas as pd
+from dash.dependencies import Input, Output, State
+from flask import request, Response, send_file
+
+import utils.constants as const
+from server.app import app, server, logger, camera, image_grabber, camera_cmd, event_stop
+from server.tools import find_files_in_savepath, base64_to_split_numpy_image, make_images_for_web_display, \
+    make_links_from_files
+from utils.constants import SAVE_PATH, IMAGE_FORMAT
 from utils.logger import dash_logger
 
 image_storage = list()

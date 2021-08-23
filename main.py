@@ -1,11 +1,13 @@
 from signal import SIGINT, signal, SIGTERM
 from socket import gethostname
+
 import dash
-from server.layouts import main_layout
-from server.app import app
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
+
+from server.app import app
+from server.layouts import main_layout
 from server.viewer import make_viewers, streamers_dict
 
 app.layout = html.Div([dcc.Location(id='url', refresh=False),

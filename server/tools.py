@@ -1,19 +1,20 @@
 import os
+from base64 import b64encode, b64decode
+from datetime import datetime
+from io import BytesIO
+from multiprocessing.dummy import Pool
 from pathlib import Path
 from time import time_ns, sleep
+from urllib.parse import quote as urlquote
 
+import dash_html_components as html
+import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
-from base64 import b64encode, b64decode
-from io import BytesIO
-import dash_html_components as html
-from urllib.parse import quote as urlquote
-from utils.constants import SAVE_PATH, IMAGE_FORMAT, DISPLAY_IMAGE_SIZE, TIFF_NOTES, TIFF_X_RESOLUTION, TIFF_Y_RESOLUTION
-from multiprocessing.dummy import Pool
-import dash_core_components as dcc
-from datetime import datetime
-import matplotlib.pyplot as plt
+
 import utils.constants as const
+from utils.constants import SAVE_PATH, IMAGE_FORMAT, DISPLAY_IMAGE_SIZE, TIFF_NOTES, TIFF_X_RESOLUTION, \
+    TIFF_Y_RESOLUTION
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()

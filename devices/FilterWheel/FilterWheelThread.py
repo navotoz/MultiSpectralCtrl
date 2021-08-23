@@ -1,12 +1,10 @@
-import sys
-from numbers import Number
 import threading as th
 from time import sleep
 
 import utils.constants as const
 from devices.FilterWheel import FilterWheelAbstract
-from devices.FilterWheel.FilterWheel import FilterWheel
 from devices.FilterWheel.DummyFilterWheel import FilterWheel as DummyFilterWheel
+from devices.FilterWheel.FilterWheel import FilterWheel
 
 
 class FilterWheelCtrl(th.Thread):

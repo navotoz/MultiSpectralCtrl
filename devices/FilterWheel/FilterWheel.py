@@ -1,8 +1,10 @@
 from time import sleep
-from serial.tools.list_ports import comports
+
 import serial
-from utils.logger import make_logger
+from serial.tools.list_ports import comports
+
 from devices.FilterWheel import *
+from utils.logger import make_logger
 
 
 class FilterWheel(FilterWheelAbstract):

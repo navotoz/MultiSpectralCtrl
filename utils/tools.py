@@ -1,4 +1,3 @@
-import multiprocessing as mp
 from datetime import datetime
 from multiprocessing import Event, Pipe
 from multiprocessing.connection import Connection

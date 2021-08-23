@@ -1,4 +1,5 @@
 from unittest import TestCase
+
 from devices.FilterWheel.DummyFilterWheel import FilterWheel
 
 filter_wheel = FilterWheel()

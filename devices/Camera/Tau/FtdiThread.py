@@ -1,6 +1,4 @@
 import logging
-
-import devices.Camera.Tau.tau2_config as ptc
 import struct
 import threading as th
 from time import sleep
@@ -9,15 +7,15 @@ from typing import List
 import numpy as np
 import usb.core
 import usb.util
-from pyftdi.ftdi import Ftdi
-from pyftdi.ftdi import FtdiError
+from pyftdi.ftdi import Ftdi, FtdiError
 
+import devices.Camera.Tau.tau2_config as ptc
 from devices.Camera import _make_device_from_vid_pid
-from devices.Camera.Tau.tau2_config import Code, READ_SENSOR_TEMPERATURE
+from devices.Camera.Tau.tau2_config import Code
 from devices.Camera.utils import BytesBuffer, generate_subsets_indices_in_string, generate_overlapping_list_chunks, \
     get_crc
-from utils.logger import make_logger, make_device_logging_handler, make_logging_handlers
-from utils.tools import SyncFlag, DuplexPipe
+from utils.logger import make_logger
+from utils.tools import SyncFlag
 
 BORDER_VALUE = 64
 FTDI_PACKET_SIZE = 512 * 8

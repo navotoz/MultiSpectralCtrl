@@ -3,6 +3,7 @@ import re
 import struct
 import threading as th
 from typing import List
+
 from utils.tools import SyncFlag
 
 BUFFER_SIZE = int(2e7)  # 20 MBytes

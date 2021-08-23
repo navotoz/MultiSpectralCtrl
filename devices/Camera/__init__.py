@@ -1,10 +1,10 @@
+from abc import abstractmethod
+from logging import Logger
 from pathlib import Path
 
-from numpy import ndarray
-from logging import Logger
-from abc import abstractmethod
 import usb.core
 import usb.util
+from numpy import ndarray
 
 
 class CameraAbstract:

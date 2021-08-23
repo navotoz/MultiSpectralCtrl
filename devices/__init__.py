@@ -1,8 +1,8 @@
-from abc import abstractmethod
 import multiprocessing as mp
+import threading as th
+from abc import abstractmethod
 
 from utils.tools import SyncFlag
-import threading as th
 
 
 class DeviceAbstract(mp.Process):
