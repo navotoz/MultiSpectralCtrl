@@ -8,7 +8,6 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 from server.viewer import make_viewers, streamers_dict
 
-
 app.layout = html.Div([dcc.Location(id='url', refresh=False),
                        html.Div(id='page-content', children=main_layout)])
 layout = main_layout

@@ -4,6 +4,7 @@ import threading as th
 from time import sleep
 
 import utils.constants as const
+from devices.FilterWheel import FilterWheelAbstract
 from devices.FilterWheel.FilterWheel import FilterWheel
 from devices.FilterWheel.DummyFilterWheel import FilterWheel as DummyFilterWheel
 
@@ -16,7 +17,7 @@ class FilterWheelCtrl(th.Thread):
         self.daemon = True
         self._logging_handlers = logging_handlers
         self._filterwheel_type = const.DEVICE_DUMMY
-        self._filterwheel: (FilterWheel, DummyFilterWheel, None) = DummyFilterWheel()
+        self._filterwheel: (FilterWheelAbstract, None) = DummyFilterWheel()
         self._position_names_dict = {}
         self._reversed_positions_names_dict = {}
 

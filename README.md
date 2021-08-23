@@ -100,7 +100,7 @@ The relevant version for the RaspberriPi4 is ARM.
 [Desktop Entry]
 Encoding=UTF-8
 Type=Application
-Exec=/usr/bin/lxterm -e '/path/to/project/venv/bin/python3 /path/to/project/main.py | less'
+Exec=/usr/bin/lxterm -e '/path/to/run.sh | less'
 ```
 
 #### Changing the default filter names ####
