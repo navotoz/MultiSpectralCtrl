@@ -9,14 +9,11 @@ class DeviceAbstract(mp.Process):
     _workers_dict = {}
     _flags_pipes_list = []
 
-    def __init__(self, event_stop: mp.Event,
-                 logging_handlers: (tuple, list),
-                 values_dict: (dict, None)):
+    def __init__(self, event_stop: mp.Event, logging_handlers: (tuple, list)):
         super().__init__()
         self._event_stop: mp.Event = event_stop
         self._flag_run = SyncFlag(init_state=True)
         self._logging_handlers = logging_handlers
-        self._values_dict = values_dict
 
     def run(self):
         self._workers_dict['event_stop'] = th.Thread(target=self._th_stopper, name='event_stop', daemon=False)

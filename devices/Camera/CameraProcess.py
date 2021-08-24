@@ -22,9 +22,9 @@ class CameraCtrl(DeviceAbstract):
                  logging_handlers: (tuple, list),
                  event_stop: mp.Event,
                  image_pipe: DuplexPipe,
-                 flag_alive: mp.Event,
-                 values_dict: dict):
-        super(CameraCtrl, self).__init__(event_stop, logging_handlers, values_dict)
+                 flag_alive: mp.Event):
+        super(CameraCtrl, self).__init__(event_stop, logging_handlers)
+        self._values_dict = {}
         self._image_pipe = image_pipe
         self._flags_pipes_list = [self._image_pipe.flag_run]
         self._flag_alive = flag_alive
