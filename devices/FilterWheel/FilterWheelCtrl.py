@@ -7,23 +7,34 @@ from devices.FilterWheel.DummyFilterWheel import FilterWheel as DummyFilterWheel
 from devices.FilterWheel.FilterWheel import FilterWheel
 
 
-class FilterWheelCtrl(th.Thread):
-    _workers_dict = {}
-
+class FilterWheelCtrl:
     def __init__(self, logging_handlers: (tuple, list)):
         super().__init__()
-        self.daemon = True
         self._logging_handlers = logging_handlers
         self._filterwheel_type = const.DEVICE_DUMMY
         self._filterwheel: (FilterWheelAbstract, None) = DummyFilterWheel()
         self._position_names_dict = {}
         self._reversed_positions_names_dict = {}
-
         self._lock_access = th.Lock()
+        self._th_connect = th.Thread(target=self._th_connect_function, name='connect_filterwheel', daemon=True)
 
-    def run(self):
-        self._workers_dict['connect'] = th.Thread(target=self._th_connect, name='connect', daemon=True)
-        self._workers_dict['connect'].start()
+    def start(self):
+        self._th_connect.start()
+
+    def _th_connect_function(self):
+        while True:
+            with self._lock_access:  # lock should be inside function, to prevent idle locked waiting
+                if self._filterwheel_type == const.DEVICE_DUMMY:
+                    try:
+                        filterwheel = FilterWheel(logging_handlers=self._logging_handlers)
+                        self._filterwheel_type = const.DEVICE_REAL
+                        self._filterwheel = filterwheel
+                        return
+                    except (RuntimeError, BrokenPipeError):
+                        pass
+                elif self._filterwheel_type == const.DEVICE_OFF:
+                    return
+            sleep(1)
 
     def __del__(self):
         try:
@@ -38,21 +49,6 @@ class FilterWheelCtrl(th.Thread):
             del self._filterwheel
         except (ValueError, TypeError, AttributeError, RuntimeError):
             pass
-
-    def _th_connect(self):
-        while True:
-            with self._lock_access:  # lock should be inside function, to prevent idle locked waiting
-                if self._filterwheel_type == const.DEVICE_DUMMY:
-                    try:
-                        filterwheel = FilterWheel(logging_handlers=self._logging_handlers)
-                        self._filterwheel_type = const.DEVICE_REAL
-                        self._filterwheel = filterwheel
-                        return
-                    except (RuntimeError, BrokenPipeError):
-                        pass
-                elif self._filterwheel_type == const.DEVICE_OFF:
-                    return
-            sleep(1)
 
     @property
     def position(self):

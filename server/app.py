@@ -5,7 +5,7 @@ import dash
 
 import utils.constants as const
 from devices.Camera.CameraProcess import CameraCtrl
-from devices.FilterWheel.FilterWheelThread import FilterWheelCtrl
+from devices.FilterWheel.FilterWheelCtrl import FilterWheelCtrl
 from utils.logger import make_logging_handlers, make_logger
 from utils.tools import make_duplex_pipe
 
