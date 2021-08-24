@@ -144,6 +144,24 @@ Change **DEFAULT_FILTER_NAMES_DICT** in `devices/FilterWheel/__init.py`.
 10. After each photograph, the results will be displayed on the bottom of the page.
 11. A previously captured photo can be uploaded and display using _Upload a Photo_ button.
 
-#### Photo name parse ####
+#### Photo
+##### Structure
+Two files are saved every time *Take a Photo* button is pressed:
+###### The numpy files
+The dimensions of the numpy file are:
 
-`d<yyyymmdd>_h<hh>m<mm>s<ss>_<number of filters>Filters_<filter name 1>_<filter name 2>...tif`
+(Filters, Number of samples, H, W)
+- The filters are set by *Set number of filters to be photographed*, and by the filter names.
+- The number of samples are set in the box *Number of images in each filter*.
+- H, W are set by the camera.
+
+###### The CSV filee
+Containing the filter name and the camera temperature during the captures.
+
+The position in the CSV file corresponds to the channel number on the numpy file.
+
+For example, if the fourth (4) line in the CSV is filter 11000, than numpy file [3, :, :, :] contains this filter.
+
+##### Naming
+`yyyymmdd_h<hh>m<mm>s<ss>` with 'npy' and 'csv' suffix. 
+

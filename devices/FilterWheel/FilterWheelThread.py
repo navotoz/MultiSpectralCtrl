@@ -22,20 +22,37 @@ class FilterWheelCtrl(th.Thread):
         self._lock_access = th.Lock()
 
     def run(self):
-        self._workers_dict['check_dummy'] = th.Thread(target=self._th_check_dummy, name='check_dummy', daemon=True)
-        self._workers_dict['check_dummy'].start()
+        self._workers_dict['connect'] = th.Thread(target=self._th_connect, name='connect', daemon=True)
+        self._workers_dict['connect'].start()
 
-    def _th_check_dummy(self):
+    def __del__(self):
+        try:
+            self._filterwheel_type = const.DEVICE_OFF  # to kill check_dummy thread
+        except (ValueError, TypeError, AttributeError, RuntimeError):
+            pass
+        try:
+            self._lock_access.release()
+        except (ValueError, TypeError, AttributeError, RuntimeError):
+            pass
+        try:
+            del self._filterwheel
+        except (ValueError, TypeError, AttributeError, RuntimeError):
+            pass
+
+    def _th_connect(self):
         while True:
-            sleep(1)
             with self._lock_access:  # lock should be inside function, to prevent idle locked waiting
                 if self._filterwheel_type == const.DEVICE_DUMMY:
                     try:
                         filterwheel = FilterWheel(logging_handlers=self._logging_handlers)
                         self._filterwheel_type = const.DEVICE_REAL
                         self._filterwheel = filterwheel
+                        return
                     except (RuntimeError, BrokenPipeError):
                         pass
+                elif self._filterwheel_type == const.DEVICE_OFF:
+                    return
+            sleep(1)
 
     @property
     def position(self):

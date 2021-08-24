@@ -73,7 +73,6 @@ def show_images(trigger1, trigger2):
                Input('interval-component', 'n_intervals')])
 def disable_button(dummy1, dummy2):
     callback_trigger = dash.callback_context.triggered[0]['prop_id']
-    global event_finished_image
     if not event_finished_image.is_set():
         return dash.no_update
     if 'take-photo-button' in callback_trigger:
@@ -135,8 +134,18 @@ def kill_server(n_clicks):
 
 
 def exit_handler(sig_type: int, frame) -> None:
-    event_stop.set()
-    camera.__del__()
+    try:
+        event_stop.set()
+    except (ValueError, TypeError, AttributeError, RuntimeError):
+        pass
+    try:
+        camera.__del__()
+    except (ValueError, TypeError, AttributeError, RuntimeError):
+        pass
+    try:
+        filterwheel.__del__()
+    except (ValueError, TypeError, AttributeError, RuntimeError):
+        pass
     exit(0)
 
 
@@ -194,7 +203,6 @@ def images_handler_callback(button_state, to_save: str, length_sequence: int, nu
         t_fpa_dict = {}
         t_housing_dict = {}
         images_dict = {}
-        names_list = []
         for position in range(1, length_sequence + 1):
             filterwheel.position = position
             name = int(filterwheel.position.get('name', 0))
@@ -206,13 +214,13 @@ def images_handler_callback(button_state, to_save: str, length_sequence: int, nu
                 images_dict.setdefault(name, np.stack(list(images.values())))
             logger.info(f"Taken an image in position {position}#.")
 
-        # save images (if to_save)
         if to_save:
-            path = SAVE_PATH / datetime.now().strftime("%Y%m%d_h%Hm%Ms%S")
-            for name in images_dict.keys():
-                np.save(file=path.with_suffix('.npy'), arr=images_dict[name])
+            keys = list(images_dict.keys())
+            path = (SAVE_PATH / datetime.now().strftime("%Y%m%d_h%Hm%Ms%S")).with_suffix('.npy')
+            np.save(file=path, arr=np.stack([images_dict[k] for k in keys]))
             df = pd.DataFrame(columns=[const.T_FPA, const.T_HOUSING, 'Wavelength'],
-                              data=np.stack([(t_fpa_dict[n], t_housing_dict[n], n) for n in t_fpa_dict.keys()]))
+                              data=np.stack([(t_fpa_dict[k] / 100, t_housing_dict[k] / 100, k) for k in keys]))
+            df['Wavelength'] = df['Wavelength'].astype('int')
             df.to_csv(path_or_buf=path.with_suffix('.csv'))
         logger.info("Taken a sequence." if 'save' not in to_save else "Saved a sequence.")
 

@@ -6,16 +6,17 @@ from time import sleep
 import utils.constants as const
 from devices import DeviceAbstract
 from devices.Camera import CameraAbstract
-from devices.Camera.Tau.DummyTau2Grabber import TeaxGrabber as DummyTeaxGrabber
 from devices.Camera.Tau.Tau2Grabber import Tau2Grabber
 from utils.logger import make_logging_handlers
-from utils.tools import wait_for_time, DuplexPipe
+from utils.tools import DuplexPipe
 
 
 class CameraCtrl(DeviceAbstract):
+    def _th_cmd_parser(self):
+        pass
+
     _workers_dict = dict()
-    _camera: (CameraAbstract, None) = DummyTeaxGrabber
-    _image = _th_ffc_temperature = _flag_ffc_temperature = None
+    _camera: (CameraAbstract, None) = None
 
     def __init__(self,
                  logging_handlers: (tuple, list),
@@ -27,57 +28,73 @@ class CameraCtrl(DeviceAbstract):
         self._image_pipe = image_pipe
         self._flags_pipes_list = [self._image_pipe.flag_run]
         self._flag_alive = flag_alive
-        self._lock_camera = th.Lock()
+        self._flag_alive.clear()
+        self._lock_camera = th.RLock()
         self._event_get_temperatures = th.Event()
         self._event_get_temperatures.set()
 
     def _terminate_device_specifics(self):
-        if hasattr(self, '_flag_alive') and isinstance(self._flag_alive, mp.synchronize.Event):
-            self._flag_alive.set()
-        if hasattr(self, '_event_get_temperatures') and isinstance(self._event_get_temperatures, th.Event):
-            self._event_get_temperatures.set()
+        try:
+            if hasattr(self, '_flag_alive'):
+                self._flag_alive.set()
+        except (ValueError, TypeError, AttributeError, RuntimeError):
+            pass
+        try:
+            if hasattr(self, '_event_get_temperatures'):
+                self._event_get_temperatures.set()
+        except (ValueError, TypeError, AttributeError, RuntimeError):
+            pass
+        try:
+            self._lock_camera.release()
+        except (ValueError, TypeError, AttributeError, RuntimeError):
+            pass
 
     def _run(self):
-        self._camera = DummyTeaxGrabber()
+        self._workers_dict['connect'] = th.Thread(target=self._th_connect, name='connect', daemon=True)
+        self._workers_dict['connect'].start()
 
-        self._workers_dict['dummy_checker'] = th.Thread(target=self._th_check_dummy, name='dummy_checker')
-        self._workers_dict['dummy_checker'].start()
+        self._workers_dict['getter_t'] = th.Thread(target=self._th_get_temperatures, name='getter_t', daemon=True)
+        self._workers_dict['getter_t'].start()
 
-        self._workers_dict['t_collector'] = th.Thread(target=self._th_get_temperatures, name='t_collector')
-        self._workers_dict['t_collector'].start()
+        self._workers_dict['getter_image'] = th.Thread(target=self._th_image_sender, name='getter_image', daemon=True)
+        self._workers_dict['getter_image'].start()
 
-        self._workers_dict['img_sender'] = th.Thread(target=self._th_image_sender, name='img_sender')
-        self._workers_dict['img_sender'].start()
+    def _getter_temperature(self, t_type: str):
+        with self._lock_camera:
+            t = self._camera.get_inner_temperature(t_type)
+        if t is not None and t != 0.0 and t != -float('inf'):
+            try:
+                self._values_dict[t_type] = t
+            except (BrokenPipeError, RuntimeError):
+                pass
 
-    def _th_check_dummy(self):
-        while self._flag_run:
-            sleep(1)
+    def _th_connect(self):
+        handlers = make_logging_handlers(None, True)
+        while True:
             with self._lock_camera:
-                if self._camera.is_dummy is True:
+                if not isinstance(self._camera, CameraAbstract):
                     try:
-                        camera = Tau2Grabber(logging_handlers=make_logging_handlers(None, False))
-                        self._camera_type = const.DEVICE_REAL
+                        camera = Tau2Grabber(logging_handlers=handlers)
                         self._camera = camera
                         self._camera.set_params_by_dict(const.INIT_CAMERA_PARAMETERS)
+                        self._getter_temperature(const.T_FPA)
+                        self._getter_temperature(const.T_HOUSING)
                         self._flag_alive.set()
                         return
                     except (RuntimeError, BrokenPipeError):
                         pass
+            sleep(1)
 
     def _th_get_temperatures(self) -> None:
+        self._flag_alive.wait()
         for t_type in cycle([const.T_FPA, const.T_HOUSING]):
             self._event_get_temperatures.wait(timeout=60 * 10)
-            with self._lock_camera:
-                t = self._camera.get_inner_temperature(t_type) if self._camera else None
-            if t and t != -float('inf'):
-                try:
-                    self._values_dict[t_type] = t
-                except BrokenPipeError:
-                    pass
+            self._getter_temperature(t_type=t_type)
             sleep(const.FREQ_INNER_TEMPERATURE_SECONDS)
 
     def _th_image_sender(self):
-        while self._flag_run:
+        self._flag_alive.wait()
+        while True:
             n_images_to_grab = self._image_pipe.recv()
             if n_images_to_grab is None or n_images_to_grab <= 0:
                 self._image_pipe.send(None)
@@ -89,6 +106,6 @@ class CameraCtrl(DeviceAbstract):
                 t_housing = round(self._values_dict[const.T_HOUSING] * 100)  # precision of the housing is 0.01C
                 self._event_get_temperatures.clear()
                 with self._lock_camera:
-                    images[(t_fpa, t_housing, n_image)] = self._camera.grab() if self._camera else None
+                    images[(t_fpa, t_housing, n_image)] = self._camera.grab() if self._camera is not None else None
                 self._event_get_temperatures.set()
             self._image_pipe.send(images)
