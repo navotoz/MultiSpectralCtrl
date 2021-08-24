@@ -1,3 +1,4 @@
+import logging
 from abc import abstractmethod
 from logging import Logger
 
@@ -124,5 +125,5 @@ class FilterWheelAbstract:
         return self._reversed_positions_names_dict[name]
 
     @property
-    def log(self):
+    def log(self) -> logging.Logger:
         return self._log

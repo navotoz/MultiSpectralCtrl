@@ -1,3 +1,4 @@
+import logging
 import threading as th
 from time import sleep
 
@@ -17,8 +18,6 @@ class FilterWheelCtrl:
         self._reversed_positions_names_dict = {}
         self._lock_access = th.Lock()
         self._th_connect = th.Thread(target=self._th_connect_function, name='connect_filterwheel', daemon=True)
-
-    def start(self):
         self._th_connect.start()
 
     def _th_connect_function(self):
@@ -52,19 +51,28 @@ class FilterWheelCtrl:
 
     @property
     def position(self):
-        return self._filterwheel.position
+        with self._lock_access:
+            return self._filterwheel.position
 
     @position.setter
     def position(self, next_position):
-        self._filterwheel.position = next_position
+        with self._lock_access:
+            self._filterwheel.position = next_position
 
     @property
     def position_count(self):
-        return self._filterwheel.position_count
+        with self._lock_access:
+            return self._filterwheel.position_count
 
     @property
     def is_dummy(self):
-        return self._filterwheel_type == const.DEVICE_DUMMY
+        with self._lock_access:
+            return self._filterwheel_type == const.DEVICE_DUMMY
+
+    @property
+    def log(self) -> logging.Logger:
+        with self._lock_access:
+            return self._filterwheel.log
 
     @property
     def position_names_dict(self):
@@ -83,12 +91,12 @@ class FilterWheelCtrl:
         sorted_keys.sort()
         if len(sorted_keys) < positions_count:
             msg = f'Not enough keys in given names dict {names_dict}.'
-            self._filterwheel.log.error(msg)
+            self.log.error(msg)
             raise ValueError(msg)
         if list(range(1, positions_count + 1)) != sorted_keys:
             msg = f'The given names keys does not have all the positions. ' \
                   f'Expected {self.position_count} and got {len(names_dict)}.'
-            self._filterwheel.log.error(msg)
+            self.log.error(msg)
             raise ValueError(msg)
         self._position_names_dict = names_dict.copy()  # create numbers to names dict
         if len(set(names_dict.values())) == len(names_dict.values()):
@@ -96,7 +104,6 @@ class FilterWheelCtrl:
             self._reversed_positions_names_dict = {key: val for key, val in reversed_generator}
         else:
             msg = f'There are duplicates in the given position names dict {names_dict}.'
-            self._filterwheel.log.error(msg)
+            self.log.error(msg)
             raise ValueError(msg)
-        self._filterwheel.log.debug(
-            f'Changed positions name dict to {list(self._reversed_positions_names_dict.keys())}.')
+        self.log.debug(f'Changed positions name dict to {list(self._reversed_positions_names_dict.keys())}.')

@@ -21,7 +21,6 @@ event_stop.clear()
 
 # FilterWheel
 filterwheel = FilterWheelCtrl(logging_handlers=handlers)
-filterwheel.start()
 
 # FLIR Tau2 Camera
 image_storage = {}
