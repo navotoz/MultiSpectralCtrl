@@ -48,9 +48,8 @@ class CameraIterator(Generator):
     def camera(self):
         return self.__camera
 
-    def _getter(self):
-        while not camera.is_valid_image:
-            continue
+    @staticmethod
+    def _getter():
         return camera.image
 
     @camera.setter

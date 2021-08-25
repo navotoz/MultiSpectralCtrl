@@ -92,7 +92,7 @@ class CameraCtrl(DeviceAbstract):
             sleep(const.FREQ_INNER_TEMPERATURE_SECONDS)
 
     def _th_getter_image(self):
-        while not self._flag_alive.wait(timeout=5) and self._flag_alive:
+        while not self._flag_alive.wait(timeout=3) and self._flag_alive:
             pass  # this thread is not a Daemon, so live-wait of some sort is performed.
         while self._flag_run:
             with self._lock_camera:
@@ -104,6 +104,7 @@ class CameraCtrl(DeviceAbstract):
 
     @property
     def image(self):
+        self._event_new_image.wait()
         with self._lock_image:
             self._event_new_image.clear()
             return self._image_array.copy()
@@ -115,10 +116,6 @@ class CameraCtrl(DeviceAbstract):
     @property
     def housing(self):
         return self._housing.value
-
-    @property
-    def is_valid_image(self):
-        return self._event_new_image.is_set()
 
     @property
     def is_camera_alive(self):

@@ -40,8 +40,6 @@ class Tau2Grabber(Tau):
         self._event_image_in_buffer = th.Event()
         self._event_image_in_buffer.clear()
 
-        self._width = self.width  # gets this value from the TAU
-        self._height = self.height  # gets this value from the TAU
         self._frame_size = 2 * self.height * self.width + 6 + 4 * self.height  # 6 byte header, 4 bytes pad per row
         self._len_command_in_bytes = 0
 
@@ -125,9 +123,9 @@ class Tau2Grabber(Tau):
             self._event_reply_ready.wait(timeout=2)  # blocking until the number of bytes for the reply are reached
             self._event_read.clear()
             parsed_msg = parse_incoming_message(buffer=self._buffer.buffer, command=command)
-            if parsed_msg is not None:
-                self._log.debug(f"Received {parsed_msg}")
-            return parsed_msg
+        if parsed_msg is not None:
+            self._log.debug(f"Received {parsed_msg}")
+        return parsed_msg
 
     def grab(self, to_temperature: bool = False):
         with self._lock_parse_command:

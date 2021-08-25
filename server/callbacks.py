@@ -201,8 +201,6 @@ def images_handler_callback(button_state, to_save: str, length_sequence: int, nu
             filterwheel.position = position
             name = int(filterwheel.position.get('name', 0))
             for _ in range(num_of_images):
-                while not camera.is_valid_image:
-                    continue
                 image = camera.image
                 if image is not None:
                     t_fpa_dict.setdefault(name, []).append(camera.fpa)
