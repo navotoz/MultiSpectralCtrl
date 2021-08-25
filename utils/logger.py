@@ -1,21 +1,7 @@
 import logging
 from pathlib import Path
-from threading import Event
 
-
-class SyncFlag:
-    def __init__(self, init_state: bool = True) -> None:
-        self._event = Event()
-        self._event.set() if init_state else self._event.clear()
-
-    def __call__(self) -> bool:
-        return self._event.is_set()
-
-    def set(self, new_state: bool):
-        self._event.set() if new_state else self._event.clear()
-
-    def __bool__(self) -> bool:
-        return self._event.is_set()
+from utils.tools import SyncFlag
 
 
 class DashLogger(logging.StreamHandler):
