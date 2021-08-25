@@ -1,6 +1,6 @@
 import multiprocessing as mp
 import threading as th
-from ctypes import c_ushort, c_float
+from ctypes import c_ushort
 from itertools import cycle
 from time import sleep
 
@@ -16,27 +16,20 @@ from utils.logger import make_logging_handlers
 class CameraCtrl(DeviceAbstract):
     _camera: (CameraAbstract, None) = None
 
-    def __init__(self,                 logging_handlers: (tuple, list)):
+    def __init__(self, logging_handlers: (tuple, list)):
         super(CameraCtrl, self).__init__(logging_handlers)
         self._flag_alive = mp.Event()
         self._flag_alive.clear()
         self._lock_camera = th.RLock()
         self._lock_image = th.Lock()
-        self._event_get_temperatures = th.Event()
-        self._event_get_temperatures.set()
-
-        self._image_array = None
-        self._fpa: mp.Value = mp.Value(typecode_or_type=c_float)
-        self._housing: mp.Value = mp.Value(typecode_or_type=c_float)
         self._event_new_image = mp.Event()
         self._event_new_image.clear()
 
+        self._image_array = None
+        self._fpa: mp.Value = mp.Value(typecode_or_type=c_ushort)  # uint16
+        self._housing: mp.Value = mp.Value(typecode_or_type=c_ushort)  # uint16
+
     def _terminate_device_specifics(self):
-        try:
-            if hasattr(self, '_event_get_temperatures'):
-                self._event_get_temperatures.set()
-        except (ValueError, TypeError, AttributeError, RuntimeError):
-            pass
         try:
             if hasattr(self, '_event_new_image'):
                 self._event_new_image.set()
@@ -59,7 +52,7 @@ class CameraCtrl(DeviceAbstract):
 
     def _getter_temperature(self, t_type: str):
         with self._lock_camera:
-            t = self._camera.get_inner_temperature(t_type)
+            t = self._camera.get_inner_temperature(t_type) if self._camera is not None else None
         if t is not None and t != 0.0 and t != -float('inf'):
             try:
                 t = round(t * 100)
@@ -73,6 +66,7 @@ class CameraCtrl(DeviceAbstract):
     def _th_connect(self):
         handlers = make_logging_handlers(None, True)
         while True:
+            sleep(1)
             with self._lock_camera:
                 if not isinstance(self._camera, CameraAbstract):
                     try:
@@ -90,26 +84,23 @@ class CameraCtrl(DeviceAbstract):
                         return
                     except (RuntimeError, BrokenPipeError):
                         pass
-            sleep(1)
 
     def _th_getter_temperature(self) -> None:
         self._flag_alive.wait()
         for t_type in cycle([const.T_FPA, const.T_HOUSING]):
-            self._event_get_temperatures.wait(timeout=60 * 10)
             self._getter_temperature(t_type=t_type)
             sleep(const.FREQ_INNER_TEMPERATURE_SECONDS)
 
     def _th_getter_image(self):
-        self._flag_alive.wait()
+        while not self._flag_alive.wait(timeout=5) and self._flag_alive:
+            pass  # this thread is not a Daemon, so live-wait of some sort is performed.
         while self._flag_run:
-            self._event_get_temperatures.clear()
             with self._lock_camera:
                 image = self._camera.grab() if self._camera is not None else None
             if image is not None:
                 with self._lock_image:
                     copyto(self._image_array, image)
                     self._event_new_image.set()
-            self._event_get_temperatures.set()
 
     @property
     def image(self):
