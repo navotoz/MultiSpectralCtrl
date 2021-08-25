@@ -48,7 +48,7 @@ class CameraAbstract:
         pass
 
     @abstractmethod
-    def grab(self) -> ndarray:
+    def grab(self, to_temperature: bool) -> ndarray:
         pass
 
     @abstractmethod

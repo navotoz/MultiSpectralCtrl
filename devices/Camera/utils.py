@@ -9,6 +9,7 @@ import usb
 from pyftdi.ftdi import Ftdi
 
 from devices.Camera import _make_device_from_vid_pid
+from devices.Camera.Tau import tau2_config as ptc
 from devices.Camera.Tau.Tau2Grabber import BORDER_VALUE
 from devices.Camera.Tau.tau2_config import Code
 from utils.tools import SyncFlag
@@ -17,21 +18,19 @@ import numpy as np
 BUFFER_SIZE = int(2 ** 24)  # 16 MBytes
 LEN_TEAX = 4
 UART_PREAMBLE_LENGTH = 6
-HEADER_SIZE_IN_BYTES = 10
+REPLY_HEADER_BYTES = 10
 
 
 class BytesBuffer:
-    def __init__(self, flag_run: SyncFlag, size_to_signal: int = 0) -> None:
+    def __init__(self, size_to_signal: int = 0) -> None:
         self._buffer: bytes = b''
         self._lock = th.Lock()
         self._event_buffer_bigger_than = th.Event()
         self._event_buffer_bigger_than.clear()
         self._size_to_signal = size_to_signal
-        self._flag_run = flag_run
 
-    def wait_for_size(self):
-        while not self._event_buffer_bigger_than.wait(timeout=1) and self._flag_run:
-            pass
+    def wait_for_frame(self, timeout: int):
+        self._event_buffer_bigger_than.wait(timeout=timeout)
 
     def __del__(self) -> None:
         if hasattr(self, '_event_buffer_bigger_than') and isinstance(self._event_buffer_bigger_than, th.Event):
@@ -47,11 +46,6 @@ class BytesBuffer:
             idx_sync = self._buffer.rfind(b'TEAX')
             if idx_sync != -1:
                 self._buffer = self._buffer[idx_sync + LEN_TEAX:]
-                if len(self._buffer) >= self._size_to_signal:
-                    self._event_buffer_bigger_than.set()
-                else:
-                    self._event_buffer_bigger_than.clear()
-                return
 
     def __len__(self) -> int:
         with self._lock:
@@ -129,7 +123,7 @@ def connect_ftdi(vid, pid) -> Ftdi:
     return ftdi
 
 
-def _is_8bit_image_borders_valid(raw_image_8bit: np.ndarray, height: int) -> bool:
+def is_8bit_image_borders_valid(raw_image_8bit: np.ndarray, height: int) -> bool:
     if raw_image_8bit is None:
         return False
     try:
@@ -147,7 +141,7 @@ def _is_8bit_image_borders_valid(raw_image_8bit: np.ndarray, height: int) -> boo
 
 
 def parse_incoming_message(buffer: bytes, command: Code) -> (List, None):
-    len_in_bytes = command.reply_bytes + HEADER_SIZE_IN_BYTES
+    len_in_bytes = command.reply_bytes + REPLY_HEADER_BYTES
     argument_length = len_in_bytes * UART_PREAMBLE_LENGTH
 
     idx_list = generate_subsets_indices_in_string(buffer, b'UART')
@@ -172,3 +166,51 @@ def parse_incoming_message(buffer: bytes, command: Code) -> (List, None):
     ret_value = data[8:8 + command.reply_bytes]
     ret_value = struct.pack('<' + len(ret_value) * 'B', *ret_value)
     return ret_value
+
+
+def make_packet(command: ptc.Code, argument: (bytes, None) = None) -> bytes:
+    if argument is None:
+        argument = []
+
+    # Refer to Tau 2 Software IDD
+    # Packet Protocol (Table 3.2)
+    packet_size = len(argument)
+    assert (packet_size == command.cmd_bytes)
+
+    process_code = int(0x6E).to_bytes(1, 'big')
+    status = int(0x00).to_bytes(1, 'big')
+    function = command.code.to_bytes(1, 'big')
+
+    # First CRC is the first 6 bytes of the packet
+    # 1 - Process code
+    # 2 - Status code
+    # 3 - Reserved
+    # 4 - Function
+    # 5 - N Bytes MSB
+    # 6 - N Bytes LSB
+
+    packet = [process_code,
+              status,
+              function,
+              ((packet_size & 0xFF00) >> 8).to_bytes(1, 'big'),
+              (packet_size & 0x00FF).to_bytes(1, 'big')]
+    crc_1 = binascii.crc_hqx(struct.pack("ccxccc", *packet), 0)
+
+    packet.append(((crc_1 & 0xFF00) >> 8).to_bytes(1, 'big'))
+    packet.append((crc_1 & 0x00FF).to_bytes(1, 'big'))
+
+    if packet_size > 0:
+
+        # Second CRC is the CRC of the data (if any)
+        crc_2 = binascii.crc_hqx(argument, 0)
+        packet.append(argument)
+        packet.append(((crc_2 & 0xFF00) >> 8).to_bytes(1, 'big'))
+        packet.append((crc_2 & 0x00FF).to_bytes(1, 'big'))
+
+        fmt = ">cxcccccc{}scc".format(packet_size)
+
+    else:
+        fmt = ">cxccccccxxx"
+
+    data = struct.pack(fmt, *packet)
+    return data

@@ -8,25 +8,17 @@ from devices import DeviceAbstract
 from devices.Camera import CameraAbstract
 from devices.Camera.Tau.Tau2Grabber import Tau2Grabber
 from utils.logger import make_logging_handlers
-from utils.tools import DuplexPipe
 
 
 class CameraCtrl(DeviceAbstract):
-    def _th_cmd_parser(self):
-        pass
-
-    _workers_dict = dict()
     _camera: (CameraAbstract, None) = None
 
     def __init__(self,
                  logging_handlers: (tuple, list),
                  event_stop: mp.Event,
-                 image_pipe: DuplexPipe,
                  flag_alive: mp.Event):
         super(CameraCtrl, self).__init__(event_stop, logging_handlers)
         self._values_dict = {}.fromkeys([const.T_FPA, const.T_HOUSING], 0.0)
-        self._image_pipe = image_pipe
-        self._flags_pipes_list = [self._image_pipe.flag_run]
         self._flag_alive = flag_alive
         self._flag_alive.clear()
         self._lock_camera = th.RLock()

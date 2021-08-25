@@ -1,4 +1,3 @@
-import binascii
 import logging
 import struct
 from pathlib import Path
@@ -50,8 +49,11 @@ class Tau(CameraAbstract):
         if self.conn:
             self.conn.close()
 
+    def send_command(self, command: ptc.Code, argument: (bytes, None)) -> (None, bytes):
+        raise NotImplementedError
+
     def _reset(self):
-        self._send_and_recv_threaded(ptc.CAMERA_RESET, None)
+        self.send_command(command=ptc.CAMERA_RESET, argument=None)
 
     @property
     def type(self) -> int:
@@ -157,7 +159,7 @@ class Tau(CameraAbstract):
             raise TypeError(f'{temperature_type} was not implemented as an inner temperature of TAU2.')
         command = ptc.READ_SENSOR_TEMPERATURE
         argument = struct.pack(">h", arg_hex)
-        res = self._send_and_recv_threaded(command, argument, n_retry=1)
+        res = self.send_command(command=command, argument=argument)
         if res:
             res = struct.unpack(">H", res)[0]
             res /= 10.0 if temperature_type == T_FPA else 100.0
@@ -166,17 +168,14 @@ class Tau(CameraAbstract):
                 return None
         return res
 
-    def _send_and_recv_threaded(self, command: ptc.Code, argument: (bytes, None), n_retry: int = 3):
-        pass
-
     def _get_values_without_arguments(self, command: ptc.Code) -> int:
-        res = self._send_and_recv_threaded(command, None)
+        res = self.send_command(command=command, argument=None)
         return struct.unpack('>h', res)[0] if res else 0xffff
 
     def _set_values_with_2bytes_send_recv(self, value: int, current_value: int, command: ptc.Code) -> bool:
         if value == current_value:
             return True
-        res = self._send_and_recv_threaded(command, struct.pack('>h', value))
+        res = self.send_command(command=command, argument=struct.pack('>h', value))
         if res and struct.unpack('>h', res)[0] == value:
             return True
         return False
@@ -204,14 +203,14 @@ class Tau(CameraAbstract):
     def is_dummy(self) -> bool:
         return False
 
-    def grab(self) -> np.ndarray:
+    def grab(self, to_temperature: bool) -> np.ndarray:
         pass
 
     def ffc(self, length: bytes = ptc.FFC_LONG) -> bool:
         prev_flag = (self.ffc_mode == ptc.FFC_MODE_CODE_DICT['external'])
         if prev_flag:
             self.ffc_mode = ptc.FFC_MODE_CODE_DICT['manual']
-        res = self._send_and_recv_threaded(ptc.DO_FFC, length)
+        res = self.send_command(command=ptc.DO_FFC, argument=length)
         if prev_flag:
             self.ffc_mode = ptc.FFC_MODE_CODE_DICT['external']
         if res and struct.unpack('H', res)[0] == 0xffff:
@@ -263,7 +262,7 @@ class Tau(CameraAbstract):
 
     @property
     def sso(self) -> int:
-        res = self._send_and_recv_threaded(ptc.GET_AGC_THRESHOLD, struct.pack('>h', 0x0400))
+        res = self.send_command(command=ptc.GET_AGC_THRESHOLD, argument=struct.pack('>h', 0x0400))
         return struct.unpack('>h', res)[0] if res else 0xffff
 
     @sso.setter
@@ -271,7 +270,7 @@ class Tau(CameraAbstract):
         if percentage == self.sso:
             self._log.info(f'Set SSO to {percentage}')
             return
-        self._send_and_recv_threaded(ptc.SET_AGC_THRESHOLD, struct.pack('>hh', 0x0400, percentage))
+        self.send_command(command=ptc.SET_AGC_THRESHOLD, argument=struct.pack('>hh', 0x0400, percentage))
         if self.sso == percentage:
             self._log.info(f'Set SSO to {percentage}%')
             return
@@ -324,27 +323,27 @@ class Tau(CameraAbstract):
 
     @property
     def tlinear(self):
-        res = self._send_and_recv_threaded(ptc.GET_TLINEAR_MODE, struct.pack('>h', 0x0040))
+        res = self.send_command(command=ptc.GET_TLINEAR_MODE, argument=struct.pack('>h', 0x0040))
         return struct.unpack('>h', res)[0] if res else 0xffff
 
     @tlinear.setter
     def tlinear(self, value: int):
         if value == self.tlinear:
             return
-        self._send_and_recv_threaded(ptc.SET_TLINEAR_MODE, struct.pack('>hh', 0x0040, value))
+        self.send_command(command=ptc.SET_TLINEAR_MODE, argument=struct.pack('>hh', 0x0040, value))
         if value == self.tlinear:
             self._log_set_values(value, True, 'tlinear mode')
             return
         self._log_set_values(value, False, 'tlinear mode')
 
     def _digital_output_getter(self, command: ptc.Code, argument: bytes):
-        res = self._send_and_recv_threaded(command, argument)
+        res = self.send_command(command=command, argument=argument)
         return struct.unpack('>h', res)[0] if res else 0xffff
 
     def _digital_output_setter(self, mode: int, current_mode: int, command: ptc.Code, argument: int) -> bool:
         if mode == current_mode:
             return True
-        res = self._send_and_recv_threaded(command, struct.pack('>bb', argument, mode))
+        res = self.send_command(command=command, argument=struct.pack('>bb', argument, mode))
         if res and struct.unpack('>bb', res)[-1] == mode:
             return True
         return False
@@ -394,52 +393,4 @@ class Tau(CameraAbstract):
         self._mode_setter(mode, self.fps, ptc.SET_FPS, ptc.FPS_CODE_DICT, 'FPS')
 
     def reset(self):
-        return self._send_and_recv_threaded(ptc.CAMERA_RESET, None)
-
-
-def _make_packet(command: ptc.Code, argument: (bytes, None) = None) -> bytes:
-    if argument is None:
-        argument = []
-
-    # Refer to Tau 2 Software IDD
-    # Packet Protocol (Table 3.2)
-    packet_size = len(argument)
-    assert (packet_size == command.cmd_bytes)
-
-    process_code = int(0x6E).to_bytes(1, 'big')
-    status = int(0x00).to_bytes(1, 'big')
-    function = command.code.to_bytes(1, 'big')
-
-    # First CRC is the first 6 bytes of the packet
-    # 1 - Process code
-    # 2 - Status code
-    # 3 - Reserved
-    # 4 - Function
-    # 5 - N Bytes MSB
-    # 6 - N Bytes LSB
-
-    packet = [process_code,
-              status,
-              function,
-              ((packet_size & 0xFF00) >> 8).to_bytes(1, 'big'),
-              (packet_size & 0x00FF).to_bytes(1, 'big')]
-    crc_1 = binascii.crc_hqx(struct.pack("ccxccc", *packet), 0)
-
-    packet.append(((crc_1 & 0xFF00) >> 8).to_bytes(1, 'big'))
-    packet.append((crc_1 & 0x00FF).to_bytes(1, 'big'))
-
-    if packet_size > 0:
-
-        # Second CRC is the CRC of the data (if any)
-        crc_2 = binascii.crc_hqx(argument, 0)
-        packet.append(argument)
-        packet.append(((crc_2 & 0xFF00) >> 8).to_bytes(1, 'big'))
-        packet.append((crc_2 & 0x00FF).to_bytes(1, 'big'))
-
-        fmt = ">cxcccccc{}scc".format(packet_size)
-
-    else:
-        fmt = ">cxccccccxxx"
-
-    data = struct.pack(fmt, *packet)
-    return data
+        return self.send_command(command=ptc.CAMERA_RESET, argument=None)
