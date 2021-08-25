@@ -24,7 +24,7 @@ class CameraCtrl(DeviceAbstract):
                  image_pipe: DuplexPipe,
                  flag_alive: mp.Event):
         super(CameraCtrl, self).__init__(event_stop, logging_handlers)
-        self._values_dict = {}
+        self._values_dict = {}.fromkeys([const.T_FPA, const.T_HOUSING], 0.0)
         self._image_pipe = image_pipe
         self._flags_pipes_list = [self._image_pipe.flag_run]
         self._flag_alive = flag_alive
@@ -50,8 +50,8 @@ class CameraCtrl(DeviceAbstract):
             pass
 
     def _run(self):
-        self._workers_dict['connect'] = th.Thread(target=self._th_connect, name='connect', daemon=True)
-        self._workers_dict['connect'].start()
+        self._workers_dict['connect_cam'] = th.Thread(target=self._th_connect, name='connect_cam', daemon=True)
+        self._workers_dict['connect_cam'].start()
 
         self._workers_dict['getter_t'] = th.Thread(target=self._th_get_temperatures, name='getter_t', daemon=True)
         self._workers_dict['getter_t'].start()

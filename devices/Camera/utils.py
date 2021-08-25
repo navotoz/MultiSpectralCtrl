@@ -6,7 +6,7 @@ from typing import List
 
 from utils.tools import SyncFlag
 
-BUFFER_SIZE = int(2 ** 22)  # 4 MBytes
+BUFFER_SIZE = int(2 ** 24)  # 16 MBytes
 LEN_TEAX = 4
 
 

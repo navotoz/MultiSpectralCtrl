@@ -1,7 +1,6 @@
 import logging
 import struct
 import threading as th
-from time import sleep
 from typing import List
 
 import numpy as np
@@ -17,6 +16,8 @@ from devices.Camera.utils import BytesBuffer, generate_subsets_indices_in_string
 from utils.logger import make_logger
 from utils.tools import SyncFlag
 
+UART_PREAMBLE_LENGTH = 6
+HEADER_SIZE_IN_BYTES = 10
 BORDER_VALUE = 64
 FTDI_PACKET_SIZE = 512 * 8
 SYNC_MSG = b'SYNC' + struct.pack(4 * 'B', *[0, 0, 0, 0])
@@ -34,6 +35,7 @@ class FtdiIO(th.Thread):
         except RuntimeError:
             raise RuntimeError('Could not connect to the Tau2 camera.')
 
+        self._length_in_bytes = 0
         self._flag_run = SyncFlag(init_state=True)
         self._frame_size = frame_size
         self._width = width
@@ -44,6 +46,8 @@ class FtdiIO(th.Thread):
         self._event_allow_all_commands.set()
         self._event_read = th.Event()
         self._event_read.clear()
+        self._event_msg_ready = th.Event()
+        self._event_msg_ready.clear()
         self._buffer = BytesBuffer(flag_run=self._flag_run, size_to_signal=self._frame_size)
         self._n_retries_image = 5
 
@@ -75,8 +79,8 @@ class FtdiIO(th.Thread):
         self._log.debug('Reset.')
 
     def _parse_func(self, command: Code) -> (List, None):
-        len_in_bytes = command.reply_bytes + 10
-        argument_length = len_in_bytes * (5 + 1)
+        len_in_bytes = command.reply_bytes + HEADER_SIZE_IN_BYTES
+        argument_length = len_in_bytes * UART_PREAMBLE_LENGTH
 
         idx_list = generate_subsets_indices_in_string(self._buffer, b'UART')
         if not idx_list:
@@ -117,34 +121,36 @@ class FtdiIO(th.Thread):
     def _th_reader_func(self) -> None:
         data = None
         while self._flag_run:
-            if self._event_read.is_set():
-                with self._lock_access_ftdi:
-                    try:
-                        data = self._ftdi.read_data(FTDI_PACKET_SIZE)
-                        while not data and self._flag_run:
-                            data += self._ftdi.read_data(1)
-                    except FtdiError:
-                        pass
-                    if self._buffer is not None and data is not None:
-                        self._buffer += data
+            self._event_read.wait()
+            with self._lock_access_ftdi:
+                try:
+                    data = self._ftdi.read_data(FTDI_PACKET_SIZE)
+                    while not data and self._flag_run:
+                        data += self._ftdi.read_data(1)
+                except FtdiError:
+                    pass
+                if self._buffer is not None and data is not None:
+                    self._buffer += data
+                if len(generate_subsets_indices_in_string(self._buffer, b'UART')) >= self._length_in_bytes:
+                    self._event_msg_ready.set()
 
     def parse(self, data: bytes, command: ptc.Code, n_retry: int) -> (None, bytes):
         self._event_allow_all_commands.wait()
+        len_msg_in_bytes = command.reply_bytes + HEADER_SIZE_IN_BYTES
         with self._lock_parse_command:
             self._buffer.clear_buffer()
+            self._event_msg_ready.clear()
+            self._length_in_bytes = len_msg_in_bytes
             self._event_read.set()
             self._write(data)
-            sleep(0.2)
-            for _ in range(max(1, n_retry)):
-                parsed_func = self._parse_func(command)
-                if parsed_func is not None:
-                    self._event_read.clear()
-                    self._log.debug(f"Recv {parsed_func}")
-                    return parsed_func
-                self._log.debug('Could not parse, retrying..')
-                self._write(SYNC_MSG)
-                self._write(data)
-                sleep(0.2)
+            self._event_msg_ready.wait(timeout=1)
+            self._event_read.clear()
+            parsed_func = self._parse_func(command)
+            if parsed_func is not None:
+                self._event_read.clear()
+                self._log.debug(f"Recv {parsed_func}")
+                return parsed_func
+            self._log.debug('Could not parse, retrying..')
             self._event_read.clear()
             return None
 
