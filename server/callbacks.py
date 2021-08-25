@@ -14,7 +14,7 @@ from flask import request, Response, send_file
 
 import utils.constants as const
 # noinspection PyUnresolvedReferences
-from server.app import app, server, logger, camera, image_grabber, event_stop, filterwheel, flag_alive_camera
+from server.app import app, server, logger, camera, filterwheel
 from server.tools import find_files_in_savepath, base64_to_split_numpy_image, make_images_for_web_display, \
     make_links_from_files
 from utils.constants import SAVE_PATH, IMAGE_FORMAT
@@ -135,10 +135,6 @@ def kill_server(n_clicks):
 
 def exit_handler(sig_type: int, frame) -> None:
     try:
-        event_stop.set()
-    except (ValueError, TypeError, AttributeError, RuntimeError):
-        pass
-    try:
         camera.__del__()
     except (ValueError, TypeError, AttributeError, RuntimeError):
         pass
@@ -182,7 +178,7 @@ def check_valid_filterwheel(n_intervals, style):
     State('tau2-status', 'style'))
 def check_valid_tau(n_intervals, style):
     if n_intervals and 'background' not in style:
-        if flag_alive_camera.is_set():
+        if camera.is_camera_alive.is_set():
             style['background'] = 'green'
             return style, 'Real'
     return dash.no_update
@@ -200,19 +196,23 @@ def images_handler_callback(button_state, to_save: str, length_sequence: int, nu
 
         # take images for different filters
         logger.info(f"Taking a sequence of {length_sequence} filters.")
-        t_fpa_dict = {}
-        t_housing_dict = {}
-        images_dict = {}
+        t_fpa_dict, t_housing_dict, images_dict, position = {}, {}, {}, 0
         for position in range(1, length_sequence + 1):
             filterwheel.position = position
             name = int(filterwheel.position.get('name', 0))
-            image_grabber.send(num_of_images)
-            images = image_grabber.recv()
-            if images is not None:
-                t_fpa_dict.setdefault(name, float(np.mean([p[0] for p in images.keys()])))
-                t_housing_dict.setdefault(name, float(np.mean([p[1] for p in images.keys()])))
-                images_dict.setdefault(name, np.stack(list(images.values())))
-            logger.info(f"Taken an image in position {position}#.")
+            for _ in range(num_of_images):
+                while not camera.is_valid_image:
+                    continue
+                image = camera.image
+                if image is not None:
+                    t_fpa_dict.setdefault(name, []).append(camera.fpa)
+                    t_housing_dict.setdefault(name, []).append(camera.housing)
+                    images_dict.setdefault(name, []).append(image)
+        for name in images_dict.keys():
+            t_fpa_dict[name] = float(np.mean(t_fpa_dict[name]))
+            t_housing_dict[name] = float(np.mean(t_housing_dict[name]))
+            images_dict[name] = np.stack(images_dict[name])
+        logger.info(f"Taken an image in position {position}#.")
 
         if to_save:
             keys = list(images_dict.keys())

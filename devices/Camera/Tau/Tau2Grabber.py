@@ -13,10 +13,7 @@ from devices.Camera.utils import connect_ftdi, is_8bit_image_borders_valid, Byte
 from utils.logger import make_logger, make_logging_handlers
 import threading as th
 
-from utils.tools import SyncFlag
-
 KELVIN2CELSIUS = 273.15
-BORDER_VALUE = 64
 FTDI_PACKET_SIZE = 512 * 8
 SYNC_MSG = b'SYNC' + struct.pack(4 * 'B', *[0, 0, 0, 0])
 
@@ -43,13 +40,13 @@ class Tau2Grabber(Tau):
         self._event_image_in_buffer = th.Event()
         self._event_image_in_buffer.clear()
 
-        self._width = self.width
-        self._height = self.height
+        self._width = self.width  # gets this value from the TAU
+        self._height = self.height  # gets this value from the TAU
         self._frame_size = 2 * self.height * self.width + 6 + 4 * self.height  # 6 byte header, 4 bytes pad per row
+        self._len_command_in_bytes = 0
 
         self._buffer = BytesBuffer(size_to_signal=self._frame_size)
 
-        self._len_command_in_bytes = 0
         self._thread_read = th.Thread(target=self._th_reader_func, name='th_tau2grabber_reader', daemon=True)
         self._thread_read.start()
         self.ffc_mode = ptc.FFC_MODE_CODE_DICT['external']
@@ -132,7 +129,7 @@ class Tau2Grabber(Tau):
                 self._log.debug(f"Received {parsed_msg}")
             return parsed_msg
 
-    def grab(self, to_temperature: bool):
+    def grab(self, to_temperature: bool = False):
         with self._lock_parse_command:
             self._event_image_in_buffer.clear()  # blocking until TEAX appears in the buffer
             self._event_read.set()

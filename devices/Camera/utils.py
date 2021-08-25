@@ -10,7 +10,6 @@ from pyftdi.ftdi import Ftdi
 
 from devices.Camera import _make_device_from_vid_pid
 from devices.Camera.Tau import tau2_config as ptc
-from devices.Camera.Tau.Tau2Grabber import BORDER_VALUE
 from devices.Camera.Tau.tau2_config import Code
 from utils.tools import SyncFlag
 import numpy as np
@@ -19,6 +18,7 @@ BUFFER_SIZE = int(2 ** 24)  # 16 MBytes
 LEN_TEAX = 4
 UART_PREAMBLE_LENGTH = 6
 REPLY_HEADER_BYTES = 10
+BORDER_VALUE = 64
 
 
 class BytesBuffer:

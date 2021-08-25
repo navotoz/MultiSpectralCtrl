@@ -1,7 +1,3 @@
-# todo: remove pipes
-
-
-
 from signal import SIGINT, signal, SIGTERM
 from socket import gethostname
 

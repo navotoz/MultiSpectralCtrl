@@ -41,10 +41,6 @@ class FilterWheelCtrl:
         except (ValueError, TypeError, AttributeError, RuntimeError):
             pass
         try:
-            self._lock_access.release()
-        except (ValueError, TypeError, AttributeError, RuntimeError):
-            pass
-        try:
             del self._filterwheel
         except (ValueError, TypeError, AttributeError, RuntimeError):
             pass
