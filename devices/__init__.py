@@ -1,5 +1,4 @@
 import multiprocessing as mp
-import threading as th
 from abc import abstractmethod
 
 from utils.tools import SyncFlag

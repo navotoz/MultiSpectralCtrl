@@ -4,15 +4,13 @@ import struct
 import threading as th
 from typing import List
 
-import numpy
+import numpy as np
 import usb
 from pyftdi.ftdi import Ftdi
 
 from devices.Camera import _make_device_from_vid_pid
 from devices.Camera.Tau import tau2_config as ptc
 from devices.Camera.Tau.tau2_config import Code
-from utils.tools import SyncFlag
-import numpy as np
 
 BUFFER_SIZE = int(2 ** 24)  # 16 MBytes
 LEN_TEAX = 4

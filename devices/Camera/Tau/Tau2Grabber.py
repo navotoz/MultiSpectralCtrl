@@ -1,5 +1,6 @@
 import logging
 import struct
+import threading as th
 from pathlib import Path
 
 import numpy as np
@@ -11,7 +12,6 @@ from devices.Camera.Tau.TauCameraCtrl import Tau
 from devices.Camera.utils import connect_ftdi, is_8bit_image_borders_valid, BytesBuffer, \
     REPLY_HEADER_BYTES, parse_incoming_message, make_packet
 from utils.logger import make_logger, make_logging_handlers
-import threading as th
 
 KELVIN2CELSIUS = 273.15
 FTDI_PACKET_SIZE = 512 * 8
