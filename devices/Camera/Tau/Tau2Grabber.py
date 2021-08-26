@@ -127,7 +127,7 @@ class Tau2Grabber(Tau):
             self._event_reply_ready.clear()  # counts the number of bytes in the buffer
             self._event_read.set()
             self._write(data)
-            self._event_reply_ready.wait(timeout=2)  # blocking until the number of bytes for the reply are reached
+            self._event_reply_ready.wait(timeout=0.2)  # blocking until the number of bytes for the reply are reached
             self._event_read.clear()
             parsed_msg = parse_incoming_message(buffer=self._buffer.buffer, command=command)
         if parsed_msg is not None:
@@ -140,10 +140,10 @@ class Tau2Grabber(Tau):
             self._len_command_in_bytes = -1  # to prevent the _event_read.clear() check in the reading thread
             self._event_frame_header_in_buffer.clear()  # blocking until TEAX appears in the buffer
             self._event_read.set()
-            self._event_frame_header_in_buffer.wait(timeout=2)
+            self._event_frame_header_in_buffer.wait(timeout=1/50)
             self._buffer.sync_teax()
             self._event_frame_in_buffer.clear()  # blocking until frame length in buffer
-            self._event_frame_in_buffer.wait(timeout=1)  # blocking until the size of frame is reached in the buffer
+            self._event_frame_in_buffer.wait(timeout=1/50)  # blocking until the size of frame is reached in the buffer
             self._event_read.clear()
             res = self._buffer[:self._frame_size]
         if not res:

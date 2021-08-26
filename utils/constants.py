@@ -31,7 +31,7 @@ HEIGHT = 'height'
 DIM = 'dim'
 FFC_TEMPERATURE = 'ffc_temperature'
 FFC = 'ffc'
-FREQ_INNER_TEMPERATURE_SECONDS = 1
+FREQ_INNER_TEMPERATURE_SECONDS = 10
 CAMERA_NAME = "camera"
 
 # device status
