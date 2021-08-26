@@ -9,8 +9,6 @@ handlars = make_logging_handlers(None, True)
 camera = CameraCtrl(handlars)
 camera.start()
 
-while not camera.is_camera_alive:
-    pass
 with tqdm() as pbar:
     while True:
         image = camera.image

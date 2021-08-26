@@ -134,17 +134,17 @@ class Tau2Grabber(Tau):
             self._log.debug(f"Received {parsed_msg}")
         return parsed_msg
 
+
     def grab(self, to_temperature: bool = False):
         with self._lock_parse_command:
             self._buffer.clear_buffer()
-            self._len_command_in_bytes = -1  # to prevent the _event_read.clear() check in the reading thread
-            self._event_frame_header_in_buffer.clear()  # blocking until TEAX appears in the buffer
-            self._event_read.set()
-            self._event_frame_header_in_buffer.wait(timeout=1/50)
-            self._buffer.sync_teax()
-            self._event_frame_in_buffer.clear()  # blocking until frame length in buffer
-            self._event_frame_in_buffer.wait(timeout=1/50)  # blocking until the size of frame is reached in the buffer
-            self._event_read.clear()
+
+            while not self._buffer.sync_teax():
+                self._buffer += self._ftdi.read_data(FTDI_PACKET_SIZE)
+
+            while len(self._buffer) < self._frame_size:
+                self._buffer += self._ftdi.read_data(min(FTDI_PACKET_SIZE, self._frame_size - len(self._buffer)))
+
             res = self._buffer[:self._frame_size]
         if not res:
             return None

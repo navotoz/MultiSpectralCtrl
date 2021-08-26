@@ -12,7 +12,7 @@ from devices.Camera import _make_device_from_vid_pid
 from devices.Camera.Tau import tau2_config as ptc
 from devices.Camera.Tau.tau2_config import Code
 
-BUFFER_SIZE = int(2 ** 24)  # 16 MBytes
+BUFFER_SIZE = int(2 ** 23)  # 8 MBytes
 TEAX_LEN = 4
 UART_PREAMBLE_LENGTH = 6
 REPLY_HEADER_BYTES = 10
@@ -29,11 +29,13 @@ class BytesBuffer:
         with self._lock:
             self._buffer = b''
 
-    def sync_teax(self) -> None:
+    def sync_teax(self) -> bool:
         with self._lock:
             idx_sync = self._buffer.rfind(b'TEAX')
             if idx_sync != -1:
                 self._buffer = self._buffer[idx_sync + TEAX_LEN:]
+                return True
+            return False
 
     def __len__(self) -> int:
         with self._lock:
