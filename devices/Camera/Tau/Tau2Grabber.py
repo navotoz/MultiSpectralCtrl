@@ -46,7 +46,6 @@ class Tau2Grabber(Tau):
 
         self._thread_read = th.Thread(target=self._th_reader_func, name='th_tau2grabber_reader', daemon=True)
         self._thread_read.start()
-        self.ffc_mode = ptc.FFC_MODE_CODE_DICT['external']
         self._log.info('Ready.')
 
     def __del__(self) -> None:

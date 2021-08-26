@@ -178,7 +178,7 @@ def check_valid_filterwheel(n_intervals, style):
     State('tau2-status', 'style'))
 def check_valid_tau(n_intervals, style):
     if n_intervals and 'background' not in style:
-        if camera.is_camera_alive.is_set():
+        if camera.is_camera_alive:
             style['background'] = 'green'
             return style, 'Real'
     return dash.no_update

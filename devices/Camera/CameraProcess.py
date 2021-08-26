@@ -17,7 +17,7 @@ class CameraCtrl(DeviceAbstract):
     _camera: (CameraAbstract, None) = None
 
     def __init__(self, logging_handlers: (tuple, list)):
-        super(CameraCtrl, self).__init__(logging_handlers)
+        super(CameraCtrl, self).__init__()
         self._flag_alive = mp.Event()
         self._flag_alive.clear()
         self._lock_camera = th.RLock()

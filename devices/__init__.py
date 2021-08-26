@@ -7,10 +7,9 @@ from utils.tools import SyncFlag
 class DeviceAbstract(mp.Process):
     _workers_dict = {}
 
-    def __init__(self, logging_handlers: (tuple, list)):
+    def __init__(self):
         super().__init__()
         self._flag_run = SyncFlag(init_state=True)
-        self._logging_handlers = logging_handlers
 
     def run(self):
         self._run()
