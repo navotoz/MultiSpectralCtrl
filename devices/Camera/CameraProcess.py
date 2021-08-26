@@ -25,7 +25,10 @@ class CameraCtrl(DeviceAbstract):
         self._event_new_image = mp.Event()
         self._event_new_image.clear()
 
-        self._image_array = None
+        self._image_array = mp.RawArray(c_ushort, const.HEIGHT_IMAGE_TAU2 * const.WIDTH_IMAGE_TAU2)
+        self._image_array = frombuffer(self._image_array, dtype=uint16)
+        self._image_array = self._image_array.reshape(const.HEIGHT_IMAGE_TAU2, const.WIDTH_IMAGE_TAU2)
+
         self._fpa: mp.Value = mp.Value(typecode_or_type=c_ushort)  # uint16
         self._housing: mp.Value = mp.Value(typecode_or_type=c_ushort)  # uint16
 
@@ -75,10 +78,6 @@ class CameraCtrl(DeviceAbstract):
                         self._camera.set_params_by_dict(const.INIT_CAMERA_PARAMETERS)
                         self._getter_temperature(const.T_FPA)
                         self._getter_temperature(const.T_HOUSING)
-
-                        self._image_array = mp.RawArray(c_ushort, self._camera.height * self._camera.width)
-                        self._image_array = frombuffer(self._image_array, dtype=uint16)
-                        self._image_array = self._image_array.reshape(self._camera.height, self._camera.width)
 
                         self._flag_alive.set()
                         return

@@ -13,7 +13,7 @@ from devices.Camera.Tau import tau2_config as ptc
 from devices.Camera.Tau.tau2_config import Code
 
 BUFFER_SIZE = int(2 ** 24)  # 16 MBytes
-LEN_TEAX = 4
+TEAX_LEN = 4
 UART_PREAMBLE_LENGTH = 6
 REPLY_HEADER_BYTES = 10
 BORDER_VALUE = 64
@@ -22,28 +22,18 @@ BORDER_VALUE = 64
 class BytesBuffer:
     def __init__(self, size_to_signal: int = 0) -> None:
         self._buffer: bytes = b''
-        self._lock = th.Lock()
-        self._event_buffer_bigger_than = th.Event()
-        self._event_buffer_bigger_than.clear()
+        self._lock = th.RLock()
         self._size_to_signal = size_to_signal
-
-    def wait_for_frame(self, timeout: int):
-        self._event_buffer_bigger_than.wait(timeout=timeout)
-
-    def __del__(self) -> None:
-        if hasattr(self, '_event_buffer_bigger_than') and isinstance(self._event_buffer_bigger_than, th.Event):
-            self._event_buffer_bigger_than.set()
 
     def clear_buffer(self) -> None:
         with self._lock:
             self._buffer = b''
-            self._event_buffer_bigger_than.clear()
 
     def sync_teax(self) -> None:
         with self._lock:
             idx_sync = self._buffer.rfind(b'TEAX')
             if idx_sync != -1:
-                self._buffer = self._buffer[idx_sync + LEN_TEAX:]
+                self._buffer = self._buffer[idx_sync + TEAX_LEN:]
 
     def __len__(self) -> int:
         with self._lock:
@@ -54,10 +44,6 @@ class BytesBuffer:
             self._buffer += other
             if len(self._buffer) > BUFFER_SIZE:
                 self._buffer = self._buffer[-BUFFER_SIZE:]
-            if len(self._buffer) >= self._size_to_signal:
-                self._event_buffer_bigger_than.set()
-            else:
-                self._event_buffer_bigger_than.clear()
             return self._buffer
 
     def __iadd__(self, other: bytes):
@@ -65,10 +51,6 @@ class BytesBuffer:
             self._buffer += other
             if len(self._buffer) > BUFFER_SIZE:
                 self._buffer = self._buffer[-BUFFER_SIZE:]
-            if len(self._buffer) >= self._size_to_signal:
-                self._event_buffer_bigger_than.set()
-            else:
-                self._event_buffer_bigger_than.clear()
             return self
 
     def __getitem__(self, item: slice) -> bytes:

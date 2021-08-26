@@ -10,7 +10,7 @@ from pyftdi.ftdi import Ftdi, FtdiError
 import devices.Camera.Tau.tau2_config as ptc
 from devices.Camera.Tau.TauCameraCtrl import Tau
 from devices.Camera.utils import connect_ftdi, is_8bit_image_borders_valid, BytesBuffer, \
-    REPLY_HEADER_BYTES, parse_incoming_message, make_packet
+    REPLY_HEADER_BYTES, parse_incoming_message, make_packet, TEAX_LEN
 from utils.logger import make_logger, make_logging_handlers
 
 KELVIN2CELSIUS = 273.15
@@ -31,14 +31,16 @@ class Tau2Grabber(Tau):
             self._ftdi = connect_ftdi(vid, pid)
         except RuntimeError:
             raise RuntimeError('Could not connect to the Tau2 camera.')
-        self._lock_access_ftdi = th.Lock()
+        self._lock_access_ftdi = th.RLock()
         self._lock_parse_command = th.Lock()
         self._event_read = th.Event()
         self._event_read.clear()
         self._event_reply_ready = th.Event()
         self._event_reply_ready.clear()
-        self._event_image_in_buffer = th.Event()
-        self._event_image_in_buffer.clear()
+        self._event_frame_header_in_buffer = th.Event()
+        self._event_frame_header_in_buffer.clear()
+        self._event_frame_in_buffer = th.Event()
+        self._event_frame_in_buffer.clear()
 
         self._frame_size = 2 * self.height * self.width + 6 + 4 * self.height  # 6 byte header, 4 bytes pad per row
         self._len_command_in_bytes = 0
@@ -53,10 +55,12 @@ class Tau2Grabber(Tau):
     def __del__(self) -> None:
         if hasattr(self, '_ftdi') and isinstance(self._ftdi, Ftdi):
             self._ftdi.close()
+        if hasattr(self, '_event_frame_in_buffer') and isinstance(self._event_frame_in_buffer, th.Event):
+            self._event_frame_in_buffer.set()
         if hasattr(self, '_event_reply_ready') and isinstance(self._event_reply_ready, th.Event):
             self._event_reply_ready.set()
-        if hasattr(self, '_event_image_in_buffer') and isinstance(self._event_image_in_buffer, th.Event):
-            self._event_image_in_buffer.set()
+        if hasattr(self, '_event_frame_header_in_buffer') and isinstance(self._event_frame_header_in_buffer, th.Event):
+            self._event_frame_header_in_buffer.set()
         if hasattr(self, '_event_read') and isinstance(self._event_read, th.Event):
             self._event_read.set()
         if hasattr(self, '_log') and isinstance(self._log, logging.Logger):
@@ -81,7 +85,6 @@ class Tau2Grabber(Tau):
             params = yaml.safe_load(yaml_or_dict)
         else:
             params = yaml_or_dict.copy()
-        self.ffc_mode = params.get('ffc_mode', 'external')
         self.isotherm = params.get('isotherm', 0)
         self.dde = params.get('dde', 0)
         self.tlinear = params.get('tlinear', 0)
@@ -92,7 +95,8 @@ class Tau2Grabber(Tau):
         self.brightness = params.get('brightness', 0)
         self.brightness_bias = params.get('brightness_bias', 0)
         self.cmos_depth = params.get('cmos_depth', 0)  # 14bit pre AGC
-        self.fps = params.get('fps', 4)  # 60Hz NTSC
+        self.fps = params.get('fps', ptc.FPS_CODE_DICT[60])  # 60Hz NTSC
+        self.ffc_mode = params.get('ffc_mode', 'external')
         # self.correction_mask = params.get('corr_mask', 0)  # off
 
     def _th_reader_func(self) -> None:
@@ -107,10 +111,13 @@ class Tau2Grabber(Tau):
                 if data.rfind(b'UART') >= 0:
                     self._len_command_in_bytes -= 1
                 if data.rfind(b'TEAX') >= 0:
-                    self._event_image_in_buffer.set()
+                    self._event_frame_header_in_buffer.set()
                 self._buffer += data
+            if len(self._buffer) > self._frame_size + TEAX_LEN:
+                self._event_frame_in_buffer.set()
             if self._len_command_in_bytes == 0:
                 self._event_reply_ready.set()
+                self._event_read.clear()
 
     def send_command(self, command: ptc.Code, argument: (bytes, None)) -> (None, bytes):
         data = make_packet(command, argument)
@@ -129,11 +136,14 @@ class Tau2Grabber(Tau):
 
     def grab(self, to_temperature: bool = False):
         with self._lock_parse_command:
-            self._event_image_in_buffer.clear()  # blocking until TEAX appears in the buffer
+            self._buffer.clear_buffer()
+            self._len_command_in_bytes = -1  # to prevent the _event_read.clear() check in the reading thread
+            self._event_frame_header_in_buffer.clear()  # blocking until TEAX appears in the buffer
             self._event_read.set()
-            self._event_image_in_buffer.wait(timeout=2)
+            self._event_frame_header_in_buffer.wait(timeout=2)
             self._buffer.sync_teax()
-            self._buffer.wait_for_frame(timeout=1)  # blocking until the size of frame is reached in the buffer
+            self._event_frame_in_buffer.clear()  # blocking until frame length in buffer
+            self._event_frame_in_buffer.wait(timeout=1)  # blocking until the size of frame is reached in the buffer
             self._event_read.clear()
             res = self._buffer[:self._frame_size]
         if not res:
@@ -142,7 +152,10 @@ class Tau2Grabber(Tau):
         frame_width = struct.unpack('h', res[1:3])[0] - 2
         if magic_word != 0x4000 or frame_width != self.width:
             return None
-        raw_image_8bit = np.frombuffer(res[6:], dtype='uint8').reshape((-1, 2 * (self.width + 2)))
+        raw_image_8bit = np.frombuffer(res[6:], dtype='uint8')
+        if len(raw_image_8bit) != (2 * (self.width + 2)) * self.height:
+            return None
+        raw_image_8bit = raw_image_8bit.reshape((-1, 2 * (self.width + 2)))
         if not is_8bit_image_borders_valid(raw_image_8bit, self.height):
             return None
 

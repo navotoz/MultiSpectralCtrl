@@ -1,12 +1,19 @@
+from time import sleep
+
+from tqdm import tqdm
+
 from devices.Camera.CameraProcess import CameraCtrl
 from utils.logger import make_logging_handlers
 
-camera = CameraCtrl(make_logging_handlers(None, True))
+handlars = make_logging_handlers(None, True)
+camera = CameraCtrl(handlars)
 camera.start()
 
+while not camera.is_camera_alive:
+    pass
 with tqdm() as pbar:
     while True:
-        camera.grab()
+        image = camera.image
         pbar.update()
 
 # from signal import SIGINT, signal, SIGTERM

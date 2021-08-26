@@ -13,3 +13,4 @@ pyusb
 pyyaml
 pyftdi
 pandas
+tqdm

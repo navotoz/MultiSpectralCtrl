@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from devices.Camera.Tau.tau2_config import FPS_CODE_DICT
+
 FAILURE_PROBABILITY_IN_DUMMIES = 0.0
 INIT_EXPOSURE = 50000  # micro seconds
 SAVE_PATH = Path('download')
@@ -29,8 +31,7 @@ HEIGHT = 'height'
 DIM = 'dim'
 FFC_TEMPERATURE = 'ffc_temperature'
 FFC = 'ffc'
-FREQ_INNER_TEMPERATURE_SECONDS = 5
-CAMERA_TAU_HERTZ = 0.01
+FREQ_INNER_TEMPERATURE_SECONDS = 1
 CAMERA_NAME = "camera"
 
 # device status
@@ -50,7 +51,7 @@ INIT_CAMERA_PARAMETERS = dict(
     contrast=0,
     brightness=0,
     brightness_bias=0,
-    fps=0x0000,  # 30Hz
+    fps=FPS_CODE_DICT[30],
     lvds=0x0000,  # disabled
     lvds_depth=0x0000,  # 14bit
     xp=0x0002,  # 14bit w/ 1 discrete
