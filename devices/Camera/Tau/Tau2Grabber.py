@@ -10,7 +10,7 @@ from pyftdi.ftdi import Ftdi, FtdiError
 import devices.Camera.Tau.tau2_config as ptc
 from devices.Camera.Tau.TauCameraCtrl import Tau
 from devices.Camera.utils import connect_ftdi, is_8bit_image_borders_valid, BytesBuffer, \
-    REPLY_HEADER_BYTES, parse_incoming_message, make_packet, TEAX_LEN
+    REPLY_HEADER_BYTES, parse_incoming_message, make_packet, generate_subsets_indices_in_string
 from utils.logger import make_logger, make_logging_handlers
 
 KELVIN2CELSIUS = 273.15
@@ -31,7 +31,6 @@ class Tau2Grabber(Tau):
             self._ftdi = connect_ftdi(vid, pid)
         except RuntimeError:
             raise RuntimeError('Could not connect to the Tau2 camera.')
-        self._lock_access_ftdi = th.RLock()
         self._lock_parse_command = th.Lock()
         self._event_read = th.Event()
         self._event_read.clear()
@@ -39,8 +38,6 @@ class Tau2Grabber(Tau):
         self._event_reply_ready.clear()
         self._event_frame_header_in_buffer = th.Event()
         self._event_frame_header_in_buffer.clear()
-        self._event_frame_in_buffer = th.Event()
-        self._event_frame_in_buffer.clear()
 
         self._frame_size = 2 * self.height * self.width + 6 + 4 * self.height  # 6 byte header, 4 bytes pad per row
         self._len_command_in_bytes = 0
@@ -55,8 +52,6 @@ class Tau2Grabber(Tau):
     def __del__(self) -> None:
         if hasattr(self, '_ftdi') and isinstance(self._ftdi, Ftdi):
             self._ftdi.close()
-        if hasattr(self, '_event_frame_in_buffer') and isinstance(self._event_frame_in_buffer, th.Event):
-            self._event_frame_in_buffer.set()
         if hasattr(self, '_event_reply_ready') and isinstance(self._event_reply_ready, th.Event):
             self._event_reply_ready.set()
         if hasattr(self, '_event_frame_header_in_buffer') and isinstance(self._event_frame_header_in_buffer, th.Event):
@@ -74,8 +69,7 @@ class Tau2Grabber(Tau):
         buffer += int(len(data)).to_bytes(1, byteorder='big')  # doesn't matter
         buffer += data
         try:
-            with self._lock_access_ftdi:
-                self._ftdi.write_data(buffer)
+            self._ftdi.write_data(buffer)
             self._log.debug(f"Send {data}")
         except FtdiError:
             self._log.debug('Write error.')
@@ -102,38 +96,30 @@ class Tau2Grabber(Tau):
     def _th_reader_func(self) -> None:
         while True:
             self._event_read.wait()
-            with self._lock_access_ftdi:
-                try:
-                    data = self._ftdi.read_data(FTDI_PACKET_SIZE)
-                except FtdiError:
-                    return None
+            try:
+                data = self._ftdi.read_data(FTDI_PACKET_SIZE)
+            except FtdiError:
+                return None
             if data is not None and isinstance(self._buffer, BytesBuffer):
-                if data.rfind(b'UART') >= 0:
-                    self._len_command_in_bytes -= 1
-                if data.rfind(b'TEAX') >= 0:
-                    self._event_frame_header_in_buffer.set()
                 self._buffer += data
-            if len(self._buffer) > self._frame_size + TEAX_LEN:
-                self._event_frame_in_buffer.set()
-            if self._len_command_in_bytes == 0:
+            if len(generate_subsets_indices_in_string(self._buffer, b'UART')) == self._len_command_in_bytes:
                 self._event_reply_ready.set()
                 self._event_read.clear()
 
     def send_command(self, command: ptc.Code, argument: (bytes, None)) -> (None, bytes):
         data = make_packet(command, argument)
         with self._lock_parse_command:
-            self._len_command_in_bytes = command.reply_bytes + REPLY_HEADER_BYTES
             self._buffer.clear_buffer()  # ready for the reply
-            self._event_reply_ready.clear()  # counts the number of bytes in the buffer
+            self._len_command_in_bytes = command.reply_bytes + REPLY_HEADER_BYTES
             self._event_read.set()
             self._write(data)
-            self._event_reply_ready.wait(timeout=0.2)  # blocking until the number of bytes for the reply are reached
-            self._event_read.clear()
+            self._event_reply_ready.clear()  # counts the number of bytes in the buffer
+            self._event_reply_ready.wait(timeout=10)  # blocking until the number of bytes for the reply are reached
             parsed_msg = parse_incoming_message(buffer=self._buffer.buffer, command=command)
-        if parsed_msg is not None:
-            self._log.debug(f"Received {parsed_msg}")
+            self._event_read.clear()
+            if parsed_msg is not None:
+                self._log.debug(f"Received {parsed_msg}")
         return parsed_msg
-
 
     def grab(self, to_temperature: bool = False):
         with self._lock_parse_command:
