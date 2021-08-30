@@ -56,7 +56,7 @@ main_layout = [
 
     html.Table(html.Tr(
         [html.Td(html.Button('Take a photo', id='take-photo-button', n_clicks_timestamp=0, n_clicks=0, disabled=False,
-                             style={'padding': '6px 10px', 'text-align': 'center',  **FONT_SIZE}))])),
+                             style={'padding': '6px 10px', 'text-align': 'center', **FONT_SIZE}))])),
 
     dcc.Interval(id='interval-component', interval=UPDATE_INTERVAL_SECONDS * 1e3),  # in milliseconds
     html.Div(id='after-photo-sync-label', hidden=True),
