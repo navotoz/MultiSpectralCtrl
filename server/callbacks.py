@@ -57,14 +57,13 @@ def make_downloads_list(interval):
 
 
 @app.callback(Output("imgs", 'children'),
-              [Input('file-list', 'n_clicks'),
+              [Input('file-list-npy', 'n_clicks'),
                Input('after-photo-sync-label', 'n_clicks')])
 def show_images(trigger1, trigger2):
     global image_storage
     if not image_storage:
         return dash.no_update
-    table_cells_list = []
-    table_cells_list.append(make_images_for_web_display(list(image_storage.items())))
+    table_cells_list = [make_images_for_web_display(list(image_storage.items()))]
     logger.debug('Showing images.')
     return table_cells_list
 
