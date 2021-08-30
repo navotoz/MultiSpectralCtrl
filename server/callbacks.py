@@ -10,12 +10,12 @@ import dash_html_components as html
 import numpy as np
 import pandas as pd
 from dash.dependencies import Input, Output, State
-from flask import request, Response, send_file
+from flask import Response, send_file
 
 import utils.constants as const
 # noinspection PyUnresolvedReferences
 from server.app import app, server, logger, camera, filterwheel, counter_images
-from server.tools import find_files_in_savepath, base64_to_split_numpy_image, make_images_for_web_display, \
+from server.tools import find_files_in_savepath, make_images_for_web_display, \
     make_links_from_files
 from utils.constants import SAVE_PATH
 from utils.logger import dash_logger
