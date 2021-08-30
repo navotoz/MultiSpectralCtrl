@@ -36,7 +36,7 @@ def display_page(pathname, current_layout):
 if __name__ == '__main__':
     signal(SIGINT, server.callbacks.exit_handler)
     signal(SIGTERM, server.callbacks.exit_handler)
-    PORT = 8080
+    PORT = 8081
     IP = "0.0.0.0"
     # noinspection HttpUrlsUsage
     print(f"http://{gethostname():s}:{PORT:d}/")
