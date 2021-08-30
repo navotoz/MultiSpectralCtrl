@@ -129,6 +129,19 @@ Change **DEFAULT_FILTER_NAMES_DICT** in `devices/FilterWheel/__init.py`.
 2. The password should be set to `12345678`
 3. Type `ifconfig`
 
+#### Establish connection via ssh ####
+1. Connect to the network "MultiSpectralPi". When connecting from a desktop, use a wifi dongle.
+2. Manually change the IP settings from DHCP to manual
+3. Check IPv4, and fill in the following fields:
+    1. IP address: 192.168.4.? , where ? stands for an arbitrary integer (e.g 192.168.4.3)
+    2. Subnet prefix length: 24
+    3. Gateway: 192.168.4.1
+4. Save changes
+5. Disconnect and re-connect to the network to apply the changes
+6. Open terminal (in windows, either PowerShell or WSL), and type "ssh pi@192.168.4.1"
+7. Enter Password (1-8)
+
+
 #### Take a photo ####
 
 1. Connect the *FilterWheel* to the USB and to the electrical socket. Turn it on.
@@ -172,3 +185,9 @@ For example, if the fourth (4) line in the CSV is filter 11000, than numpy file 
 
 `yyyymmdd_h<hh>m<mm>s<ss>` with 'npy' and 'csv' suffix. 
 
+#### Photo name parse ####
+`d<yyyymmdd>_h<hh>m<mm>s<ss>_<number of filters>Filters_<filter name 1>_<filter name 2>...tif`
+
+# Troubleshooting #
+## Camera not saving images##
+1. change camera port from usb2->usb3
