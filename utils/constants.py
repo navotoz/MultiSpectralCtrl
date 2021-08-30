@@ -5,7 +5,6 @@ from devices.Camera.Tau.tau2_config import FPS_CODE_DICT
 FAILURE_PROBABILITY_IN_DUMMIES = 0.0
 INIT_EXPOSURE = 50000  # micro seconds
 SAVE_PATH = Path('download')
-IMAGE_FORMAT = 'tiff'
 DISPLAY_IMAGE_SIZE = '600px'
 UPDATE_INTERVAL_SECONDS = 1
 FILTERWHEEL_NAME = 'filterwheel'

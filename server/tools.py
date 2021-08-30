@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image
 
 import utils.constants as const
-from utils.constants import SAVE_PATH, IMAGE_FORMAT, DISPLAY_IMAGE_SIZE, TIFF_NOTES, TIFF_X_RESOLUTION, \
+from utils.constants import SAVE_PATH, DISPLAY_IMAGE_SIZE, TIFF_NOTES, TIFF_X_RESOLUTION, \
     TIFF_Y_RESOLUTION
 
 if not SAVE_PATH.is_dir():
@@ -85,21 +85,17 @@ def numpy_to_base64(image_: (np.ndarray, Image.Image)) -> bytes:
     return image_bytes.getvalue()
 
 
-def file_download_link(filename):
+def file_download_link(filename: Path):
     """Create a Plotly Dash 'A' element that downloads a file from the app."""
-    location = "/download/{}".format(urlquote(filename))
+    location = urlquote(str(filename))
+    if isinstance(filename, Path):
+        return html.A(filename.name, href=location)  # , download=True)
     return html.A(filename, href=location)  # , download=True)
 
 
-def find_files_in_savepath(endswith: str = IMAGE_FORMAT) -> list:
+def find_files_in_savepath(endswith: str) -> list:
     """List the files in the upload directory."""
-    files = []
-    for filename in os.listdir(SAVE_PATH):
-        if filename.endswith(endswith):
-            path = os.path.join(SAVE_PATH, filename)
-            if os.path.isfile(path):
-                files.append(filename)
-    return files
+    return list(SAVE_PATH.glob(f'*.{endswith}'))
 
 
 def make_links_from_files(file_list: (list, tuple)) -> list:
