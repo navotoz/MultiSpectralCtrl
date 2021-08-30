@@ -5,9 +5,10 @@ import numpy as np
 from pathlib import Path
 
 # %%
-data_base_dir= r"C:\Users\omriber\Documents\Thesis\MultiSpectralCtrl\Downloads"
-data_fname = "20210823_h19m51s58.npy"
-data = np.load(Path(data_base_dir, data_fname), allow_pickle=True)
+data_base_dir = Path(
+    r"C:\Users\omriber\Documents\Thesis\MultiSpectralCtrl\download")
+data_fname = "img1_good.npy"
+data = np.load(Path(data_base_dir, data_fname))
 data.shape
 
 
