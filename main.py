@@ -44,8 +44,5 @@ if __name__ == '__main__':
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
 
-# todo: add running counter for images acquisition (to get chronological ordering)
 # todo: download directly from server
-# todo: change README file parsing section and all other..
 # todo: validate data saving reliability (it seems sometimes data isn't saved)
-# todo: add documentation

@@ -207,7 +207,7 @@ def images_handler_callback(button_state, to_save: str, length_sequence: int, nu
             t_fpa_dict[name] = float(np.mean(t_fpa_dict[name]))
             t_housing_dict[name] = float(np.mean(t_housing_dict[name]))
             images_dict[name] = np.stack(images_dict[name])
-        logger.info(f"Taken an image in position {position}#.")
+        logger.info(f"Taken an image in position {position}.")
 
         if to_save:
             keys = list(images_dict.keys())
@@ -219,7 +219,7 @@ def images_handler_callback(button_state, to_save: str, length_sequence: int, nu
             df['Wavelength'] = df['Wavelength'].astype('int')
             df.to_csv(path_or_buf=path.with_suffix('.csv'))
             counter_images.value = counter_images.value + 1
-        logger.info("Taken a sequence." if 'save' not in to_save else "Saved a sequence.")
+        logger.info("Taken an image." if 'save' not in to_save else f"Saved image number {counter_images.value}.")
 
         global image_storage
         image_storage = {k: v.mean(0) for k, v in images_dict.items()}
