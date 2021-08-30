@@ -5,6 +5,7 @@ from itertools import cycle
 from time import sleep
 
 from numpy import copyto, frombuffer, uint16
+from usb.core import USBError
 
 import utils.constants as const
 from devices import DeviceAbstract
@@ -80,7 +81,7 @@ class CameraCtrl(DeviceAbstract):
 
                         self._flag_alive.set()
                         return
-                    except (RuntimeError, BrokenPipeError):
+                    except (RuntimeError, BrokenPipeError, USBError):
                         pass
 
     def _th_getter_temperature(self) -> None:

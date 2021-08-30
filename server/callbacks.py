@@ -14,7 +14,7 @@ from flask import request, Response, send_file
 
 import utils.constants as const
 # noinspection PyUnresolvedReferences
-from server.app import app, server, logger, camera, filterwheel
+from server.app import app, server, logger, camera, filterwheel, counter_images
 from server.tools import find_files_in_savepath, base64_to_split_numpy_image, make_images_for_web_display, \
     make_links_from_files
 from utils.constants import SAVE_PATH, IMAGE_FORMAT
@@ -120,19 +120,6 @@ def change_filter_names(*args):
     return 1
 
 
-@app.callback(Output('kill-button', 'children'),
-              Input('kill-button', 'n_clicks'))
-def kill_server(n_clicks):
-    if not n_clicks:
-        return dash.no_update
-    exit_handler(None, None)
-    func = request.environ.get('werkzeug.server.shutdown')
-    if func is None:
-        raise RuntimeError('Not running with the Werkzeug Server')
-    func()
-    exit(0)
-
-
 def exit_handler(sig_type: int, frame) -> None:
     try:
         camera.__del__()
@@ -184,6 +171,16 @@ def check_valid_tau(n_intervals, style):
     return dash.no_update
 
 
+@app.callback(Output('clock', 'children'), Input('interval-component', 'n_intervals'))
+def clock_label_update(n_intervals):
+    return datetime.now().strftime("Date %Y-%m-%d\tTime %H:%M:%S")
+
+
+@app.callback(Output('counter-images', 'children'), Input('interval-component', 'n_intervals'))
+def counter_label_update(n_intervals):
+    return counter_images.value
+
+
 @app.callback(Output('after-photo-sync-label', 'n_clicks'),
               Input('take-photo-button', 'disabled'),
               [State('save-image-checkbox', 'value'),
@@ -214,12 +211,14 @@ def images_handler_callback(button_state, to_save: str, length_sequence: int, nu
 
         if to_save:
             keys = list(images_dict.keys())
-            path = (SAVE_PATH / datetime.now().strftime("%Y%m%d_h%Hm%Ms%S")).with_suffix('.npy')
+            time_current = datetime.now().strftime("%Y%m%d_h%Hm%Ms%S")
+            path = (SAVE_PATH / f'cnt{counter_images.value}_{time_current}').with_suffix('.npy')
             np.save(file=path, arr=np.stack([images_dict[k] for k in keys]))
             df = pd.DataFrame(columns=[const.T_FPA, const.T_HOUSING, 'Wavelength'],
                               data=np.stack([(t_fpa_dict[k] / 100, t_housing_dict[k] / 100, k) for k in keys]))
             df['Wavelength'] = df['Wavelength'].astype('int')
             df.to_csv(path_or_buf=path.with_suffix('.csv'))
+            counter_images.value = counter_images.value + 1
         logger.info("Taken a sequence." if 'save' not in to_save else "Saved a sequence.")
 
         global image_storage

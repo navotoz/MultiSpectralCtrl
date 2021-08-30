@@ -183,10 +183,10 @@ For example, if the fourth (4) line in the CSV is filter 11000, than numpy file 
 
 ##### Naming
 
-`yyyymmdd_h<hh>m<mm>s<ss>` with 'npy' and 'csv' suffix. 
+`cnt<counter>_yyyymmdd_h<hh>m<mm>s<ss>` with 'npy' and 'csv' suffix. 
 
-#### Photo name parse ####
-`d<yyyymmdd>_h<hh>m<mm>s<ss>_<number of filters>Filters_<filter name 1>_<filter name 2>...tif`
+The counter is incremented automatically with each saved image. 
+
 
 # Troubleshooting #
 ## Camera not saving images##

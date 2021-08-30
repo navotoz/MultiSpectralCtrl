@@ -29,7 +29,7 @@ class FilterWheelCtrl:
                         self._filterwheel_type = const.DEVICE_REAL
                         self._filterwheel = filterwheel
                         return
-                    except (RuntimeError, BrokenPipeError):
+                    except (RuntimeError, BrokenPipeError, ValueError, IndexError):
                         pass
                 elif self._filterwheel_type == const.DEVICE_OFF:
                     return

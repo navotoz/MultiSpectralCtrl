@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 from pyftdi.ftdi import Ftdi, FtdiError
+from usb.core import USBError
 
 import devices.Camera.Tau.tau2_config as ptc
 from devices.Camera.Tau.TauCameraCtrl import Tau
@@ -29,7 +30,7 @@ class Tau2Grabber(Tau):
             pass
         try:
             self._ftdi = connect_ftdi(vid, pid)
-        except RuntimeError:
+        except (RuntimeError, USBError):
             raise RuntimeError('Could not connect to the Tau2 camera.')
         self._lock_parse_command = th.Lock()
         self._event_read = th.Event()
