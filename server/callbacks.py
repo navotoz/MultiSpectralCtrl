@@ -37,10 +37,10 @@ def download(path: (str, Path)) -> Response:
     return send_file(file_stream, as_attachment=True, attachment_filename=path)
 
 
-@app.callback(Output('file-list', 'children'),
-              [Input(f"after-photo-sync-label", 'n_clicks'),
-               Input('file-list', 'n_clicks')])
-def make_downloads_list(dummy1, dummy2):
+@app.callback([Output('file-list-npy', 'children'),
+               Output('file-list-csv', 'children')],
+              Input('interval-component', 'n_intervals'))
+def make_downloads_list(interval):
     """
     Make a list of files in SAVE_PATH with type defined in utils.constants.
     The list is transformed into a list of links and is displayed on the webpage.
@@ -49,10 +49,11 @@ def make_downloads_list(dummy1, dummy2):
     Returns:
         list: links to the files in SAVE_PATH of a predefined filetype.
     """
-    file_list_images = find_files_in_savepath()
-    links_list = make_links_from_files(file_list_images)
-    logger.debug(f"Found {len(links_list)} files to download.")
-    return links_list
+    file_list_images = find_files_in_savepath('npy')
+    links_list_images = make_links_from_files(file_list_images)
+    file_list_csv = find_files_in_savepath('csv')
+    links_list_csv = make_links_from_files(file_list_csv)
+    return links_list_images, links_list_csv
 
 
 @app.callback(Output("imgs", 'children'),
@@ -86,24 +87,6 @@ def disable_button(dummy1, dummy2):
 def set_image_sequence_length(image_sequence_length: int):
     filter_sequence = list(range(1, image_sequence_length + 1))
     logger.debug(f"Set filter sequence length to {len(filter_sequence)}.")
-    return 1
-
-
-@app.callback(Output('file-list', 'n_clicks'),
-              [Input('upload-img-button', 'contents')],
-              [State('upload-img-button', 'filename')])
-def upload_image(content, name):
-    if content is not None:
-        path = Path(name)
-        if IMAGE_FORMAT not in path.suffix.lower():
-            logger.error(f"Given image suffix is {path.suffix}, different than required {IMAGE_FORMAT}.")
-            return 1
-        global image_storage
-        num_of_filters = int(path.stem.split('Filters')[0].split('_')[-1])
-        filters_names = path.stem.split('Filters')[-1].split('_')[-num_of_filters:]
-        image = base64_to_split_numpy_image(content)
-        image_storage = {key: val for key, val in zip(filters_names, image)}
-        logger.info(f"Uploaded {len(image_storage.keys())} frames.")
     return 1
 
 

@@ -56,16 +56,16 @@ main_layout = [
 
     html.Table(html.Tr(
         [html.Td(html.Button('Take a photo', id='take-photo-button', n_clicks_timestamp=0, n_clicks=0, disabled=False,
-                             style={'padding': '6px 10px', 'text-align': 'center',  **FONT_SIZE})),
-         html.Td(dcc.Upload(html.Button('Upload a photo',
-                                        style={'padding': '6px 10px', 'text-align': 'center', **FONT_SIZE}),
-                            id='upload-img-button'))])),
-    html.Ul(id='file-list'),
+                             style={'padding': '6px 10px', 'text-align': 'center',  **FONT_SIZE}))])),
+
     dcc.Interval(id='interval-component', interval=UPDATE_INTERVAL_SECONDS * 1e3),  # in milliseconds
     html.Div(id='after-photo-sync-label', hidden=True),
     html.Div(children=html.Table(html.Tr(id='imgs', children=[]))),
     html.Hr(),
 
-    html.Div(id='log-div', children=[])
+    html.Div(id='file-list-npy'),
+    html.Div(id='file-list-csv'),
+    html.Hr(),
 
+    html.Div(id='log-div', children=[])
 ]
