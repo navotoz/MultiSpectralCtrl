@@ -1,6 +1,4 @@
 from base64 import b64encode, b64decode
-from base64 import b64encode, b64decode
-from datetime import datetime
 from io import BytesIO
 from multiprocessing.dummy import Pool
 from pathlib import Path
@@ -11,22 +9,10 @@ import dash_html_components as html
 import numpy as np
 from PIL import Image
 
-import utils.constants as const
-from utils.constants import SAVE_PATH, DISPLAY_IMAGE_SIZE, TIFF_NOTES, TIFF_X_RESOLUTION, \
-    TIFF_Y_RESOLUTION
+from utils.constants import SAVE_PATH, DISPLAY_WIDTH
 
 if not SAVE_PATH.is_dir():
     SAVE_PATH.mkdir()
-
-
-def get_image_filename(tiff_tags: dict, filter_names_list: list) -> Path:
-    filename = datetime.now().strftime('d20%y%m%d_h%Hm%Ms%S_')
-    filename += f"{tiff_tags.get(const.TIFF_MODEL_NAME, '')}"
-    if filter_names_list:
-        filename += f"_{len(filter_names_list)}Filters_"
-        filename += '_'.join(filter_names_list)
-    filename += '.tiff'
-    return Path(filename)
 
 
 def get_filter_names_list(image_list: list) -> list:
@@ -42,18 +28,6 @@ def get_filters_tags_images(image_list: list) -> tuple:
     image_list = filter(lambda x: not isinstance(x, dict), image_list)
     image_list = map(lambda x: x[-1] if isinstance(x, tuple) else x, image_list)
     return filter_names_list, tiff_tags, list(image_list)
-
-
-def save_image_to_tiff(image_list: list):
-    filter_names_list, tiff_tags, image_list = get_filters_tags_images(image_list)
-    image_list = list(map(lambda image: Image.fromarray(image.astype('uint16')), image_list))
-    full_path = SAVE_PATH / get_image_filename(tiff_tags, filter_names_list)
-    first_image = image_list.pop(0)
-    h, w = first_image.size
-    tiff_tags[TIFF_Y_RESOLUTION], tiff_tags[TIFF_X_RESOLUTION] = h, w
-    tiff_tags[TIFF_NOTES] += f'Height{h};Width{w};'
-    first_image.save(full_path, format=IMAGE_FORMAT, tiffinfo=tiff_tags,
-                     append_images=image_list, save_all=True, compression=None, quality=100)
 
 
 def base64_to_split_numpy_image(base64_string: str) -> list:
@@ -81,7 +55,7 @@ def numpy_to_base64(image_: (np.ndarray, Image.Image)) -> bytes:
     image_ *= 255
     image_ = image_.astype('uint8')
     image_bytes = BytesIO()
-    Image.fromarray(image_).save(image_bytes, 'jpeg')
+    Image.fromarray(image_).save(image_bytes, 'png')
     return image_bytes.getvalue()
 
 
@@ -104,8 +78,8 @@ def make_links_from_files(file_list: (list, tuple)) -> list:
 
 def make_image_html(input_tuple: tuple) -> html.Td:
     name, image = input_tuple
-    img = f"data:image/jpeg;base64,{b64encode(numpy_to_base64(image)).decode('utf-8'):s}"
-    return html.Td([html.Div(name), html.Img(src=img, style={'width': DISPLAY_IMAGE_SIZE})])
+    img = f"data:image/png;base64,{b64encode(numpy_to_base64(image)).decode('utf-8'):s}"
+    return html.Td([html.Div(name), html.Img(src=img, style={'width': DISPLAY_WIDTH})])
 
 
 def make_images_for_web_display(image_list: list) -> html.Tr:

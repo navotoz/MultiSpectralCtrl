@@ -10,7 +10,7 @@ import dash_html_components as html
 import numpy as np
 import pandas as pd
 from dash.dependencies import Input, Output, State
-from flask import Response, send_file
+from flask import Response, send_file, request
 
 import utils.constants as const
 # noinspection PyUnresolvedReferences

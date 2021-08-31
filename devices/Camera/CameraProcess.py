@@ -75,9 +75,9 @@ class CameraCtrl(DeviceAbstract):
                 if not isinstance(self._camera, CameraAbstract):
                     try:
                         self._camera = Tau2Grabber(logging_handlers=handlers)
-                        self._camera.set_params_by_dict(const.INIT_CAMERA_PARAMETERS)
-                        self._getter_temperature(const.T_FPA)
-                        self._getter_temperature(const.T_HOUSING)
+                        # self._camera.set_params_by_dict(const.INIT_CAMERA_PARAMETERS)
+                        # self._getter_temperature(const.T_FPA)
+                        # self._getter_temperature(const.T_HOUSING)
 
                         self._flag_alive.set()
                         return

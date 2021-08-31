@@ -7,7 +7,7 @@ from flask import Response, url_for
 
 from server.app import server, camera
 from server.tools import numpy_to_base64, wait_for_time
-from utils.constants import DISPLAY_IMAGE_SIZE
+from utils.constants import DISPLAY_WIDTH
 
 
 class ThreadedGenerator(object):
@@ -74,14 +74,7 @@ class CameraIterator(Generator):
         self._get_image = None
 
     def send(self, value):
-        return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + numpy_to_base64(self._get_image()) + b'\r\n'
-        # image = self._get_image()
-        # w, h = image.shape
-        # image_upper_bound = np.iinfo(image.dtype).max
-        # c = int(min(image_upper_bound, image.max() + 1) if image.mean() < (image_upper_bound // 2) else 0)
-        # res = cv2.putText(image, f"{self.frame_number}", (h - int(0.15 * h), w - int(0.15 * w)), cv2.FONT_HERSHEY_SIMPLEX, 3, c, 2)
-        # image = numpy_to_base64(res) if self.camera else b''
-        # return b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + image + b'\r\n'
+        return b'--frame\r\nContent-Type: image/png\r\n\r\n' + numpy_to_base64(self._get_image()) + b'\r\n'
 
 
 @server.route("/video_feed/<name>")
@@ -91,11 +84,10 @@ def video_feed(name):
 
 def make_viewers() -> html.Div:
     name = 'Tau2'
-    children_list = []
-    children_list.append(html.Div(name))
-    children_list.append(html.Img(src=url_for(f'video_feed', name=name), style={'width': DISPLAY_IMAGE_SIZE}))
+    children_list = [html.Div(name),
+                     html.Img(src=url_for(f'video_feed', name=name), style={'width': DISPLAY_WIDTH}),
+                     html.Hr()]
     streamers_dict.setdefault(name, ThreadedGenerator(name))
-    children_list.append(html.Hr())
     return html.Div([*children_list])
 
 
