@@ -79,4 +79,5 @@ with tqdm(total=len(t_bb_list) * len(filters_list)) as progressbar:
             progressbar.update()
         th_list.append(th.Thread(target=th_saver, args=(filter_name, dict_images.get(filter_name, {}).copy(),)))
         th_list[-1].start()
+        t_bb_list = list(reversed(t_bb_list))  # to begin the next filter from the closest temperature
 [p.join() for p in th_list]
