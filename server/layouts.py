@@ -67,5 +67,8 @@ main_layout = [
     html.Div(id='file-list-csv'),
     html.Hr(),
 
-    html.Div(id='log-div', children=[])
+    html.Div(id='log-div', children=[]),
+    html.Hr(),
+
+    html.Button('Kill', id='kill-button', style={'padding': '1px 4px', 'text-align': 'center',**FONT_SIZE})
 ]

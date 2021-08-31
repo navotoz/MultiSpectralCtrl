@@ -163,6 +163,19 @@ def counter_label_update(n_intervals):
     return counter_images.value
 
 
+@app.callback(Output('kill-button', 'children'),
+              Input('kill-button', 'n_clicks'))
+def kill_server(n_clicks):
+    if not n_clicks:
+        return dash.no_update
+    func = request.environ.get('werkzeug.server.shutdown')
+    if func is None:
+        raise RuntimeError('Not running with the Werkzeug Server')
+    func()
+    exit_handler(None, None)
+    exit(0)
+    
+
 @app.callback(Output('after-photo-sync-label', 'n_clicks'),
               Input('take-photo-button', 'disabled'),
               [State('save-image-checkbox', 'value'),
