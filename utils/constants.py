@@ -37,6 +37,7 @@ INIT_CAMERA_PARAMETERS = dict(
     gain='high',
     agc='manual',
     sso=0,
+    ace=0,
     contrast=0,
     brightness=0,
     brightness_bias=0,

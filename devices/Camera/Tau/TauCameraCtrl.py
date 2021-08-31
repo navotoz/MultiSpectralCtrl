@@ -394,3 +394,17 @@ class Tau(CameraAbstract):
 
     def reset(self):
         return self.send_command(command=ptc.CAMERA_RESET, argument=None)
+
+    @property
+    def ace(self):
+        return self._get_values_without_arguments(ptc.GET_AGC_ACE_CORRECT)
+
+    @ace.setter
+    def ace(self, value: int):
+        if not -8 <= value <= 8:
+            return
+        for _ in range(5):
+            self.send_command(command=ptc.SET_AGC_ACE_CORRECT, argument=struct.pack('>h', value))
+            if value == self.ace:
+                self._log.info(f'Set ACE to {value}.')
+                return

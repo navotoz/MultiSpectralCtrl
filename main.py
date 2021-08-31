@@ -44,3 +44,5 @@ if __name__ == '__main__':
     app.run_server(debug=False, host=IP, port=PORT, threaded=True)
 
 # todo: validate data saving reliability (it seems sometimes data isn't saved)
+# todo: persistant counter
+# todo: camera logs in GUI
