@@ -15,3 +15,5 @@ pyftdi
 pandas
 tqdm
 openpyxl
+scikit-learn
+seaborn

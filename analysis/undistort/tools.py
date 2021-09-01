@@ -4,8 +4,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
-def calcRxPower(temperature: float, central_wl: int, bw:int=1000, *, is_ideal_filt: bool = False, debug=False):
+
+def calcRxPower(temperature: float, central_wl: int, bw: int = 1000, *, is_ideal_filt: bool = False, debug=False):
     """Calculates the power emmited by the the black body, according to Plank's law of black-body radiation, 
     after being filtered by the applied narrow-banded spectral filter.
     
@@ -32,7 +34,7 @@ def calcRxPower(temperature: float, central_wl: int, bw:int=1000, *, is_ideal_fi
 
     if is_ideal_filt:  # assume ideal rectangular filter with 1000nm bandwidth and a constant amplification of 1
         d_lambda = 1e-9
-        if bw==np.inf: # temporarily used as an assumption for the pan-chromatic 
+        if bw == np.inf:  # temporarily used as an assumption for the pan-chromatic
             bp_filter = pd.Series(
                 index=d_lambda * np.arange(2e4), data=np.ones(int(2e4)))
         else:
@@ -42,7 +44,7 @@ def calcRxPower(temperature: float, central_wl: int, bw:int=1000, *, is_ideal_fi
     else:
         # load filter from xlsx:
         bp_filter = pd.read_excel(Path(os.path.dirname(__file__),
-                                       "FiltersResponse.xlsx"), sheet_name=str(central_wl),
+                                       "../FiltersResponse.xlsx"), sheet_name=str(central_wl),
                                   engine='openpyxl', index_col=0, usecols=[0, 1]).dropna().squeeze()
 
         # remove entries Bw far away from the central frequency:
@@ -96,7 +98,7 @@ def calcRxPower(temperature: float, central_wl: int, bw:int=1000, *, is_ideal_fi
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
             ax[1].plot(base_grid * 1e9, bb(base_grid,
-                       c2k(temperature)), label="complete spectrum")
+                                           c2k(temperature)), label="complete spectrum")
 
         ax[1].plot(lambda_grid * 1e9, plank_unfilt,
                    label="segment of interest")
@@ -107,17 +109,27 @@ def calcRxPower(temperature: float, central_wl: int, bw:int=1000, *, is_ideal_fi
         ax[1].legend()
         ax[1].set_title("The filtered segment of the spectral radiance")
 
-        if bw ==np.inf:
+        if bw == np.inf:
             fig.suptitle("Pan-Chromatic")
         else:
             fig.suptitle(f"{central_wl} nm")
         plt.show()
 
-
     return (plank_filt * d_lambda).sum()
 
 
-if __name__ == "__main__":
-    # calcRxPower(25, 8000, debug=True)
-    calcRxPower(temperature=32,  central_wl=0,
-                           bw=np.inf, is_ideal_filt=True, debug=True)
+def load_npy_into_dict(path_to_files: Path):
+    dict_measurements = {}
+
+    paths = list(path_to_files.glob('*.npy'))
+    for path in tqdm(paths, desc="Load measurements"):
+        temperature_blackbody = int(path.stem.split('_')[-1])
+        try:
+            meas = np.load(str(path))
+        except ValueError:
+            print(f'Cannot load file {str(path)}')
+            continue
+        list_filters = sorted(pd.read_csv(path.with_suffix('.csv')).to_numpy()[:, 1])
+        for idx, filter_name in enumerate(list_filters):
+            dict_measurements.setdefault(temperature_blackbody, {}).setdefault(filter_name, meas[idx])
+    return {k: dict_measurements[k] for k in sorted(dict_measurements.keys())}

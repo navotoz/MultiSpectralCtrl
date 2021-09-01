@@ -71,7 +71,7 @@ length_total = len(list_t_bb) * len(list_filters)
 idx = 1
 for t_bb in list_t_bb:
     blackbody.temperature = t_bb
-    for position, filter_name in enumerate(list_filters, start=1):
+    for position, filter_name in enumerate(sorted(list_filters), start=1):
         filterwheel.position = position
         list_images = []
         with tqdm(total=args.n_images) as progressbar:
