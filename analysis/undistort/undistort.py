@@ -9,12 +9,15 @@ from tqdm import tqdm
 from analysis.undistort.Blackbody.BlackBodyCtrl import BlackBody
 from devices.Camera.Tau.Tau2Grabber import Tau2Grabber
 from devices.FilterWheel.FilterWheel import FilterWheel
+import pandas as pd
 
 
 def th_saver(name_of_filter: int, dict_of_arrays: dict):
-    for t_bb_name, arr in dict_of_arrays.items():
-        name = path_to_save / f'wavelength_{name_of_filter:d}_blackbody_{t_bb_name:d}.npy'
-        np.save(str(name), arr)
+    keys = sorted(dict_of_arrays.keys())
+    df = pd.DataFrame(columns=['BlackBody Temperature C'], data=keys)
+    df.to_csv(path_or_buf=path_to_save / f'wavelength_{name_of_filter:d}.csv')
+    name = path_to_save / f'wavelength_{name_of_filter:d}.npy'
+    np.save(str(name), np.stack([dict_of_arrays[k] for k in keys]))
 
 
 def loader(path):
@@ -52,7 +55,7 @@ camera_parameters = dict(
     cmos_depth=0x0000,  # 14bit pre AGC
 )
 
-th_list = []
+list_threads = []
 blackbody = BlackBody(logging_level=logging.INFO)
 filterwheel = FilterWheel()
 camera = Tau2Grabber()
@@ -61,23 +64,27 @@ path_to_save = Path(args.folder_to_save)
 if not path_to_save.is_dir():
     path_to_save.mkdir(parents=True)
 
-t_bb_list = args.blackbody_temperatures_list
-filters_list = args.filter_wavelength_list
+list_t_bb = args.blackbody_temperatures_list
+list_filters = args.filter_wavelength_list
 dict_images = {}
-with tqdm(total=len(t_bb_list) * len(filters_list)) as progressbar:
-    for filter_name in filters_list:
-        filterwheel.position = filter_name
-        progressbar.set_postfix_str(f'Filter {filter_name}nm')
-        for t_bb in t_bb_list:
-            blackbody.temperature = t_bb
-            progressbar.set_postfix_str(f'BlackBody {t_bb}C')
-            camera.ffc()
-            list_images = []
-            for i in range(args.n_images):
-                list_images.append(camera.grab(to_temperature=False))
-            dict_images.setdefault(filter_name, {}).setdefault(t_bb, np.stack(list_images))
-            progressbar.update()
-        th_list.append(th.Thread(target=th_saver, args=(filter_name, dict_images.get(filter_name, {}).copy(),)))
-        th_list[-1].start()
-        t_bb_list = list(reversed(t_bb_list))  # to begin the next filter from the closest temperature
-[p.join() for p in th_list]
+length_total = len(list_t_bb) * len(list_filters)
+idx = 1
+for position, filter_name in enumerate(list_filters, start=1):
+    filterwheel.position = position
+    for t_bb in list_t_bb:
+        blackbody.temperature = t_bb
+        list_images = []
+        with tqdm(total=args.n_images) as progressbar:
+            progressbar.set_description_str(f'Filter {filter_name}nm')
+            progressbar.set_postfix_str(f'\tBlackBody {t_bb}C\t\tMeasurements: {idx}|{length_total}')
+            while len(list_images) != args.n_images:
+                image = camera.grab(to_temperature=False)
+                if image is not None:
+                    list_images.append(image)
+                    progressbar.update()
+        dict_images.setdefault(filter_name, {}).setdefault(t_bb, np.stack(list_images))
+        idx += 1
+    list_threads.append(th.Thread(target=th_saver, args=(filter_name, dict_images.pop(filter_name, {}),)))
+    list_threads[-1].start()
+    list_t_bb = list(reversed(list_t_bb))  # to begin the next filter from the closest temperature
+[p.join() for p in list_threads]
