@@ -12,11 +12,11 @@ from devices.FilterWheel.FilterWheel import FilterWheel
 import pandas as pd
 
 
-def th_saver(name_of_filter: int, dict_of_arrays: dict):
+def th_saver(t_bb_temperature: int, dict_of_arrays: dict):
     keys = sorted(dict_of_arrays.keys())
-    df = pd.DataFrame(columns=['BlackBody Temperature C'], data=keys)
-    df.to_csv(path_or_buf=path_to_save / f'wavelength_{name_of_filter:d}.csv')
-    name = path_to_save / f'wavelength_{name_of_filter:d}.npy'
+    df = pd.DataFrame(columns=['Filter wavelength nm'], data=keys)
+    df.to_csv(path_or_buf=path_to_save / f'blackbody_temperature_{t_bb_temperature:d}.csv')
+    name = path_to_save / f'blackbody_temperature_{t_bb_temperature:d}.npy'
     np.save(str(name), np.stack([dict_of_arrays[k] for k in keys]))
 
 
@@ -69,10 +69,10 @@ list_filters = args.filter_wavelength_list
 dict_images = {}
 length_total = len(list_t_bb) * len(list_filters)
 idx = 1
-for position, filter_name in enumerate(list_filters, start=1):
-    filterwheel.position = position
-    for t_bb in list_t_bb:
-        blackbody.temperature = t_bb
+for t_bb in list_t_bb:
+    blackbody.temperature = t_bb
+    for position, filter_name in enumerate(list_filters, start=1):
+        filterwheel.position = position
         list_images = []
         with tqdm(total=args.n_images) as progressbar:
             progressbar.set_description_str(f'Filter {filter_name}nm')
@@ -82,9 +82,8 @@ for position, filter_name in enumerate(list_filters, start=1):
                 if image is not None:
                     list_images.append(image)
                     progressbar.update()
-        dict_images.setdefault(filter_name, {}).setdefault(t_bb, np.stack(list_images))
+        dict_images.setdefault(t_bb, {}).setdefault(filter_name, np.stack(list_images))
         idx += 1
-    list_threads.append(th.Thread(target=th_saver, args=(filter_name, dict_images.pop(filter_name, {}),)))
+    list_threads.append(th.Thread(target=th_saver, args=(t_bb, dict_images.pop(t_bb, {}),)))
     list_threads[-1].start()
-    list_t_bb = list(reversed(list_t_bb))  # to begin the next filter from the closest temperature
 [p.join() for p in list_threads]
