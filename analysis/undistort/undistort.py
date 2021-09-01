@@ -56,7 +56,7 @@ camera_parameters = dict(
 )
 
 list_threads = []
-blackbody = BlackBody(logging_level=logging.INFO)
+blackbody = BlackBody()
 filterwheel = FilterWheel()
 camera = Tau2Grabber()
 camera.set_params_by_dict(camera_parameters)

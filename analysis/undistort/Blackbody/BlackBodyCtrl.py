@@ -13,7 +13,7 @@ DATAGRAM_MAX_SIZE = 1024
 
 class BlackBody(BlackBodyAbstract):
     def __init__(self, client_ip: str = '188.51.1.2', host_port: int = 5100, client_port: int = 5200,
-                 logging_handlers: tuple = (logging.StreamHandler(),), logging_level: int = logging.INFO):
+                 logging_handlers: tuple = (), logging_level: int = logging.INFO):
         super().__init__(make_logger('BlackBody', logging_handlers, logging_level))
         self._host_port = host_port  # port to receive data
         self._client_ip = client_ip  # blackbody IP
