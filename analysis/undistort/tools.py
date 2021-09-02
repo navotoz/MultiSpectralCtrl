@@ -1,7 +1,8 @@
 import os
 import warnings
+from itertools import product
 from pathlib import Path
-
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -133,3 +134,33 @@ def load_npy_into_dict(path_to_files: Path):
         for idx, filter_name in enumerate(list_filters):
             dict_measurements.setdefault(temperature_blackbody, {}).setdefault(filter_name, meas[idx])
     return {k: dict_measurements[k] for k in sorted(dict_measurements.keys())}
+
+
+def get_panchromatic_meas(path_to_files: Path):
+    dict_measurements = load_npy_into_dict(path_to_files)
+    list_power_panchormatic = [calcRxPower(temperature=t_bb,  central_wl=0, bw=np.inf, is_ideal_filt=True, debug=False)
+                           for t_bb in dict_measurements.keys()]
+    return np.stack([dict_measurements[t_bb][0] for t_bb in dict_measurements.keys()]),\
+           list_power_panchormatic, list(dict_measurements.keys())
+
+
+def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: int = 4):
+    meas_ = meas.mean(1)
+
+    pixels = list(product(range(meas.shape[-2]), range(meas.shape[-1])))
+    np.random.shuffle(pixels)
+
+    fig, axs = plt.subplots(n_pixels_to_plot // 2, 2, dpi=300,
+                            tight_layout=True, sharex=True, sharey=True)
+    for ax, (h_, w_) in zip(axs.ravel(), pixels):
+        ax.scatter(list_blackbody_temperatures, meas_[:, h_, w_])
+        ax.set_title(f'({h_},{w_})')
+        ax.grid()
+    plt.suptitle(f'GL as a function of BlackBody temperature')
+    fig.supxlabel('BlackBody Temperature [C]')
+    fig.supylabel('Gray Levels [14Bit]')
+    plt.locator_params(axis="x", nbins=len(list_blackbody_temperatures))
+    plt.locator_params(axis="y", nbins=8)
+    plt.show()
+    plt.close()
+
