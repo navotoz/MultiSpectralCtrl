@@ -1,10 +1,12 @@
 import os
 import warnings
 from itertools import product
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.optimize import nnls
 from tqdm import tqdm
 
 
@@ -138,9 +140,9 @@ def load_npy_into_dict(path_to_files: Path):
 
 def get_panchromatic_meas(path_to_files: Path):
     dict_measurements = load_npy_into_dict(path_to_files)
-    list_power_panchormatic = [calcRxPower(temperature=t_bb,  central_wl=0, bw=np.inf, is_ideal_filt=True, debug=False)
-                           for t_bb in dict_measurements.keys()]
-    return np.stack([dict_measurements[t_bb][0] for t_bb in dict_measurements.keys()]),\
+    list_power_panchormatic = [calcRxPower(temperature=t_bb, central_wl=0, bw=np.inf, is_ideal_filt=True, debug=False)
+                               for t_bb in dict_measurements.keys()]
+    return np.stack([dict_measurements[t_bb][0] for t_bb in dict_measurements.keys()]), \
            list_power_panchormatic, list(dict_measurements.keys())
 
 
@@ -164,3 +166,25 @@ def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: in
     plt.show()
     plt.close()
 
+
+def _regress(data):
+    return nnls(A=data[0][:, None], b=data[1])[0]
+
+
+def regression_power_to_gl(power, meas):
+    def _make_chunks(arr):
+        arr_ = arr.reshape(-1, np.prod(arr.shape[-2:])).transpose(-1, -2)
+        return [p.squeeze() for p in np.array_split(arr_, len(arr_))]
+
+    power_ = _make_chunks(power)
+    meas_ = _make_chunks(meas)
+    n_features = len(meas_[0])
+    n_samples = len(meas_)
+    print(f'Number of samples: {n_samples}, Number of features: {n_features}')
+    with Pool(cpu_count()) as pool:
+        regression = np.array(list(tqdm(pool.imap(_regress, zip(meas_, power_)),
+                                        total=n_samples, desc='Regression')))
+    regression = regression.transpose(-1, -2)
+    est = meas.reshape(-1, np.prod(meas.shape[-2:])) * regression
+    est = est.reshape(*meas.shape).astype('float').mean(1)
+    return regression, est
