@@ -167,24 +167,58 @@ def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: in
     plt.close()
 
 
-def _regress(data):
-    return nnls(A=data[0][:, None], b=data[1])[0]
+def plot_regression_p_vs_p(list_power_panchormatic, est_power_panchromatic, n_pixels_to_plot: int = 4):
+    pixels = list(product(range(est_power_panchromatic.shape[-2]), range(est_power_panchromatic.shape[-1])))
+    np.random.shuffle(pixels)
+    if len(est_power_panchromatic.shape) == 4:
+        est = est_power_panchromatic.mean(1)
+    else:
+        est = est_power_panchromatic
+
+    fig, axs = plt.subplots(n_pixels_to_plot // 2, 2, dpi=300,
+                            tight_layout=True, sharex=True, sharey=True)
+    for ax, (h_, w_) in zip(axs.ravel(), pixels):
+        ax.plot(list_power_panchormatic, est[:, h_, w_], c='r', label='Estimation', linewidth=1)
+        ax.scatter(list_power_panchormatic, est[:, h_, w_], c='r', marker='X', s=5)
+        ax.plot(list_power_panchormatic, list_power_panchormatic, c='b', label='Model', linewidth=0.7)
+        ax.set_title(f'Pixel ({h_},{w_})')
+        ax.legend(prop={'size': 5})
+        ax.grid()
+        plt.setp(ax.xaxis.get_majorticklabels(), rotation=60)
+
+    plt.suptitle(f'Estimated Power as a function of the model Power')
+    fig.supxlabel('Power [W??]')
+    fig.supylabel('Power [W??]')
+    plt.locator_params(axis="x", nbins=len(list_power_panchormatic)+1)
+    plt.locator_params(axis="y", nbins=8)
+    plt.show()
+    plt.close()
 
 
-def regression_power_to_gl(power, meas):
-    def _make_chunks(arr):
-        arr_ = arr.reshape(-1, np.prod(arr.shape[-2:])).transpose(-1, -2)
-        return [p.squeeze() for p in np.array_split(arr_, len(arr_))]
+def plot_regression_diff(list_power_panchormatic, est_power_panchromatic, n_pixels_to_plot: int = 4):
+    pixels = list(product(range(est_power_panchromatic.shape[-2]), range(est_power_panchromatic.shape[-1])))
+    np.random.shuffle(pixels)
+    if len(est_power_panchromatic.shape) == 4:
+        est = est_power_panchromatic.mean(1)
+    else:
+        est = est_power_panchromatic
 
-    power_ = _make_chunks(power)
-    meas_ = _make_chunks(meas)
-    n_features = len(meas_[0])
-    n_samples = len(meas_)
-    print(f'Number of samples: {n_samples}, Number of features: {n_features}')
-    with Pool(cpu_count()) as pool:
-        regression = np.array(list(tqdm(pool.imap(_regress, zip(meas_, power_)),
-                                        total=n_samples, desc='Regression')))
-    regression = regression.transpose(-1, -2)
-    est = meas.reshape(-1, np.prod(meas.shape[-2:])) * regression
-    est = est.reshape(*meas.shape).astype('float').mean(1)
-    return regression, est
+    diff = est.copy()
+    for idx, t in enumerate(list_power_panchormatic):
+        diff[idx] -= t
+
+    fig, axs = plt.subplots(n_pixels_to_plot // 2, 2, dpi=300,
+                            tight_layout=True, sharex=True, sharey=True)
+    for ax, (h_, w_) in zip(axs.ravel(), pixels):
+        ax.scatter(list_power_panchormatic, diff[:, h_, w_], c='r', marker='X', s=5)
+        ax.set_title(f'Pixel ({h_},{w_})')
+        ax.grid()
+        plt.setp(ax.xaxis.get_majorticklabels(), rotation=60)
+    plt.suptitle(f'Difference between real and estiamted Power')
+    fig.supxlabel('Power [W??]')
+    fig.supylabel('Difference [W??]')
+    plt.locator_params(axis="x", nbins=len(list_power_panchormatic)+1)
+    plt.locator_params(axis="y", nbins=8)
+    plt.show()
+    plt.close()
+
