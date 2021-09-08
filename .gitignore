@@ -11,3 +11,5 @@
 *.xml
 /download/
 /log/
+/analysis/undistort/rawData/
+*.pyc
