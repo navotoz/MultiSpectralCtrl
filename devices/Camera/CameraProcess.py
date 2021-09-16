@@ -17,12 +17,12 @@ from utils.logger import make_logging_handlers
 class CameraCtrl(DeviceAbstract):
     _camera: (CameraAbstract, None) = None
 
-    def __init__(self, logging_handlers: (tuple, list)):
+    def __init__(self, camera_parameters: dict = const.INIT_CAMERA_PARAMETERS):
         super(CameraCtrl, self).__init__()
         self._flag_alive = mp.Event()
         self._flag_alive.clear()
         self._lock_camera = th.RLock()
-        self._lock_image = th.Lock()
+        self._lock_image = mp.Lock()
         self._event_new_image = mp.Event()
         self._event_new_image.clear()
 
@@ -32,6 +32,8 @@ class CameraCtrl(DeviceAbstract):
 
         self._fpa: mp.Value = mp.Value(typecode_or_type=c_ushort)  # uint16
         self._housing: mp.Value = mp.Value(typecode_or_type=c_ushort)  # uint16
+
+        self._camera_params = camera_parameters
 
     def _terminate_device_specifics(self):
         try:
@@ -75,10 +77,9 @@ class CameraCtrl(DeviceAbstract):
                 if not isinstance(self._camera, CameraAbstract):
                     try:
                         self._camera = Tau2Grabber(logging_handlers=handlers)
-                        self._camera.set_params_by_dict(const.INIT_CAMERA_PARAMETERS)
+                        self._camera.set_params_by_dict(self._camera_params)
                         self._getter_temperature(const.T_FPA)
                         self._getter_temperature(const.T_HOUSING)
-
                         self._flag_alive.set()
                         return
                     except (RuntimeError, BrokenPipeError, USBError):

@@ -24,5 +24,5 @@ filterwheel = FilterWheelCtrl(logging_handlers=handlers)
 
 # FLIR Tau2 Camera
 image_storage = {}
-camera = CameraCtrl(logging_handlers=handlers)
+camera = CameraCtrl()
 camera.start()
