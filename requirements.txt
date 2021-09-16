@@ -17,3 +17,5 @@ tqdm
 openpyxl
 scikit-learn
 seaborn
+jupyter
+jupyterlab
