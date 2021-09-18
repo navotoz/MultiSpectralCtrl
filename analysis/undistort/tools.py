@@ -1,4 +1,5 @@
 import os
+from typing import Iterable
 import warnings
 from itertools import product
 from multiprocessing import Pool, cpu_count
@@ -8,11 +9,25 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import nnls
 from tqdm import tqdm
+from enum import Enum
+
+
+class SpectralFilter(Enum):
+    """ An enumeration for Flir's LWIR filters, where the keys and values are
+    the cenrtal frequencies of the filters in nano-meter."""
+    PAN = 0
+    nm8000 = 8000
+    nm9000 = 9000
+    nm10000 = 10000
+    nm11000 = 11000
+    nm12000 = 12000
 
 
 def calc_rx_power(temperature: float, central_wl: int=10500, bw: int = 3000, *, is_ideal_filt: bool = True, debug=False):
-    """Calculates the power emmited by the the black body, according to Plank's law of black-body radiation, after being
-    filtered by the applied narrow-banded spectral filter. Default parameters fit the pan-chromatic (non-filtered) case.
+    """Calculates the power emmited by the the black body, according to Plank's
+    law of black-body radiation, after being filtered by the applied
+    narrow-banded spectral filter. Default parameters fit the pan-chromatic
+    (non-filtered) case.
 
         Parameters:
             temperature - the temperatureerature of the black body [C]
@@ -21,8 +36,8 @@ def calc_rx_power(temperature: float, central_wl: int=10500, bw: int = 3000, *, 
             is_ideal_filt - set to True to use an optimal rectangular filter centered about the central wavelength. 
             Otherwise, use the practical filter according to Thorlab's characterization.
     """
-    # todo: use TAU's spec to asses the natural band-width of the camera for improving pan-chromatic and filtered
-    # calculations
+    # todo: use TAU's spec to asses the natural band-width of the camera for
+    # improving pan-chromatic and filtered calculations
 
     # # constants:
     KB = 1.380649e-23  # [Joule/Kelvin]
@@ -115,10 +130,10 @@ def calc_rx_power(temperature: float, central_wl: int=10500, bw: int = 3000, *, 
         ax[1].legend()
         ax[1].set_title("The filtered segment of the spectral radiance")
 
-        if bw == np.inf:
-            fig.suptitle("Pan-Chromatic")
+        if central_wl==10500 and bw == 3000:
+            fig.suptitle(f"Pan-Chromatic at T={c2k(temperature)}[K]")
         else:
-            fig.suptitle(f"{central_wl} nm")
+            fig.suptitle(f"{central_wl} nm Filter at T={c2k(temperature)}[K]")
         plt.show()
 
     return (plank_filt * d_lambda).sum()
@@ -143,10 +158,25 @@ def load_npy_into_dict(path_to_files: Path):
     return {k: dict_measurements[k] for k in sorted(dict_measurements.keys())}
 
 
-def get_panchromatic_meas(path_to_files: Path):
+def get_meas(path_to_files: Path, filter:SpectralFilter=SpectralFilter.PAN, *, ommit_ops:Iterable=None):
+    """Get the measurements acquired by the FLIR LWIR camera using a specific filter 
+
+        Parameters:
+            path_to_files: the path to the source files containing the data.
+            ommit_op: a list of the operating-points to
+                ommit as part of the prefiltering. e.g: [20, 40, 50] 
+    """
+
     dict_measurements = load_npy_into_dict(path_to_files)
+
+    # remove invalid operating-points:
+    if ommit_ops is None:
+        ommit_ops = []
+    for op in ommit_ops:
+        dict_measurements.pop(op)
+
     list_power_panchormatic = [calc_rx_power(temperature=t_bb) for t_bb in dict_measurements.keys()]
-    return np.stack([dict_measurements[t_bb][0] for t_bb in dict_measurements.keys()]), \
+    return np.stack([dict_measurements[t_bb][filter.value] for t_bb in dict_measurements.keys()]), \
         list_power_panchormatic, list(dict_measurements.keys())
 
 
@@ -233,23 +263,28 @@ def plot_regression_diff(list_power_panchormatic, est_power_panchromatic, n_pixe
     plt.close()
 
 
-def prefilt_cam_meas(cam_meas:np.ndarray, *, first_valid_meas:int=3, ommit_op:list=[], med_filt_sz:int=2):
-    """pre-filtering of raw measurements taken using Flir's TAU-2 LWIR camera. The filtering pipe is based on insights
-    gained and explored in the 'meas_inspection' notebook available under the same parent directory.
+def prefilt_cam_meas(cam_meas:np.ndarray, *, first_valid_meas:int=3, med_filt_sz:int=2):
+    """pre-filtering of raw measurements taken using Flir's TAU-2 LWIR camera.
+        The filtering pipe is based on insights gained and explored in the
+        'meas_inspection' notebook available under the same parent directory.
 
-    Parameters: cam_meas: a 4D hypercube that contains the data collected by a set of measurements. first_valid_idx: the
-        first valid measurement in all operating points. All measurements taken before that will be discarded  
-        ommit_op: a list of indices of the operating-points to ommit as part of the prefiltering. e.g: if a set of
-        measurements was collected over the operating points [20, 30, 40, 50, 60] C and the measuerments collected at
-        50C are corrupt, then providing ommit_op=[3] will ommit this operating-point. med_filt_sz: the size of the
-        median filter used to clean dead pixels from the measurements.
+        Parameters: 
+        cam_meas: a 4D hypercube that contains the data collected by
+            a set of measurements. 
+        first_valid_idx: the first valid measurement
+            in all operating points. All measurements taken before that will be
+            discarded. 
+        med_filt_sz: the size
+            of the median filter used to clean dead pixels from the
+            measurements.
     """ 
     from scipy.ndimage import median_filter
-
-    meas_shape = cam_meas.shape
-    valid_ops = [idx for idx in range(meas_shape[0]) if idx not in ommit_op]
-    cam_meas_valid = cam_meas[valid_ops, first_valid_meas:, ...]
+    cam_meas_valid = cam_meas[:, first_valid_meas:, ...]
     cam_meas_filt = median_filter(
         cam_meas_valid, size=(1, 1, med_filt_sz, med_filt_sz))
     return cam_meas_filt
+
+
+if __name__=="__main__":
+    get_meas(Path("analysis/undistort/rawData/01_09_21"))
 
