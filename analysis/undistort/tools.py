@@ -10,10 +10,9 @@ from scipy.optimize import nnls
 from tqdm import tqdm
 
 
-def calc_rx_power(temperature: float, central_wl: int, bw: int = 1000, *, is_ideal_filt: bool = False, debug=False):
-    """Calculates the power emmited by the the black body, according to Plank's
-    law of black-body radiation, after being filtered by the applied
-    narrow-banded spectral filter.
+def calc_rx_power(temperature: float, central_wl: int=10500, bw: int = 3000, *, is_ideal_filt: bool = True, debug=False):
+    """Calculates the power emmited by the the black body, according to Plank's law of black-body radiation, after being
+    filtered by the applied narrow-banded spectral filter. Default parameters fit the pan-chromatic (non-filtered) case.
 
         Parameters:
             temperature - the temperatureerature of the black body [C]
@@ -22,8 +21,8 @@ def calc_rx_power(temperature: float, central_wl: int, bw: int = 1000, *, is_ide
             is_ideal_filt - set to True to use an optimal rectangular filter centered about the central wavelength. 
             Otherwise, use the practical filter according to Thorlab's characterization.
     """
-    # todo: use TAU's spec to asses the natural band-width of the camera for
-    # improving pan-chromatic and filtered calculations
+    # todo: use TAU's spec to asses the natural band-width of the camera for improving pan-chromatic and filtered
+    # calculations
 
     # # constants:
     KB = 1.380649e-23  # [Joule/Kelvin]
@@ -146,8 +145,7 @@ def load_npy_into_dict(path_to_files: Path):
 
 def get_panchromatic_meas(path_to_files: Path):
     dict_measurements = load_npy_into_dict(path_to_files)
-    list_power_panchormatic = [calc_rx_power(temperature=t_bb, central_wl=0, bw=np.inf, is_ideal_filt=True, debug=False)
-                               for t_bb in dict_measurements.keys()]
+    list_power_panchormatic = [calc_rx_power(temperature=t_bb) for t_bb in dict_measurements.keys()]
     return np.stack([dict_measurements[t_bb][0] for t_bb in dict_measurements.keys()]), \
         list_power_panchormatic, list(dict_measurements.keys())
 
@@ -236,22 +234,15 @@ def plot_regression_diff(list_power_panchormatic, est_power_panchromatic, n_pixe
 
 
 def prefilt_cam_meas(cam_meas:np.ndarray, *, first_valid_meas:int=3, ommit_op:list=[], med_filt_sz:int=2):
-    """pre-filtering of raw measurements taken using Flir's TAU-2 LWIR camera.
-    The filtering pipe is based on insights gained and explored in the
-    'meas_inspection' notebook available under the same parent directory.
+    """pre-filtering of raw measurements taken using Flir's TAU-2 LWIR camera. The filtering pipe is based on insights
+    gained and explored in the 'meas_inspection' notebook available under the same parent directory.
 
-    Parameters: 
-        cam_meas: a 4D hypercube that contains the data collected by a set of
-        measurements. 
-        first_valid_idx: the first valid measurement in all operating points.
-        All measurements taken before that will be discarded  
-        ommit_op: a list of indices of the operating-points to ommit as part of
-        the prefiltering. e.g: if a set of measurements was collected over
-        the operating points [20, 30, 40, 50, 60] C and the measuerments collected
-        at 50C are corrupt, then providing ommit_op=[3] will ommit this
-        operating-point.
-        med_filt_sz: the size of the median filter used to clean dead pixels
-        from the measurements.
+    Parameters: cam_meas: a 4D hypercube that contains the data collected by a set of measurements. first_valid_idx: the
+        first valid measurement in all operating points. All measurements taken before that will be discarded  
+        ommit_op: a list of indices of the operating-points to ommit as part of the prefiltering. e.g: if a set of
+        measurements was collected over the operating points [20, 30, 40, 50, 60] C and the measuerments collected at
+        50C are corrupt, then providing ommit_op=[3] will ommit this operating-point. med_filt_sz: the size of the
+        median filter used to clean dead pixels from the measurements.
     """ 
     from scipy.ndimage import median_filter
 
