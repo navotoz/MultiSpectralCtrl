@@ -92,7 +92,7 @@ class Tau2Grabber(Tau):
         self.cmos_depth = params.get('cmos_depth', 0)  # 14bit pre AGC
         self.fps = params.get('fps', ptc.FPS_CODE_DICT[60])  # 60Hz NTSC
         self.ffc_mode = params.get('ffc_mode', 'external')
-        # self.correction_mask = params.get('corr_mask', 0)  # Always OFF!!!
+        ####### self.correction_mask = params.get('corr_mask', 0)  # Always OFF!!!
 
     def _th_reader_func(self) -> None:
         while True:

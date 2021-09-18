@@ -1,15 +1,14 @@
 import os
-from typing import Iterable
 import warnings
+from enum import Enum
 from itertools import product
-from multiprocessing import Pool, cpu_count
 from pathlib import Path
+from typing import Iterable
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.optimize import nnls
 from tqdm import tqdm
-from enum import Enum
 
 
 class SpectralFilter(Enum):
@@ -23,7 +22,8 @@ class SpectralFilter(Enum):
     nm12000 = 12000
 
 
-def calc_rx_power(temperature: float, central_wl: int=10500, bw: int = 3000, *, is_ideal_filt: bool = True, debug=False):
+def calc_rx_power(temperature: float, central_wl: int = 10500, bw: int = 3000, *, is_ideal_filt: bool = True,
+                  debug=False):
     """Calculates the power emmited by the the black body, according to Plank's
     law of black-body radiation, after being filtered by the applied
     narrow-banded spectral filter. Default parameters fit the pan-chromatic
@@ -45,12 +45,16 @@ def calc_rx_power(temperature: float, central_wl: int=10500, bw: int = 3000, *, 
     C = 2.99792458e8  # [m/sec]
 
     # spectral radiance (Plank's function)
-    def bb(lamda, T): return 2 * H * C ** 2 / np.power(lamda, 5) * \
-        1 / (np.exp(H * C / (KB * T * lamda)) - 1)
+    def bb(lamda, T):
+        return 2 * H * C ** 2 / np.power(lamda, 5) * \
+               1 / (np.exp(H * C / (KB * T * lamda)) - 1)
 
     # Celsuis to Kelvin:
-    def c2k(T): return T + 273.15
-    def k2c(T): return T - 273.15
+    def c2k(T):
+        return T + 273.15
+
+    def k2c(T):
+        return T - 273.15
 
     if is_ideal_filt:  # assume ideal rectangular filter with 1000nm bandwidth and a constant amplification of 1
         d_lambda = 1e-9
@@ -130,7 +134,7 @@ def calc_rx_power(temperature: float, central_wl: int=10500, bw: int = 3000, *, 
         ax[1].legend()
         ax[1].set_title("The filtered segment of the spectral radiance")
 
-        if central_wl==10500 and bw == 3000:
+        if central_wl == 10500 and bw == 3000:
             fig.suptitle(f"Pan-Chromatic at T={c2k(temperature)}[K]")
         else:
             fig.suptitle(f"{central_wl} nm Filter at T={c2k(temperature)}[K]")
@@ -158,7 +162,7 @@ def load_npy_into_dict(path_to_files: Path):
     return {k: dict_measurements[k] for k in sorted(dict_measurements.keys())}
 
 
-def get_meas(path_to_files: Path, filter:SpectralFilter=SpectralFilter.PAN, *, ommit_ops:Iterable=None):
+def get_meas(path_to_files: Path, filter: SpectralFilter = SpectralFilter.PAN, *, ommit_ops: Iterable = None):
     """Get the measurements acquired by the FLIR LWIR camera using a specific filter 
 
         Parameters:
@@ -177,7 +181,7 @@ def get_meas(path_to_files: Path, filter:SpectralFilter=SpectralFilter.PAN, *, o
 
     list_power_panchormatic = [calc_rx_power(temperature=t_bb) for t_bb in dict_measurements.keys()]
     return np.stack([dict_measurements[t_bb][filter.value] for t_bb in dict_measurements.keys()]), \
-        list_power_panchormatic, list(dict_measurements.keys())
+           list_power_panchormatic, list(dict_measurements.keys())
 
 
 def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: int = 4):
@@ -227,7 +231,7 @@ def plot_regression_p_vs_p(list_power_panchormatic, est_power_panchromatic, n_pi
     plt.suptitle(f'Estimated Power as a function of the model Power')
     fig.supxlabel('Power [W??]')
     fig.supylabel('Power [W??]')
-    plt.locator_params(axis="x", nbins=len(list_power_panchormatic)+1)
+    plt.locator_params(axis="x", nbins=len(list_power_panchormatic) + 1)
     plt.locator_params(axis="y", nbins=8)
     plt.show()
     plt.close()
@@ -257,13 +261,13 @@ def plot_regression_diff(list_power_panchormatic, est_power_panchromatic, n_pixe
     plt.suptitle(f'Difference between real and estiamted Power')
     fig.supxlabel('Power [W??]')
     fig.supylabel('Difference [W??]')
-    plt.locator_params(axis="x", nbins=len(list_power_panchormatic)+1)
+    plt.locator_params(axis="x", nbins=len(list_power_panchormatic) + 1)
     plt.locator_params(axis="y", nbins=8)
     plt.show()
     plt.close()
 
 
-def prefilt_cam_meas(cam_meas:np.ndarray, *, first_valid_meas:int=3, med_filt_sz:int=2):
+def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_filt_sz: int = 2):
     """pre-filtering of raw measurements taken using Flir's TAU-2 LWIR camera.
         The filtering pipe is based on insights gained and explored in the
         'meas_inspection' notebook available under the same parent directory.
@@ -277,7 +281,7 @@ def prefilt_cam_meas(cam_meas:np.ndarray, *, first_valid_meas:int=3, med_filt_sz
         med_filt_sz: the size
             of the median filter used to clean dead pixels from the
             measurements.
-    """ 
+    """
     from scipy.ndimage import median_filter
     cam_meas_valid = cam_meas[:, first_valid_meas:, ...]
     cam_meas_filt = median_filter(
@@ -285,6 +289,5 @@ def prefilt_cam_meas(cam_meas:np.ndarray, *, first_valid_meas:int=3, med_filt_sz
     return cam_meas_filt
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     get_meas(Path("analysis/undistort/rawData/01_09_21"))
-

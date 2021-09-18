@@ -174,7 +174,7 @@ def kill_server(n_clicks):
     func()
     exit_handler(None, None)
     exit(0)
-    
+
 
 @app.callback(Output('after-photo-sync-label', 'n_clicks'),
               Input('take-photo-button', 'disabled'),

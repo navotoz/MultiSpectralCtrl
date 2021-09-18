@@ -1,6 +1,6 @@
 import multiprocessing as mp
 import threading as th
-from ctypes import c_ushort
+from ctypes import c_ushort, c_byte
 from itertools import cycle
 from time import sleep
 
@@ -25,6 +25,10 @@ class CameraCtrl(DeviceAbstract):
         self._lock_image = mp.Lock()
         self._event_new_image = mp.Event()
         self._event_new_image.clear()
+        self._semaphore_ffc_do = mp.Semaphore(value=0)
+        self._semaphore_ffc_finished = mp.Semaphore(value=0)
+        self._ffc_result: mp.Value = mp.Value(typecode_or_type=c_byte)
+        self._ffc_result.value = 0
 
         self._image_array = mp.RawArray(c_ushort, const.HEIGHT_IMAGE_TAU2 * const.WIDTH_IMAGE_TAU2)
         self._image_array = frombuffer(self._image_array, dtype=uint16)
@@ -37,13 +41,16 @@ class CameraCtrl(DeviceAbstract):
 
     def _terminate_device_specifics(self):
         try:
-            if hasattr(self, '_event_new_image'):
-                self._event_new_image.set()
-        except (ValueError, TypeError, AttributeError, RuntimeError):
+            self._semaphore_ffc_do.release()
+        except (ValueError, TypeError, AttributeError, RuntimeError, NameError):
             pass
         try:
-            self._lock_camera.release()
-        except (ValueError, TypeError, AttributeError, RuntimeError):
+            self._semaphore_ffc_finished.release()
+        except (ValueError, TypeError, AttributeError, RuntimeError, NameError):
+            pass
+        try:
+            self._event_new_image.set()
+        except (ValueError, TypeError, AttributeError, RuntimeError, NameError):
             pass
 
     def _run(self):
@@ -56,18 +63,8 @@ class CameraCtrl(DeviceAbstract):
         self._workers_dict['getter_image'] = th.Thread(target=self._th_getter_image, name='getter_image', daemon=False)
         self._workers_dict['getter_image'].start()
 
-    def _getter_temperature(self, t_type: str):
-        with self._lock_camera:
-            t = self._camera.get_inner_temperature(t_type) if self._camera is not None else None
-        if t is not None and t != 0.0 and t != -float('inf'):
-            try:
-                t = round(t * 100)
-                if t_type == const.T_FPA:
-                    self._fpa.value = round(t, -1)  # precision for the fpa is 0.1C
-                elif t_type == const.T_HOUSING:
-                    self._housing.value = t  # precision of the housing is 0.01C
-            except (BrokenPipeError, RuntimeError):
-                pass
+        self._workers_dict['th_ffc'] = th.Thread(target=self._th_ffc_func, name='th_ffc', daemon=True)
+        self._workers_dict['th_ffc'].start()
 
     def _th_connect(self):
         handlers = make_logging_handlers(None, True)
@@ -84,6 +81,26 @@ class CameraCtrl(DeviceAbstract):
                         return
                     except (RuntimeError, BrokenPipeError, USBError):
                         pass
+
+    def _th_ffc_func(self):
+        self._flag_alive.wait()
+        while self._flag_run:
+            self._ffc_result.value = self._camera.ffc()
+            self._semaphore_ffc_finished.release()
+            self._semaphore_ffc_do.acquire()
+
+    def _getter_temperature(self, t_type: str):  # this function exists for the th_connect function, otherwise redundant
+        with self._lock_camera:
+            t = self._camera.get_inner_temperature(t_type) if self._camera is not None else None
+        if t is not None and t != 0.0 and t != -float('inf'):
+            try:
+                t = round(t * 100)
+                if t_type == const.T_FPA:
+                    self._fpa.value = round(t, -1)  # precision for the fpa is 0.1C
+                elif t_type == const.T_HOUSING:
+                    self._housing.value = t  # precision of the housing is 0.01C
+            except (BrokenPipeError, RuntimeError):
+                pass
 
     def _th_getter_temperature(self) -> None:
         self._flag_alive.wait()
@@ -108,6 +125,11 @@ class CameraCtrl(DeviceAbstract):
         with self._lock_image:
             self._event_new_image.clear()
             return self._image_array.copy()
+
+    def ffc(self) -> bool:
+        self._semaphore_ffc_do.release()
+        self._semaphore_ffc_finished.acquire()
+        return bool(self._ffc_result.value)
 
     @property
     def fpa(self):
