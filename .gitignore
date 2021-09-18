@@ -13,3 +13,4 @@
 /log/
 /analysis/undistort/rawData/
 *.pyc
+/.vscode/

@@ -10,10 +10,11 @@ from scipy.optimize import nnls
 from tqdm import tqdm
 
 
-def calcRxPower(temperature: float, central_wl: int, bw: int = 1000, *, is_ideal_filt: bool = False, debug=False):
-    """Calculates the power emmited by the the black body, according to Plank's law of black-body radiation, 
-    after being filtered by the applied narrow-banded spectral filter.
-    
+def calc_rx_power(temperature: float, central_wl: int, bw: int = 1000, *, is_ideal_filt: bool = False, debug=False):
+    """Calculates the power emmited by the the black body, according to Plank's
+    law of black-body radiation, after being filtered by the applied
+    narrow-banded spectral filter.
+
         Parameters:
             temperature - the temperatureerature of the black body [C]
             central_wl - the central wavelength of the filter [nm]
@@ -21,7 +22,8 @@ def calcRxPower(temperature: float, central_wl: int, bw: int = 1000, *, is_ideal
             is_ideal_filt - set to True to use an optimal rectangular filter centered about the central wavelength. 
             Otherwise, use the practical filter according to Thorlab's characterization.
     """
-    # todo: use TAU's spec to asses the natural band-width of the camera for improving pan-chromatic and filtered calculations
+    # todo: use TAU's spec to asses the natural band-width of the camera for
+    # improving pan-chromatic and filtered calculations
 
     # # constants:
     KB = 1.380649e-23  # [Joule/Kelvin]
@@ -29,11 +31,12 @@ def calcRxPower(temperature: float, central_wl: int, bw: int = 1000, *, is_ideal
     C = 2.99792458e8  # [m/sec]
 
     # spectral radiance (Plank's function)
-    bb = lambda lamda, T: 2 * H * C ** 2 / np.power(lamda, 5) * 1 / (np.exp(H * C / (KB * T * lamda)) - 1)
+    def bb(lamda, T): return 2 * H * C ** 2 / np.power(lamda, 5) * \
+        1 / (np.exp(H * C / (KB * T * lamda)) - 1)
 
     # Celsuis to Kelvin:
-    c2k = lambda T: T + 273.15
-    k2c = lambda T: T - 273.15
+    def c2k(T): return T + 273.15
+    def k2c(T): return T - 273.15
 
     if is_ideal_filt:  # assume ideal rectangular filter with 1000nm bandwidth and a constant amplification of 1
         d_lambda = 1e-9
@@ -82,7 +85,8 @@ def calcRxPower(temperature: float, central_wl: int, bw: int = 1000, *, is_ideal
             L = np.nansum(bb(valid_grid, c2k(temperature)) * 1e-9)
         T_hat = k2c(np.power(L / sigma * np.pi, 1 / 4))
         print(f"Input temperature: {temperature:.4f}")
-        print(f"Estimated temperature (by integrating over plank's function): {T_hat:.4f}")
+        print(
+            f"Estimated temperature (by integrating over plank's function): {T_hat:.4f}")
 
         fig, ax = plt.subplots(1, 2, figsize=(16, 9))
 
@@ -132,18 +136,20 @@ def load_npy_into_dict(path_to_files: Path):
         except ValueError:
             print(f'Cannot load file {str(path)}')
             continue
-        list_filters = sorted(pd.read_csv(path.with_suffix('.csv')).to_numpy()[:, 1])
+        list_filters = sorted(pd.read_csv(
+            path.with_suffix('.csv')).to_numpy()[:, 1])
         for idx, filter_name in enumerate(list_filters):
-            dict_measurements.setdefault(temperature_blackbody, {}).setdefault(filter_name, meas[idx])
+            dict_measurements.setdefault(
+                temperature_blackbody, {}).setdefault(filter_name, meas[idx])
     return {k: dict_measurements[k] for k in sorted(dict_measurements.keys())}
 
 
 def get_panchromatic_meas(path_to_files: Path):
     dict_measurements = load_npy_into_dict(path_to_files)
-    list_power_panchormatic = [calcRxPower(temperature=t_bb, central_wl=0, bw=np.inf, is_ideal_filt=True, debug=False)
+    list_power_panchormatic = [calc_rx_power(temperature=t_bb, central_wl=0, bw=np.inf, is_ideal_filt=True, debug=False)
                                for t_bb in dict_measurements.keys()]
     return np.stack([dict_measurements[t_bb][0] for t_bb in dict_measurements.keys()]), \
-           list_power_panchormatic, list(dict_measurements.keys())
+        list_power_panchormatic, list(dict_measurements.keys())
 
 
 def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: int = 4):
@@ -168,7 +174,8 @@ def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: in
 
 
 def plot_regression_p_vs_p(list_power_panchormatic, est_power_panchromatic, n_pixels_to_plot: int = 4):
-    pixels = list(product(range(est_power_panchromatic.shape[-2]), range(est_power_panchromatic.shape[-1])))
+    pixels = list(product(range(
+        est_power_panchromatic.shape[-2]), range(est_power_panchromatic.shape[-1])))
     np.random.shuffle(pixels)
     if len(est_power_panchromatic.shape) == 4:
         est = est_power_panchromatic.mean(1)
@@ -178,9 +185,12 @@ def plot_regression_p_vs_p(list_power_panchormatic, est_power_panchromatic, n_pi
     fig, axs = plt.subplots(n_pixels_to_plot // 2, 2, dpi=300,
                             tight_layout=True, sharex=True, sharey=True)
     for ax, (h_, w_) in zip(axs.ravel(), pixels):
-        ax.plot(list_power_panchormatic, est[:, h_, w_], c='r', label='Estimation', linewidth=1)
-        ax.scatter(list_power_panchormatic, est[:, h_, w_], c='r', marker='X', s=5)
-        ax.plot(list_power_panchormatic, list_power_panchormatic, c='b', label='Model', linewidth=0.7)
+        ax.plot(list_power_panchormatic,
+                est[:, h_, w_], c='r', label='Estimation', linewidth=1)
+        ax.scatter(list_power_panchormatic,
+                   est[:, h_, w_], c='r', marker='X', s=5)
+        ax.plot(list_power_panchormatic, list_power_panchormatic,
+                c='b', label='Model', linewidth=0.7)
         ax.set_title(f'Pixel ({h_},{w_})')
         ax.legend(prop={'size': 5})
         ax.grid()
@@ -196,7 +206,8 @@ def plot_regression_p_vs_p(list_power_panchormatic, est_power_panchromatic, n_pi
 
 
 def plot_regression_diff(list_power_panchormatic, est_power_panchromatic, n_pixels_to_plot: int = 4):
-    pixels = list(product(range(est_power_panchromatic.shape[-2]), range(est_power_panchromatic.shape[-1])))
+    pixels = list(product(range(
+        est_power_panchromatic.shape[-2]), range(est_power_panchromatic.shape[-1])))
     np.random.shuffle(pixels)
     if len(est_power_panchromatic.shape) == 4:
         est = est_power_panchromatic.mean(1)
@@ -210,7 +221,8 @@ def plot_regression_diff(list_power_panchormatic, est_power_panchromatic, n_pixe
     fig, axs = plt.subplots(n_pixels_to_plot // 2, 2, dpi=300,
                             tight_layout=True, sharex=True, sharey=True)
     for ax, (h_, w_) in zip(axs.ravel(), pixels):
-        ax.scatter(list_power_panchormatic, diff[:, h_, w_], c='r', marker='X', s=5)
+        ax.scatter(list_power_panchormatic,
+                   diff[:, h_, w_], c='r', marker='X', s=5)
         ax.set_title(f'Pixel ({h_},{w_})')
         ax.grid()
         plt.setp(ax.xaxis.get_majorticklabels(), rotation=60)
@@ -221,4 +233,32 @@ def plot_regression_diff(list_power_panchormatic, est_power_panchromatic, n_pixe
     plt.locator_params(axis="y", nbins=8)
     plt.show()
     plt.close()
+
+
+def prefilt_cam_meas(cam_meas:np.ndarray, *, first_valid_meas:int=3, ommit_op:list=[], med_filt_sz:int=2):
+    """pre-filtering of raw measurements taken using Flir's TAU-2 LWIR camera.
+    The filtering pipe is based on insights gained and explored in the
+    'meas_inspection' notebook available under the same parent directory.
+
+    Parameters: 
+        cam_meas: a 4D hypercube that contains the data collected by a set of
+        measurements. 
+        first_valid_idx: the first valid measurement in all operating points.
+        All measurements taken before that will be discarded  
+        ommit_op: a list of indices of the operating-points to ommit as part of
+        the prefiltering. e.g: if a set of measurements was collected over
+        the operating points [20, 30, 40, 50, 60] C and the measuerments collected
+        at 50C are corrupt, then providing ommit_op=[3] will ommit this
+        operating-point.
+        med_filt_sz: the size of the median filter used to clean dead pixels
+        from the measurements.
+    """ 
+    from scipy.ndimage import median_filter
+
+    meas_shape = cam_meas.shape
+    valid_ops = [idx for idx in range(meas_shape[0]) if idx not in ommit_op]
+    cam_meas_valid = cam_meas[valid_ops, first_valid_meas:, ...]
+    cam_meas_filt = median_filter(
+        cam_meas_valid, size=(1, 1, med_filt_sz, med_filt_sz))
+    return cam_meas_filt
 
