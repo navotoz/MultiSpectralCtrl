@@ -11,7 +11,7 @@ parser.add_argument('--filter_wavelength_list', help="The central wavelength of 
                     default=[0, 8000, 9000, 10000, 11000, 12000], type=list)
 parser.add_argument('--folder_to_save', help="The folder to save the results. Create folder if invalid.",
                     default='data')
-parser.add_argument('--n_images', help="The number of images to grab.", default=3000, type=int)
+parser.add_argument('--n_images', help="The number of images to grab.", default=10000, type=int)
 parser.add_argument('--blackbody_temperatures_list', help="The temperatures for the BlackBody.",
                     default=[20, 30, 40, 50, 60, 70])
 args = parser.parse_args()
@@ -38,15 +38,4 @@ params_default = dict(
 path_default = Path(args.folder_to_save)
 col = partial(collect, list_t_bb=args.blackbody_temperatures_list,
               list_filters=args.filter_wavelength_list, n_images=args.n_images)
-
-### T-linear disabled
-params = params_default.copy()
-params['tlinear'] = 0x0000  # tlinear disabled
-path = path_default / 'tlinear0'
-col(params=params, path_to_save=path)
-
-### T-linear enabled
-params = params_default.copy()
-params['tlinear'] = 0x0001  # tlinear enabled
-path = path_default / 'tlinear1'
-col(params=params, path_to_save=path)
+col(params=params_default, path_to_save=path_default)
