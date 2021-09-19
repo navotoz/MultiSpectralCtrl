@@ -44,6 +44,7 @@ class Tau(CameraAbstract):
         else:
             self._log.critical("Couldn't connect to camera!")
             raise RuntimeError
+        self._ffc_mode = self.ffc_mode
 
     def __del__(self):
         if self.conn:
@@ -116,11 +117,11 @@ class Tau(CameraAbstract):
         pass
 
     def ffc(self, length: bytes = ptc.FFC_LONG) -> bool:
-        prev_flag = (self.ffc_mode == ptc.FFC_MODE_CODE_DICT['external'])
-        if prev_flag:
+        prev_mode = self._ffc_mode
+        if 'ext' in prev_mode:
             self.ffc_mode = ptc.FFC_MODE_CODE_DICT['manual']
         res = self.send_command(command=ptc.DO_FFC, argument=length)
-        if prev_flag:
+        if 'ext' in prev_mode:
             self.ffc_mode = ptc.FFC_MODE_CODE_DICT['external']
         if res and struct.unpack('H', res)[0] == 0xffff:
             t_fpa = self.get_inner_temperature(T_FPA)
@@ -152,6 +153,7 @@ class Tau(CameraAbstract):
     @ffc_mode.setter
     def ffc_mode(self, mode: str):
         self._mode_setter(mode, self.ffc_mode, ptc.SET_FFC_MODE, ptc.FFC_MODE_CODE_DICT, 'FCC')
+        self._ffc_mode = mode
 
     @property
     def gain(self):
