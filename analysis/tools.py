@@ -1,6 +1,7 @@
 import threading as th
 from functools import partial
 from pathlib import Path
+from time import sleep
 
 import numpy as np
 import pandas as pd
@@ -27,6 +28,7 @@ def collect(params: dict, path_to_save: (str, Path), list_t_bb: (list, tuple),
     blackbody = BlackBody()
     filterwheel = FilterWheel()
     camera = CameraCtrl(camera_parameters=params)
+    camera.start()
     path_to_save = Path(path_to_save)
     if not path_to_save.is_dir():
         path_to_save.mkdir(parents=True)
@@ -56,3 +58,5 @@ def collect(params: dict, path_to_save: (str, Path), list_t_bb: (list, tuple),
         list_threads.append(thread(args=(t_bb, dict_images.pop(t_bb, {}), dict_fpa.copy(), path_to_save,)))
         list_threads[-1].start()
     [p.join() for p in list_threads]
+    camera.__del__()
+    blackbody.__del__()

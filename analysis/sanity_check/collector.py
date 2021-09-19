@@ -17,7 +17,7 @@ parser.add_argument('--blackbody_temperatures_list', help="The temperatures for 
 args = parser.parse_args()
 
 params_default = dict(
-    ffc_mode='external',  # FFC only when instructed
+    ffc_mode='manual',  # FFC only when instructed
     isotherm=0x0000,
     dde=0x0000,
     tlinear=0x0000,  # T-Linear disabled. The scene will not represent temperatures, because of the filters.
