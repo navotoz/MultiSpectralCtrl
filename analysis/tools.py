@@ -52,7 +52,7 @@ def collect(params: dict, path_to_save: (str, Path), list_t_bb: (list, tuple),
                     list_images.append(camera.image)
                     fpa += camera.fpa
                     progressbar.update()
-            dict_fpa[filter_name] = fpa / n_images
+            dict_fpa[filter_name] = round(fpa / (100 * n_images), 1)  # fpa is in metric 100*C
             dict_images.setdefault(t_bb, {}).setdefault(filter_name, np.stack(list_images))
             idx += 1
         list_threads.append(thread(args=(t_bb, dict_images.pop(t_bb, {}), dict_fpa.copy(), path_to_save,)))
