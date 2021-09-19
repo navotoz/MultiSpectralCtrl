@@ -240,6 +240,7 @@ class Tau(CameraAbstract):
     @tlinear.setter
     def tlinear(self, value: int):
         if value == self.tlinear:
+            self._log.info(f'Set TLinear to {value}.')
             return
         self.send_command(command=ptc.SET_TLINEAR_MODE, argument=struct.pack('>hh', 0x0040, value))
         if value == self.tlinear:
