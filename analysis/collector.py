@@ -6,7 +6,8 @@ from analysis.tools import collect
 
 parser = argparse.ArgumentParser(description='Measures the distortion in the Tau2 with the Filters.'
                                              'For each BlackBody temperature, images are taken and saved.'
-                                             'The images are saved in an np.ndarray with dimensions [n_images, h, w].')
+                                             'The images are saved in an np.ndarray '
+                                             'with dimensions [n_images, filters, h, w].')
 parser.add_argument('--filter_wavelength_list', help="The central wavelength of the Band-Pass filter on the camera",
                     default=[0, 8000, 9000, 10000, 11000, 12000], type=list)
 parser.add_argument('--folder_to_save', help="The folder to save the results. Create folder if invalid.",
