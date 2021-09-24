@@ -10,6 +10,8 @@ from tqdm import tqdm
 from devices.BlackBodyCtrl import BlackBody
 from devices.Camera.CameraProcess import CameraCtrl
 from devices.FilterWheel.FilterWheel import FilterWheel
+BB_LOW = 20
+BB_HIGH = 70
 
 
 def th_saver(t_bb_temperature: int, dict_of_arrays: dict, dict_of_fpa: dict, path: Path):
@@ -21,8 +23,10 @@ def th_saver(t_bb_temperature: int, dict_of_arrays: dict, dict_of_fpa: dict, pat
     np.save(str(path.with_suffix('.npy')), np.stack([dict_of_arrays[k] for k in keys]))
 
 
-def collect(params: dict, path_to_save: (str, Path), list_t_bb: (list, tuple),
+def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
             list_filters: (list, tuple), n_images: int):
+    list_t_bb = np.linspace(start=BB_LOW, stop=BB_HIGH, num=bb_stops, dtype=int)
+    print(f'BlackBody temperatures: {list_t_bb}C')
     thread = partial(th.Thread, target=th_saver, daemon=False)
     list_threads = []
     blackbody = BlackBody()
@@ -36,6 +40,8 @@ def collect(params: dict, path_to_save: (str, Path), list_t_bb: (list, tuple),
     dict_images = {}
     length_total = len(list_t_bb) * len(list_filters)
     idx = 1
+    list_filters = list(list_filters) if not isinstance(list_filters, list) else list_filters
+    list_filters = [int(p) for p in list_filters]
     for t_bb in list_t_bb:
         blackbody.temperature = t_bb
         dict_fpa = {}
@@ -69,10 +75,11 @@ parser = argparse.ArgumentParser(description='Measures the distortion in the Tau
 parser.add_argument('--filter_wavelength_list', help="The central wavelength of the Band-Pass filter on the camera",
                     default=[0, 8000, 9000, 10000, 11000, 12000], type=list)
 parser.add_argument('--folder_to_save', help="The folder to save the results. Create folder if invalid.",
-                    default='data')
-parser.add_argument('--n_images', help="The number of images to grab.", default=10000, type=int)
-parser.add_argument('--blackbody_temperatures_list', help="The temperatures for the BlackBody.",
-                    default=[20, 30, 40, 50, 60, 70])
+                    default='measurements')
+parser.add_argument('--n_images', help="The number of images to grab.", default=3000, type=int)
+parser.add_argument('--blackbody_stops', help=f"How many BlackBody temperatures will be "
+                                              f"measured between {BB_LOW}C to {BB_HIGH}C.",
+                    type=int, default=11)
 args = parser.parse_args()
 
 params_default = dict(
@@ -95,6 +102,6 @@ params_default = dict(
 )
 
 path_default = Path(args.folder_to_save)
-col = partial(collect, list_t_bb=args.blackbody_temperatures_list,
+col = partial(collect, bb_stops=args.blackbody_stops,
               list_filters=args.filter_wavelength_list, n_images=args.n_images)
 col(params=params_default, path_to_save=path_default)
