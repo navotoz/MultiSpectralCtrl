@@ -68,9 +68,15 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
             idx += 1
         list_threads.append(thread(args=(t_bb, dict_images.pop(t_bb, {}), dict_fpa.copy(), path_to_save,)))
         list_threads[-1].start()
+    try:
+        camera.__del__()
+    except:
+        pass
+    try:
+        blackbody.__del__()
+    except:
+        pass
     [p.join() for p in list_threads]
-    camera.__del__()
-    blackbody.__del__()
 
 
 parser = argparse.ArgumentParser(description='Measures the distortion in the Tau2 with the Filters.'
