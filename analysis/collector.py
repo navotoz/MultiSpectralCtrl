@@ -1,7 +1,10 @@
 import argparse
+import sys
 import threading as th
 from functools import partial
 from pathlib import Path
+
+sys.path.append(str(Path().cwd().parent))
 
 import numpy as np
 import pandas as pd
@@ -10,6 +13,7 @@ from tqdm import tqdm
 from devices.BlackBodyCtrl import BlackBody
 from devices.Camera.CameraProcess import CameraCtrl
 from devices.FilterWheel.FilterWheel import FilterWheel
+
 BB_LOW = 20
 BB_HIGH = 70
 
@@ -26,7 +30,10 @@ def th_saver(t_bb_temperature: int, dict_of_arrays: dict, dict_of_fpa: dict, pat
 def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
             list_filters: (list, tuple), n_images: int):
     list_t_bb = np.linspace(start=BB_LOW, stop=BB_HIGH, num=bb_stops, dtype=int)
+    list_filters = list(list_filters) if not isinstance(list_filters, list) else list_filters
+    list_filters = [int(p) for p in list_filters]
     print(f'BlackBody temperatures: {list_t_bb}C')
+    print(f'Filters: {list_filters}nm')
     thread = partial(th.Thread, target=th_saver, daemon=False)
     list_threads = []
     blackbody = BlackBody()
@@ -40,8 +47,6 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
     dict_images = {}
     length_total = len(list_t_bb) * len(list_filters)
     idx = 1
-    list_filters = list(list_filters) if not isinstance(list_filters, list) else list_filters
-    list_filters = [int(p) for p in list_filters]
     for t_bb in list_t_bb:
         blackbody.temperature = t_bb
         dict_fpa = {}
