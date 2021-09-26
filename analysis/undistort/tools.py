@@ -1,3 +1,4 @@
+import plotly.express as px
 import os
 import warnings
 from enum import Enum
@@ -47,7 +48,7 @@ def calc_rx_power(temperature: float, central_wl: int = 10500, bw: int = 3000, *
     # spectral radiance (Plank's function)
     def bb(lamda, T):
         return 2 * H * C ** 2 / np.power(lamda, 5) * \
-               1 / (np.exp(H * C / (KB * T * lamda)) - 1)
+            1 / (np.exp(H * C / (KB * T * lamda)) - 1)
 
     # Celsuis to Kelvin:
     def c2k(T):
@@ -163,12 +164,12 @@ def load_npy_into_dict(path_to_files: Path):
 
 
 def get_meas(path_to_files: Path, filter: SpectralFilter = SpectralFilter.PAN, *, ommit_ops: Iterable = None):
-    """Get the measurements acquired by the FLIR LWIR camera using a specific filter 
+    """Get the measurements acquired by the FLIR LWIR camera using a specific
+        filter 
 
-        Parameters:
-            path_to_files: the path to the source files containing the data.
-            ommit_op: a list of the operating-points to
-                ommit as part of the prefiltering. e.g: [20, 40, 50] 
+        Parameters: path_to_files: the path to the source files containing the
+            data. ommit_op: a list of the operating-points to ommit as part of
+            the prefiltering. e.g: [20, 40, 50] 
     """
 
     dict_measurements = load_npy_into_dict(path_to_files)
@@ -179,9 +180,10 @@ def get_meas(path_to_files: Path, filter: SpectralFilter = SpectralFilter.PAN, *
     for op in ommit_ops:
         dict_measurements.pop(op)
 
-    list_power_panchormatic = [calc_rx_power(temperature=t_bb) for t_bb in dict_measurements.keys()]
+    list_power_panchormatic = [calc_rx_power(
+        temperature=t_bb) for t_bb in dict_measurements.keys()]
     return np.stack([dict_measurements[t_bb][filter.value] for t_bb in dict_measurements.keys()]), \
-           list_power_panchormatic, list(dict_measurements.keys())
+        list_power_panchormatic, list(dict_measurements.keys())
 
 
 def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: int = 4):
@@ -272,15 +274,11 @@ def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_fil
         The filtering pipe is based on insights gained and explored in the
         'meas_inspection' notebook available under the same parent directory.
 
-        Parameters: 
-        cam_meas: a 4D hypercube that contains the data collected by
-            a set of measurements. 
-        first_valid_idx: the first valid measurement
-            in all operating points. All measurements taken before that will be
-            discarded. 
-        med_filt_sz: the size
-            of the median filter used to clean dead pixels from the
-            measurements.
+        Parameters: cam_meas: a 4D hypercube that contains the data collected by
+        a set of measurements. first_valid_idx: the first valid measurement in
+        all operating points. All measurements taken before that will be
+        discarded. med_filt_sz: the size of the median filter used to clean dead
+        pixels from the measurements.
     """
     from scipy.ndimage import median_filter
     cam_meas_valid = cam_meas[:, first_valid_meas:, ...]
@@ -289,5 +287,44 @@ def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_fil
     return cam_meas_filt
 
 
+def showFacetImages(img_arr, label_class, labels, facet_col=0, facet_col_wrap=4, title=None):
+    n_facets = img_arr.shape[facet_col]
+    eff_col_wrap = facet_col_wrap if n_facets > facet_col_wrap else n_facets
+    fig = px.imshow(img_arr, facet_col=facet_col,
+                    facet_col_wrap=eff_col_wrap, color_continuous_scale='gray', title=title)
+    # Set facet titles
+    for i in range(len(labels)):
+        fig.layout.annotations[i]['text'] = f'{label_class} = {labels[i]}'
+    fig.show()
+    return fig
+
+
+def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None):
+    """Plot the grey-level of a pixel across all frames, assuming the first
+    dimension of the measurement is the number of frames, and the rest are the
+    spatial dimensions
+        
+        Parameters:
+            meas: the array containing the raw data of the measurements
+            idx: an nx2 array, where each row stands for a single pixel indices to be plotted
+    
+    """
+    if pix_idx is None: # choose 4 random pixels at random
+        pix_idx = np.random.randint(
+            low=[0, 0], high=meas.shape[1:], size=(4, 2))
+    grey_levels = meas[:, pix_idx[:, 0], pix_idx[:, 1]]
+    plt.figure(figsize=(16, 9))
+    plt.plot(np.arange(len(grey_levels)) / 3600,
+             grey_levels, "-o", label=pix_idx)
+    plt.title("Random Pixel Grey-Levels During Continuous Acquisition")
+    plt.xlabel("time[min]")
+    plt.ylabel("Grey-Level")
+    plt.grid()
+    plt.legend()
+
+
 if __name__ == "__main__":
-    get_meas(Path("analysis/undistort/rawData/01_09_21"))
+    path_to_files = Path("analysis/undistort/rawData/massive_acq/pan")
+    meas_long = np.load(Path(path_to_files, "blackbody_temperature_35.npy"))
+    meas_pan = meas_long[0]
+    plotGlAcrossFrames(meas_pan)
