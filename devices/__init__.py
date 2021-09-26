@@ -42,6 +42,8 @@ class DeviceAbstract(mp.Process):
         raise NotImplementedError
 
     def __del__(self):
-        if hasattr(self, '_flag_run') and isinstance(self._flag_run, SyncFlag):
+        try:
             self._flag_run.set(False)
+        except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError):
+            pass
         self.terminate()

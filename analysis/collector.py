@@ -15,9 +15,6 @@ from devices.BlackBodyCtrl import BlackBody
 from devices.Camera.CameraProcess import CameraCtrl
 from devices.FilterWheel.FilterWheel import FilterWheel
 
-BB_LOW = 20
-BB_HIGH = 70
-
 
 def th_saver(t_bb: int, filter_name: int, images: list, fpa: list, housing: list, path: Path):
     path = path / f'blackbody_temperature_{t_bb:d}_wavelength_{filter_name:d}'
@@ -28,8 +25,8 @@ def th_saver(t_bb: int, filter_name: int, images: list, fpa: list, housing: list
 
 
 def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
-            list_filters: (list, tuple), n_images: int):
-    list_t_bb = np.linspace(start=BB_LOW, stop=BB_HIGH, num=bb_stops, dtype=int)
+            list_filters: (list, tuple), n_images: int, bb_max: int, bb_min: int):
+    list_t_bb = np.linspace(start=bb_min, stop=bb_max, num=bb_stops, dtype=int)
     list_filters = list(list_filters) if not isinstance(list_filters, list) else list_filters
     list_filters = [int(p) for p in list_filters]
     print(f'BlackBody temperatures: {list_t_bb}C')
@@ -53,8 +50,10 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
             dict_images.setdefault(t_bb, {}).setdefault(filter_name, [])
             list_fpa, list_housing = [], []
             """ do FFC before every filter. This is done under the assumption that the FPA temperature vary 
-            significantly during each BB stop -> 3000 image at 60Hz with 6 filters -> 50sec * 6 filters -> ~6 minutes"""
-            camera.ffc()
+            significantly during each BB stop. 
+            e.g, 3000 image at 60Hz with 6 filters -> 50sec * 6 filters -> ~6 minutes"""
+            while not camera.ffc():
+                continue
             with tqdm(total=n_images) as progressbar:
                 progressbar.set_description_str(f'Filter {filter_name}nm')
                 progressbar.set_postfix_str(f'\tBlackBody {t_bb}C\t\tMeasurements: {idx}|{length_total}')
@@ -70,11 +69,11 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
             idx += 1
     try:
         camera.__del__()
-    except:
+    except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError, AssertionError):
         pass
     try:
         blackbody.__del__()
-    except:
+    except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError, AssertionError):
         pass
     [p.join() for p in list_threads]
 
@@ -83,18 +82,22 @@ parser = argparse.ArgumentParser(description='Measures the distortion in the Tau
                                              'For each BlackBody temperature, images are taken and saved.'
                                              'The images are saved in an np.ndarray '
                                              'with dimensions [n_images, filters, h, w].')
-parser.add_argument('--filter_wavelength_list', help="The central wavelength of the Band-Pass filter on the camera",
+parser.add_argument('--filters', help="The central wavelength of the Band-Pass filter on the camera",
                     default=[0, 8000, 9000, 10000, 11000, 12000], type=list)
-parser.add_argument('--folder_to_save', help="The folder to save the results. Create folder if invalid.",
+parser.add_argument('--path', help="The folder to save the results. Create folder if invalid.",
                     default='measurements')
 parser.add_argument('--n_images', help="The number of images to grab.", default=3000, type=int)
 parser.add_argument('--blackbody_stops', help=f"How many BlackBody temperatures will be "
-                                              f"measured between {BB_LOW}C to {BB_HIGH}C.",
+                                              f"measured between blackbody_max to blackbody_min.",
                     type=int, default=11)
+parser.add_argument('--blackbody_max', help=f"Maximal temperature of BlackBody in C.",
+                    type=int, default=70)
+parser.add_argument('--blackbody_min', help=f"Minimal temperature of BlackBody in C.",
+                    type=int, default=20)
 args = parser.parse_args()
 
 params_default = dict(
-    ffc_mode='manual',  # FFC only when instructed
+    ffc_mode='external',  # FFC only when instructed
     isotherm=0x0000,
     dde=0x0000,
     tlinear=0x0000,  # T-Linear disabled. The scene will not represent temperatures, because of the filters.
@@ -112,7 +115,6 @@ params_default = dict(
     cmos_depth=0x0000,  # 14bit pre AGC
 )
 
-path_default = Path(args.folder_to_save)
-col = partial(collect, bb_stops=args.blackbody_stops,
-              list_filters=args.filter_wavelength_list, n_images=args.n_images)
-col(params=params_default, path_to_save=path_default)
+collect(params=params_default, path_to_save=Path(args.path), bb_stops=args.blackbody_stops,
+        list_filters=args.filters, n_images=args.n_images, bb_max=args.blackbody_max,
+        bb_min=args.blackbody_min)

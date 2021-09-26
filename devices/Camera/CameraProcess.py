@@ -12,7 +12,7 @@ from devices.Camera import CameraAbstract, INIT_CAMERA_PARAMETERS, HEIGHT_IMAGE_
 from devices.Camera.Tau.Tau2Grabber import Tau2Grabber
 from utils.logger import make_logging_handlers
 
-WAIT_CAMERA_TEMPERATURE_SECONDS = 15
+TEMPERATURE_ACQUIRE_FREQUENCY_SECONDS = 5
 
 
 class CameraCtrl(DeviceAbstract):
@@ -45,15 +45,15 @@ class CameraCtrl(DeviceAbstract):
     def _terminate_device_specifics(self):
         try:
             self._semaphore_ffc_do.release()
-        except (ValueError, TypeError, AttributeError, RuntimeError, NameError):
+        except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError):
             pass
         try:
             self._semaphore_ffc_finished.release()
-        except (ValueError, TypeError, AttributeError, RuntimeError, NameError):
+        except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError):
             pass
         try:
             self._event_new_image.set()
-        except (ValueError, TypeError, AttributeError, RuntimeError, NameError):
+        except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError):
             pass
 
     def _run(self):
@@ -109,7 +109,7 @@ class CameraCtrl(DeviceAbstract):
         self._flag_alive.wait()
         for t_type in cycle([T_FPA, T_HOUSING]):
             self._getter_temperature(t_type=t_type)
-            sleep(WAIT_CAMERA_TEMPERATURE_SECONDS)
+            sleep(TEMPERATURE_ACQUIRE_FREQUENCY_SECONDS)
 
     def _th_getter_image(self):
         while not self._flag_alive.wait(timeout=3) and self._flag_alive:

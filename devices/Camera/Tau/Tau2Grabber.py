@@ -61,7 +61,7 @@ class Tau2Grabber(Tau):
         if hasattr(self, '_log') and isinstance(self._log, logging.Logger):
             try:
                 self._log.critical('Exit.')
-            except NameError:
+            except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError):
                 pass
 
     def _write(self, data: bytes) -> None:
@@ -71,7 +71,7 @@ class Tau2Grabber(Tau):
         try:
             self._ftdi.write_data(buffer)
             self._log.debug(f"Send {data}")
-        except FtdiError:
+        except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError, FtdiError):
             self._log.debug('Write error.')
 
     def set_params_by_dict(self, yaml_or_dict: (Path, dict)):
@@ -99,7 +99,7 @@ class Tau2Grabber(Tau):
             self._event_read.wait()
             try:
                 data = self._ftdi.read_data(FTDI_PACKET_SIZE)
-            except FtdiError:
+            except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError, FtdiError):
                 return None
             if data is not None and isinstance(self._buffer, BytesBuffer):
                 self._buffer += data
