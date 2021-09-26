@@ -2,6 +2,7 @@ import argparse
 import sys
 import threading as th
 from functools import partial
+from itertools import repeat
 from pathlib import Path
 
 sys.path.append(str(Path().cwd().parent))
@@ -18,13 +19,12 @@ BB_LOW = 20
 BB_HIGH = 70
 
 
-def th_saver(t_bb_temperature: int, dict_of_arrays: dict, dict_of_fpa: dict, path: Path):
-    keys = list(sorted(dict_of_arrays.keys()))
-    values = np.stack([(dict_of_fpa[k], k) for k in keys])
-    df = pd.DataFrame(columns=['FPA temperature', 'Filter wavelength nm'], data=values)
-    path = path / f'blackbody_temperature_{t_bb_temperature:d}'
+def th_saver(t_bb: int, filter_name: int, images: list, fpa: list, housing: list, path: Path):
+    path = path / f'blackbody_temperature_{t_bb:d}_wavelength_{filter_name:d}'
+    df = pd.DataFrame(columns=['FPA temperature', 'Housing temperature', 'Filter wavelength nm'],
+                      data=[(f,h,wl) for f,h,wl in zip(fpa, housing, repeat(filter_name))])
     df.to_csv(path_or_buf=str(path.with_suffix('.csv')))
-    np.save(str(path.with_suffix('.npy')), np.stack([dict_of_arrays[k] for k in keys]))
+    np.save(str(path.with_suffix('.npy')), np.stack(images))
 
 
 def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
@@ -39,7 +39,6 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
     blackbody = BlackBody()
     filterwheel = FilterWheel()
     camera = CameraCtrl(camera_parameters=params)
-    camera.start()
     path_to_save = Path(path_to_save)
     if not path_to_save.is_dir():
         path_to_save.mkdir(parents=True)
@@ -49,25 +48,26 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
     idx = 1
     for t_bb in list_t_bb:
         blackbody.temperature = t_bb
-        dict_fpa = {}
         for position, filter_name in enumerate(sorted(list_filters), start=1):
             filterwheel.position = position
+            dict_images.setdefault(t_bb, {}).setdefault(filter_name, [])
+            list_fpa, list_housing = [], []
             """ do FFC before every filter. This is done under the assumption that the FPA temperature vary 
             significantly during each BB stop -> 3000 image at 60Hz with 6 filters -> 50sec * 6 filters -> ~6 minutes"""
             camera.ffc()
-            list_images, fpa = [], 0
             with tqdm(total=n_images) as progressbar:
                 progressbar.set_description_str(f'Filter {filter_name}nm')
                 progressbar.set_postfix_str(f'\tBlackBody {t_bb}C\t\tMeasurements: {idx}|{length_total}')
-                while len(list_images) != n_images:
-                    list_images.append(camera.image)
-                    fpa += camera.fpa
+                while len(dict_images[t_bb]) != n_images:
+                    dict_images[t_bb].append(camera.image)
+                    list_fpa.append(camera.fpa)
+                    list_housing.append(camera.fpa)
                     progressbar.update()
-            dict_fpa[filter_name] = round(fpa / (100 * n_images), 1)  # fpa is in metric 100*C
-            dict_images.setdefault(t_bb, {}).setdefault(filter_name, np.stack(list_images))
+            list_threads.append(thread(kwargs=dict(t_bb=t_bb, filter_name=filter_name, path=path_to_save,
+                                                   images=dict_images[t_bb].pop(filter_name), fpa=list_fpa.copy(),
+                                                   housing=list_housing.copy())))
+            list_threads[-1].start()
             idx += 1
-        list_threads.append(thread(args=(t_bb, dict_images.pop(t_bb, {}), dict_fpa.copy(), path_to_save,)))
-        list_threads[-1].start()
     try:
         camera.__del__()
     except:
