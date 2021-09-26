@@ -13,6 +13,8 @@ from devices.Camera import CameraAbstract
 from devices.Camera.Tau.Tau2Grabber import Tau2Grabber
 from utils.logger import make_logging_handlers
 
+WAIT_CAMERA_TEMPERATURE_SECONDS = 15
+
 
 class CameraCtrl(DeviceAbstract):
     _camera: (CameraAbstract, None) = None
@@ -106,7 +108,7 @@ class CameraCtrl(DeviceAbstract):
         self._flag_alive.wait()
         for t_type in cycle([const.T_FPA, const.T_HOUSING]):
             self._getter_temperature(t_type=t_type)
-            sleep(const.FREQ_INNER_TEMPERATURE_SECONDS)
+            sleep(WAIT_CAMERA_TEMPERATURE_SECONDS)
 
     def _th_getter_image(self):
         while not self._flag_alive.wait(timeout=3) and self._flag_alive:
@@ -132,13 +134,13 @@ class CameraCtrl(DeviceAbstract):
         return bool(self._ffc_result.value)
 
     @property
-    def fpa(self):
+    def fpa(self) -> float:
         return self._fpa.value
 
     @property
-    def housing(self):
+    def housing(self) -> float:
         return self._housing.value
 
     @property
-    def is_camera_alive(self):
+    def is_camera_alive(self) -> bool:
         return self._flag_alive.is_set()
