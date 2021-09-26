@@ -14,6 +14,7 @@ from flask import Response, send_file, request
 
 import utils.constants as const
 # noinspection PyUnresolvedReferences
+from devices.Camera import T_HOUSING, T_FPA
 from server.app import app, server, logger, camera, filterwheel, counter_images
 from server.tools import find_files_in_savepath, make_images_for_web_display, \
     make_links_from_files
@@ -209,7 +210,7 @@ def images_handler_callback(button_state, to_save: str, length_sequence: int, nu
             time_current = datetime.now().strftime("%Y%m%d_h%Hm%Ms%S")
             path = (SAVE_PATH / f'cnt{counter_images.value}_{time_current}').with_suffix('.npy')
             np.save(file=path, arr=np.stack([images_dict[k] for k in keys]))
-            df = pd.DataFrame(columns=[const.T_FPA, const.T_HOUSING, 'Wavelength'],
+            df = pd.DataFrame(columns=[T_FPA, T_HOUSING, 'Wavelength'],
                               data=np.stack([(t_fpa_dict[k] / 100, t_housing_dict[k] / 100, k) for k in keys]))
             df['Wavelength'] = df['Wavelength'].astype('int')
             df.to_csv(path_or_buf=path.with_suffix('.csv'))

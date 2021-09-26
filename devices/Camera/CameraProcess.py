@@ -7,9 +7,8 @@ from time import sleep
 from numpy import copyto, frombuffer, uint16
 from usb.core import USBError
 
-import utils.constants as const
 from devices import DeviceAbstract
-from devices.Camera import CameraAbstract
+from devices.Camera import CameraAbstract, INIT_CAMERA_PARAMETERS, HEIGHT_IMAGE_TAU2, WIDTH_IMAGE_TAU2, T_HOUSING, T_FPA
 from devices.Camera.Tau.Tau2Grabber import Tau2Grabber
 from utils.logger import make_logging_handlers
 
@@ -19,10 +18,10 @@ WAIT_CAMERA_TEMPERATURE_SECONDS = 15
 class CameraCtrl(DeviceAbstract):
     _camera: (CameraAbstract, None) = None
 
-    def __init__(self, camera_parameters: dict = const.INIT_CAMERA_PARAMETERS):
+    def __init__(self, camera_parameters: dict = INIT_CAMERA_PARAMETERS, is_dummy: bool = False):
         super(CameraCtrl, self).__init__()
         self._flag_alive = mp.Event()
-        self._flag_alive.clear()
+        self._flag_alive.clear() if not is_dummy else self._flag_alive.set()
         self._lock_camera = th.RLock()
         self._lock_image = mp.Lock()
         self._event_new_image = mp.Event()
@@ -32,14 +31,16 @@ class CameraCtrl(DeviceAbstract):
         self._ffc_result: mp.Value = mp.Value(typecode_or_type=c_byte)
         self._ffc_result.value = 0
 
-        self._image_array = mp.RawArray(c_ushort, const.HEIGHT_IMAGE_TAU2 * const.WIDTH_IMAGE_TAU2)
+        self._image_array = mp.RawArray(c_ushort, HEIGHT_IMAGE_TAU2 * WIDTH_IMAGE_TAU2)
         self._image_array = frombuffer(self._image_array, dtype=uint16)
-        self._image_array = self._image_array.reshape(const.HEIGHT_IMAGE_TAU2, const.WIDTH_IMAGE_TAU2)
+        self._image_array = self._image_array.reshape(HEIGHT_IMAGE_TAU2, WIDTH_IMAGE_TAU2)
 
         self._fpa: mp.Value = mp.Value(typecode_or_type=c_ushort)  # uint16
         self._housing: mp.Value = mp.Value(typecode_or_type=c_ushort)  # uint16
 
         self._camera_params = camera_parameters
+
+        self._run()
 
     def _terminate_device_specifics(self):
         try:
@@ -77,8 +78,8 @@ class CameraCtrl(DeviceAbstract):
                     try:
                         self._camera = Tau2Grabber(logging_handlers=handlers)
                         self._camera.set_params_by_dict(self._camera_params)
-                        self._getter_temperature(const.T_FPA)
-                        self._getter_temperature(const.T_HOUSING)
+                        self._getter_temperature(T_FPA)
+                        self._getter_temperature(T_HOUSING)
                         self._flag_alive.set()
                         return
                     except (RuntimeError, BrokenPipeError, USBError):
@@ -97,16 +98,16 @@ class CameraCtrl(DeviceAbstract):
         if t is not None and t != 0.0 and t != -float('inf'):
             try:
                 t = round(t * 100)
-                if t_type == const.T_FPA:
+                if t_type == T_FPA:
                     self._fpa.value = round(t, -1)  # precision for the fpa is 0.1C
-                elif t_type == const.T_HOUSING:
+                elif t_type == T_HOUSING:
                     self._housing.value = t  # precision of the housing is 0.01C
             except (BrokenPipeError, RuntimeError):
                 pass
 
     def _th_getter_temperature(self) -> None:
         self._flag_alive.wait()
-        for t_type in cycle([const.T_FPA, const.T_HOUSING]):
+        for t_type in cycle([T_FPA, T_HOUSING]):
             self._getter_temperature(t_type=t_type)
             sleep(WAIT_CAMERA_TEMPERATURE_SECONDS)
 

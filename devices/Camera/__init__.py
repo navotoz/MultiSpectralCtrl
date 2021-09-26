@@ -6,6 +6,33 @@ import usb.core
 import usb.util
 from numpy import ndarray
 
+CAMERA_TAU = 'tau2'
+
+T_FPA = 'fpa'
+T_HOUSING = 'housing'
+
+HEIGHT_IMAGE_TAU2 = 256
+WIDTH_IMAGE_TAU2 = 336
+
+INIT_CAMERA_PARAMETERS = dict(
+    ffc_mode='auto',
+    isotherm=0x0000,
+    dde=0x0000,
+    tlinear=0x0000,
+    gain='high',
+    agc='manual',
+    sso=0,
+    contrast=0,
+    brightness=0,
+    brightness_bias=0,
+    fps=0x0004,  # 60Hz
+    lvds=0x0000,  # disabled
+    lvds_depth=0x0000,  # 14bit
+    xp=0x0002,  # 14bit w/ 1 discrete
+    cmos_depth=0x0000,  # 14bit pre AGC
+    # corr_mask=0  # off
+)
+
 
 class CameraAbstract:
     def __init__(self, logger: Logger):

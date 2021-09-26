@@ -6,10 +6,9 @@ import numpy as np
 import serial
 from serial.tools.list_ports import comports
 
-from devices.Camera import CameraAbstract
+from devices.Camera import CameraAbstract, WIDTH_IMAGE_TAU2, HEIGHT_IMAGE_TAU2, CAMERA_TAU, T_FPA, T_HOUSING
 from devices.Camera.Tau import tau2_config as ptc
 from devices.Camera.Tau.tau2_config import ARGUMENT_FPA, ARGUMENT_HOUSING
-from utils.constants import WIDTH_IMAGE_TAU2, HEIGHT_IMAGE_TAU2, CAMERA_TAU, T_FPA, T_HOUSING
 from utils.logger import make_logging_handlers, make_logger
 
 
