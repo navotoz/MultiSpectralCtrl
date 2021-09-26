@@ -95,7 +95,7 @@ class Tau(CameraAbstract):
         else:
             self._log.warning(f'Setting {value_name} to {value} failed.')
 
-    def _mode_setter(self, mode: str, current_value: int, setter_code: ptc.Code, code_dict: dict, name: str):
+    def _mode_setter(self, mode: str, current_value: int, setter_code: ptc.Code, code_dict: dict, name: str) -> bool:
         if isinstance(mode, str):
             if not mode.lower() in code_dict:
                 raise NotImplementedError(f"{name} mode {mode} is not implemented.")
@@ -104,6 +104,7 @@ class Tau(CameraAbstract):
             raise NotImplementedError(f"{name} mode {mode} is not implemented.")
         res = self._set_values_with_2bytes_send_recv(mode, current_value, setter_code)
         self._log_set_values(mode, res, f'{name} mode')
+        return res
 
     def set_params_by_dict(self, yaml_or_dict: (Path, dict)):
         pass
@@ -118,10 +119,12 @@ class Tau(CameraAbstract):
     def ffc(self, length: bytes = ptc.FFC_LONG) -> bool:
         prev_mode = self._ffc_mode
         if 'ext' in prev_mode:
-            self.ffc_mode = ptc.FFC_MODE_CODE_DICT['manual']
+            while 'man' not in self._ffc_mode:
+                self.ffc_mode = ptc.FFC_MODE_CODE_DICT['manual']
         res = self.send_command(command=ptc.DO_FFC, argument=length)
         if 'ext' in prev_mode:
-            self.ffc_mode = ptc.FFC_MODE_CODE_DICT['external']
+            while 'ext' not in self._ffc_mode:
+                self.ffc_mode = ptc.FFC_MODE_CODE_DICT['external']
         if res and struct.unpack('H', res)[0] == 0xffff:
             t_fpa = self.get_inner_temperature(T_FPA)
             t_housing = self.get_inner_temperature(T_HOUSING)
@@ -151,8 +154,8 @@ class Tau(CameraAbstract):
 
     @ffc_mode.setter
     def ffc_mode(self, mode: str):
-        self._mode_setter(mode, self.ffc_mode, ptc.SET_FFC_MODE, ptc.FFC_MODE_CODE_DICT, 'FCC')
-        self._ffc_mode = mode
+        if self._mode_setter(mode, self.ffc_mode, ptc.SET_FFC_MODE, ptc.FFC_MODE_CODE_DICT, 'FCC'):
+            self._ffc_mode = mode
 
     @property
     def gain(self):
