@@ -43,7 +43,7 @@ class Tau(CameraAbstract):
         else:
             self._log.critical("Couldn't connect to camera!")
             raise RuntimeError
-        self._ffc_mode = self.ffc_mode
+        self._ffc_mode = None
 
     def __del__(self):
         if self.conn:
@@ -117,13 +117,13 @@ class Tau(CameraAbstract):
         pass
 
     def ffc(self, length: bytes = ptc.FFC_LONG) -> bool:
-        prev_mode = self._ffc_mode
+        prev_mode = self.ffc_mode
         if 'ext' in prev_mode:
-            while 'man' not in self._ffc_mode:
+            while 'man' not in self.ffc_mode:
                 self.ffc_mode = ptc.FFC_MODE_CODE_DICT['manual']
         res = self.send_command(command=ptc.DO_FFC, argument=length)
         if 'ext' in prev_mode:
-            while 'ext' not in self._ffc_mode:
+            while 'ext' not in self.ffc_mode:
                 self.ffc_mode = ptc.FFC_MODE_CODE_DICT['external']
         if res and struct.unpack('H', res)[0] == 0xffff:
             t_fpa = self.get_inner_temperature(T_FPA)
@@ -140,6 +140,21 @@ class Tau(CameraAbstract):
             return False
 
     @property
+    def ffc_mode(self) -> str:
+        if self._ffc_mode is None:
+            res = 0xffff
+            while res == 0xffff:
+                res = self._get_values_without_arguments(ptc.GET_FFC_MODE)
+            self._ffc_mode = {v: k for k, v in ptc.FFC_MODE_CODE_DICT.items()}[res]
+        return self._ffc_mode
+
+    @ffc_mode.setter
+    def ffc_mode(self, mode: str):
+        if self._mode_setter(mode=mode, current_value=ptc.FFC_MODE_CODE_DICT[self.ffc_mode],
+                             setter_code=ptc.SET_FFC_MODE, code_dict=ptc.FFC_MODE_CODE_DICT, name='FCC'):
+            self._ffc_mode = mode
+
+    @property
     def correction_mask(self):
         """ the default value is 2111 (decimal). 0 (decimal) is all off """
         return self._get_values_without_arguments(ptc.GET_CORRECTION_MASK)
@@ -147,15 +162,6 @@ class Tau(CameraAbstract):
     @correction_mask.setter
     def correction_mask(self, mode: str):
         self._mode_setter(mode, self.correction_mask, ptc.SET_CORRECTION_MASK, ptc.FFC_MODE_CODE_DICT, 'FCC')
-
-    @property
-    def ffc_mode(self):
-        return self._get_values_without_arguments(ptc.GET_FFC_MODE)
-
-    @ffc_mode.setter
-    def ffc_mode(self, mode: str):
-        if self._mode_setter(mode, self.ffc_mode, ptc.SET_FFC_MODE, ptc.FFC_MODE_CODE_DICT, 'FCC'):
-            self._ffc_mode = mode
 
     @property
     def gain(self):
