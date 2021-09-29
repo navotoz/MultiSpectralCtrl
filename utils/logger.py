@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from utils.tools import SyncFlag
+from utils.misc import SyncFlag
 
 
 class DashLogger(logging.StreamHandler):

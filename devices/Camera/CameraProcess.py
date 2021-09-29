@@ -12,37 +12,47 @@ from devices.Camera import CameraAbstract, INIT_CAMERA_PARAMETERS, HEIGHT_IMAGE_
 from devices.Camera.Tau.Tau2Grabber import Tau2Grabber
 from utils.logger import make_logging_handlers
 
-TEMPERATURE_ACQUIRE_FREQUENCY_SECONDS = 5
+TEMPERATURE_ACQUIRE_FREQUENCY_SECONDS = 30
 
 
 class CameraCtrl(DeviceAbstract):
     _camera: (CameraAbstract, None) = None
 
     def __init__(self, camera_parameters: dict = INIT_CAMERA_PARAMETERS, is_dummy: bool = False):
-        super(CameraCtrl, self).__init__()
-        self._flag_alive = mp.Event()
-        self._flag_alive.clear() if not is_dummy else self._flag_alive.set()
+        super().__init__()
+        self._event_alive = mp.Event()
+        self._event_alive.clear() if not is_dummy else self._event_alive.set()
         self._lock_camera = th.RLock()
         self._lock_image = mp.Lock()
         self._event_new_image = mp.Event()
         self._event_new_image.clear()
         self._semaphore_ffc_do = mp.Semaphore(value=0)
         self._semaphore_ffc_finished = mp.Semaphore(value=0)
+
+        # process-safe ffc results
         self._ffc_result: mp.Value = mp.Value(typecode_or_type=c_byte)
         self._ffc_result.value = 0
 
+        # process-safe image
         self._image_array = mp.RawArray(c_ushort, HEIGHT_IMAGE_TAU2 * WIDTH_IMAGE_TAU2)
         self._image_array = frombuffer(self._image_array, dtype=uint16)
         self._image_array = self._image_array.reshape(HEIGHT_IMAGE_TAU2, WIDTH_IMAGE_TAU2)
 
+        # process-safe temperature
         self._fpa: mp.Value = mp.Value(typecode_or_type=c_ushort)  # uint16
         self._housing: mp.Value = mp.Value(typecode_or_type=c_ushort)  # uint16
 
         self._camera_params = camera_parameters
 
-        self._run()
-
-    def _terminate_device_specifics(self):
+    def _terminate_device_specifics(self) -> None:
+        try:
+            self._flag_run.set(False)
+        except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError):
+            pass
+        try:
+            self._event_alive.set()
+        except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError):
+            pass
         try:
             self._semaphore_ffc_do.release()
         except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError):
@@ -57,40 +67,32 @@ class CameraCtrl(DeviceAbstract):
             pass
 
     def _run(self):
-        self._workers_dict['connect_cam'] = th.Thread(target=self._th_connect, name='connect_cam', daemon=True)
-        self._workers_dict['connect_cam'].start()
+        self._workers_dict['conn'] = th.Thread(target=self._th_connect, name='th_cam_conn', daemon=False)
+        self._workers_dict['get_t'] = th.Thread(target=self._th_getter_temperature, name='th_cam_get_t', daemon=True)
+        self._workers_dict['getter'] = th.Thread(target=self._th_getter_image, name='th_cam_getter', daemon=False)
+        self._workers_dict['ffc'] = th.Thread(target=self._th_ffc_func, name='th_cam_ffc', daemon=True)
 
-        self._workers_dict['getter_t'] = th.Thread(target=self._th_getter_temperature, name='getter_t', daemon=True)
-        self._workers_dict['getter_t'].start()
-
-        self._workers_dict['getter_image'] = th.Thread(target=self._th_getter_image, name='getter_image', daemon=False)
-        self._workers_dict['getter_image'].start()
-
-        self._workers_dict['th_ffc'] = th.Thread(target=self._th_ffc_func, name='th_ffc', daemon=True)
-        self._workers_dict['th_ffc'].start()
-
-    def _th_connect(self):
+    def _th_connect(self) -> None:
         handlers = make_logging_handlers(None, True)
-        while True:
-            sleep(1)
-            with self._lock_camera:
-                if not isinstance(self._camera, CameraAbstract):
-                    try:
-                        self._camera = Tau2Grabber(logging_handlers=handlers)
-                        self._camera.set_params_by_dict(self._camera_params)
-                        self._getter_temperature(T_FPA)
-                        self._getter_temperature(T_HOUSING)
-                        self._flag_alive.set()
-                        return
-                    except (RuntimeError, BrokenPipeError, USBError):
-                        pass
-
-    def _th_ffc_func(self):
-        self._flag_alive.wait()
         while self._flag_run:
+            with self._lock_camera:
+                try:
+                    self._camera = Tau2Grabber(logging_handlers=handlers)
+                    self._camera.set_params_by_dict(self._camera_params)
+                    self._getter_temperature(T_FPA)
+                    self._getter_temperature(T_HOUSING)
+                    self._event_alive.set()
+                    return
+                except (RuntimeError, BrokenPipeError, USBError):
+                    pass
+            sleep(1)
+
+    def _th_ffc_func(self) -> None:
+        self._event_alive.wait()
+        while self._flag_run:
+            self._semaphore_ffc_do.acquire()
             self._ffc_result.value = self._camera.ffc()
             self._semaphore_ffc_finished.release()
-            self._semaphore_ffc_do.acquire()
 
     def _getter_temperature(self, t_type: str):  # this function exists for the th_connect function, otherwise redundant
         with self._lock_camera:
@@ -106,14 +108,13 @@ class CameraCtrl(DeviceAbstract):
                 pass
 
     def _th_getter_temperature(self) -> None:
-        self._flag_alive.wait()
+        self._event_alive.wait()
         for t_type in cycle([T_FPA, T_HOUSING]):
             self._getter_temperature(t_type=t_type)
             sleep(TEMPERATURE_ACQUIRE_FREQUENCY_SECONDS)
 
-    def _th_getter_image(self):
-        while not self._flag_alive.wait(timeout=3) and self._flag_alive:
-            pass  # this thread is not a Daemon, so live-wait of some sort is performed.
+    def _th_getter_image(self) -> None:
+        self._event_alive.wait()
         while self._flag_run:
             with self._lock_camera:
                 image = self._camera.grab() if self._camera is not None else None
@@ -144,4 +145,4 @@ class CameraCtrl(DeviceAbstract):
 
     @property
     def is_camera_alive(self) -> bool:
-        return self._flag_alive.is_set()
+        return self._event_alive.is_set()
