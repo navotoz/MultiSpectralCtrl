@@ -25,15 +25,17 @@ def th_saver(t_bb: int, filter_name: int, images: list, fpa: list, housing: list
 
 
 def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
-            list_filters: (list, tuple), n_images: int, bb_max: int, bb_min: int):
+            n_filters: int, n_images: int, bb_max: int, bb_min: int):
     list_t_bb = np.linspace(start=bb_min, stop=bb_max, num=bb_stops, dtype=int)
-    list_filters = list(list_filters) if not isinstance(list_filters, list) else list_filters
-    list_filters = [int(p) for p in list_filters]
+    if not 0<n_filters<=6:
+        raise ValueError(f"n_filters must be 0<n_filters<=6. Received {n_filters}.")
+    list_filters = [0, 8000, 9000, 10000, 11000, 12000]   # whats set on the filterwheel
+    list_filters = list_filters[:n_filters]
     print(f'BlackBody temperatures: {list_t_bb}C')
     print(f'Filters: {list_filters}nm')
     thread = partial(th.Thread, target=th_saver, daemon=False)
     list_threads = []
-    blackbody = BlackBody()
+    # blackbody = BlackBody()
     filterwheel = FilterWheel()
     camera = CameraCtrl(camera_parameters=params)
     path_to_save = Path(path_to_save)
@@ -44,7 +46,7 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
     length_total = len(list_t_bb) * len(list_filters)
     idx = 1
     for t_bb in list_t_bb:
-        blackbody.temperature = t_bb
+        # blackbody.temperature = t_bb
         for position, filter_name in enumerate(sorted(list_filters), start=1):
             filterwheel.position = position
             dict_images.setdefault(t_bb, {}).setdefault(filter_name, [])
@@ -82,8 +84,10 @@ parser = argparse.ArgumentParser(description='Measures the distortion in the Tau
                                              'For each BlackBody temperature, images are taken and saved.'
                                              'The images are saved in an np.ndarray '
                                              'with dimensions [n_images, filters, h, w].')
-parser.add_argument('--filters', help="The central wavelength of the Band-Pass filter on the camera",
-                    default=[0, 8000, 9000, 10000, 11000, 12000], type=list)
+parser.add_argument('--n_filters', help="How many filters on the filterwheel to use."
+                                        "The central wavelength of the "
+                                        "Band-Pass filter is [0, 8000, 9000, 10000, 11000, 12000]nm",
+                    type=int, default=6)
 parser.add_argument('--path', help="The folder to save the results. Create folder if invalid.",
                     default='measurements')
 parser.add_argument('--n_images', help="The number of images to grab.", default=3000, type=int)
@@ -116,5 +120,5 @@ params_default = dict(
 )
 
 collect(params=params_default, path_to_save=Path(args.path), bb_stops=args.blackbody_stops,
-        list_filters=args.filters, n_images=args.n_images, bb_max=args.blackbody_max,
+        n_filters=args.n_filters, n_images=args.n_images, bb_max=args.blackbody_max,
         bb_min=args.blackbody_min)
