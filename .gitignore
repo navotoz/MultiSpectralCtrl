@@ -14,3 +14,4 @@
 /analysis/undistort/rawData/
 *.pyc
 /.vscode/
+.ipynb_checkpoints/

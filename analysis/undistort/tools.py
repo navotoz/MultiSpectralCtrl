@@ -296,8 +296,6 @@ def showFacetImages(img_arr, label_class, labels, facet_col=0, facet_col_wrap=4,
     for i in range(len(labels)):
         fig.layout.annotations[i]['text'] = f'{label_class} = {labels[i]}'
     fig.show()
-    return fig
-
 
 def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None):
     """Plot the grey-level of a pixel across all frames, assuming the first
@@ -321,6 +319,7 @@ def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None):
     plt.ylabel("Grey-Level")
     plt.grid()
     plt.legend()
+    return grey_levels
 
 
 if __name__ == "__main__":
