@@ -14,6 +14,7 @@ from utils.logger import make_logging_handlers, make_logger
 
 class Tau(CameraAbstract):
     conn = None
+    _ffc_mode = None
 
     def __init__(self, port=None, vid: int = 0x10C4, pid: int = 0xEA60,
                  baud=921600, logging_handlers: tuple = make_logging_handlers(None, True),
@@ -43,7 +44,6 @@ class Tau(CameraAbstract):
         else:
             self._log.critical("Couldn't connect to camera!")
             raise RuntimeError
-        self._ffc_mode = None
 
     def __del__(self):
         if self.conn:
