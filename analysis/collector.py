@@ -19,7 +19,7 @@ from devices.FilterWheel.FilterWheel import FilterWheel
 def th_saver(t_bb: int, filter_name: int, images: list, fpa: list, housing: list, path: Path):
     path = path / f'blackbody_temperature_{t_bb:d}_wavelength_{filter_name:d}'
     df = pd.DataFrame(columns=['FPA temperature', 'Housing temperature', 'Filter wavelength nm'],
-                      data=[(f,h,wl) for f,h,wl in zip(fpa, housing, repeat(filter_name))])
+                      data=[(f, h, wl) for f, h, wl in zip(fpa, housing, repeat(filter_name))])
     df.to_csv(path_or_buf=str(path.with_suffix('.csv')))
     np.save(str(path.with_suffix('.npy')), np.stack(images))
 
@@ -27,15 +27,15 @@ def th_saver(t_bb: int, filter_name: int, images: list, fpa: list, housing: list
 def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
             n_filters: int, n_images: int, bb_max: int, bb_min: int):
     list_t_bb = np.linspace(start=bb_min, stop=bb_max, num=bb_stops, dtype=int)
-    if not 0<n_filters<=6:
+    if not 0 < n_filters <= 6:
         raise ValueError(f"n_filters must be 0<n_filters<=6. Received {n_filters}.")
-    list_filters = [0, 8000, 9000, 10000, 11000, 12000]   # whats set on the filterwheel
+    list_filters = [0, 8000, 9000, 10000, 11000, 12000]  # whats set on the filterwheel
     list_filters = list_filters[:n_filters]
     print(f'BlackBody temperatures: {list_t_bb}C')
     print(f'Filters: {list_filters}nm')
     thread = partial(th.Thread, target=th_saver, daemon=False)
     list_threads = []
-    # blackbody = BlackBody()
+    blackbody = BlackBody()
     filterwheel = FilterWheel()
     camera = CameraCtrl(camera_parameters=params)
     path_to_save = Path(path_to_save)
@@ -46,7 +46,7 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
     length_total = len(list_t_bb) * len(list_filters)
     idx = 1
     for t_bb in list_t_bb:
-        # blackbody.temperature = t_bb
+        blackbody.temperature = t_bb
         for position, filter_name in enumerate(sorted(list_filters), start=1):
             filterwheel.position = position
             dict_images.setdefault(t_bb, {}).setdefault(filter_name, [])
