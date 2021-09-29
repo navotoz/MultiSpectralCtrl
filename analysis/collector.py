@@ -59,10 +59,10 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
             with tqdm(total=n_images) as progressbar:
                 progressbar.set_description_str(f'Filter {filter_name}nm')
                 progressbar.set_postfix_str(f'\tBlackBody {t_bb}C\t\tMeasurements: {idx}|{length_total}')
-                while len(dict_images[t_bb]) != n_images:
-                    dict_images[t_bb].append(camera.image)
+                while len(dict_images[t_bb][filter_name]) != n_images:
+                    dict_images[t_bb][filter_name].append(camera.image)
                     list_fpa.append(camera.fpa)
-                    list_housing.append(camera.fpa)
+                    list_housing.append(camera.housing)
                     progressbar.update()
             list_threads.append(thread(kwargs=dict(t_bb=t_bb, filter_name=filter_name, path=path_to_save,
                                                    images=dict_images[t_bb].pop(filter_name), fpa=list_fpa.copy(),
