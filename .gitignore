@@ -6,12 +6,12 @@
 /dataSources.local.xml
 # Editor-based HTTP Client requests
 /httpRequests/
-/.idea/
+*/.idea/
 /venv/
 *.xml
 /download/
 /log/
-/analysis/undistort/rawData/
 *.pyc
-/.vscode/
+*/.vscode/
 .ipynb_checkpoints/
+*/rawData
