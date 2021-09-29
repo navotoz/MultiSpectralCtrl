@@ -152,7 +152,10 @@ class Tau(CameraAbstract):
     def ffc_mode(self, mode: str):
         if self._mode_setter(mode=mode, current_value=ptc.FFC_MODE_CODE_DICT[self.ffc_mode],
                              setter_code=ptc.SET_FFC_MODE, code_dict=ptc.FFC_MODE_CODE_DICT, name='FCC'):
-            self._ffc_mode = mode
+            if isinstance(mode, int):
+                self._ffc_mode = {v: k for k, v in ptc.FFC_MODE_CODE_DICT.items()}[mode]
+            else:
+                self._ffc_mode = mode
 
     @property
     def correction_mask(self):
