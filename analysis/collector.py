@@ -71,7 +71,7 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
             list_threads[-1].start()
             idx += 1
     try:
-        camera.__del__()
+        camera.terminate()
     except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError, AssertionError):
         pass
     try:
