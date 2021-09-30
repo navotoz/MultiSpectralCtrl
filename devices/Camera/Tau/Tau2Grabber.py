@@ -79,6 +79,7 @@ class Tau2Grabber(Tau):
             params = yaml.safe_load(yaml_or_dict)
         else:
             params = yaml_or_dict.copy()
+        self.ffc_mode = params.get('ffc_mode', 'external')
         self.ace = params.get('ace', 0)
         self.tlinear = params.get('tlinear', 0)
         self.isotherm = params.get('isotherm', 0)
@@ -91,7 +92,6 @@ class Tau2Grabber(Tau):
         self.brightness_bias = params.get('brightness_bias', 0)
         self.cmos_depth = params.get('cmos_depth', 0)  # 14bit pre AGC
         self.fps = params.get('fps', ptc.FPS_CODE_DICT[60])  # 60Hz NTSC
-        self.ffc_mode = params.get('ffc_mode', 'external')
         ####### self.correction_mask = params.get('corr_mask', 0)  # Always OFF!!!
 
     def _th_reader_func(self) -> None:

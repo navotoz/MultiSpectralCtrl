@@ -1,6 +1,7 @@
 import logging
 import struct
 from pathlib import Path
+from time import sleep
 
 import numpy as np
 import serial
@@ -121,10 +122,13 @@ class Tau(CameraAbstract):
         if 'ext' in prev_mode:
             while 'man' not in self.ffc_mode:
                 self.ffc_mode = ptc.FFC_MODE_CODE_DICT['manual']
+            sleep(0.2)
         res = self.send_command(command=ptc.DO_FFC, argument=length)
+        sleep(0.2)
         if 'ext' in prev_mode:
             while 'ext' not in self.ffc_mode:
                 self.ffc_mode = ptc.FFC_MODE_CODE_DICT['external']
+            sleep(0.2)
         if res and struct.unpack('H', res)[0] == 0xffff:
             t_fpa = self.get_inner_temperature(T_FPA)
             t_housing = self.get_inner_temperature(T_HOUSING)
