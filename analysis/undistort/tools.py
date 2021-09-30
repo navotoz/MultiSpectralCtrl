@@ -48,7 +48,7 @@ def calc_rx_power(temperature: float, central_wl: int = 10500, bw: int = 3000, *
     # spectral radiance (Plank's function)
     def bb(lamda, T):
         return 2 * H * C ** 2 / np.power(lamda, 5) * \
-            1 / (np.exp(H * C / (KB * T * lamda)) - 1)
+               1 / (np.exp(H * C / (KB * T * lamda)) - 1)
 
     # Celsuis to Kelvin:
     def c2k(T):
@@ -183,7 +183,7 @@ def get_meas(path_to_files: Path, filter: SpectralFilter = SpectralFilter.PAN, *
     list_power_panchormatic = [calc_rx_power(
         temperature=t_bb) for t_bb in dict_measurements.keys()]
     return np.stack([dict_measurements[t_bb][filter.value] for t_bb in dict_measurements.keys()]), \
-        list_power_panchormatic, list(dict_measurements.keys())
+           list_power_panchormatic, list(dict_measurements.keys())
 
 
 def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: int = 4):
@@ -297,24 +297,32 @@ def showFacetImages(img_arr, label_class, labels, facet_col=0, facet_col_wrap=4,
         fig.layout.annotations[i]['text'] = f'{label_class} = {labels[i]}'
     fig.show()
 
-def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None):
+
+def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None, wavelength: int = 0):
     """Plot the grey-level of a pixel across all frames, assuming the first
     dimension of the measurement is the number of frames, and the rest are the
     spatial dimensions
         
         Parameters:
             meas: the array containing the raw data of the measurements
-            idx: an nx2 array, where each row stands for a single pixel indices to be plotted
+            pix_idx: an nx2 array, where each row stands for a single pixel indices to be plotted.
+                    If None - random choice.
+            wavelength: The central wavelength of the BPF. If no filter - 0.
     
     """
-    if pix_idx is None: # choose 4 random pixels at random
+    if pix_idx is None:  # choose 4 random pixels at random
         pix_idx = np.random.randint(
             low=[0, 0], high=meas.shape[1:], size=(4, 2))
     grey_levels = meas[:, pix_idx[:, 0], pix_idx[:, 1]]
+    x = np.arange(len(grey_levels)) / 3600
     plt.figure(figsize=(16, 9))
-    plt.plot(np.arange(len(grey_levels)) / 3600,
-             grey_levels, "-o", label=pix_idx)
-    plt.title("Random Pixel Grey-Levels During Continuous Acquisition")
+    plt.plot(x, grey_levels, label=pix_idx, linewidth=1)
+    stmt = "Random Pixel Grey-Levels During Continuous Acquisition\n"
+    if wavelength != 0:
+        stmt += f'Filter {wavelength}nm'
+    else:
+        stmt += f'Pan-Chromatic'
+    plt.title(stmt)
     plt.xlabel("time[min]")
     plt.ylabel("Grey-Level")
     plt.grid()
@@ -322,8 +330,30 @@ def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None):
     return grey_levels
 
 
-if __name__ == "__main__":
-    path_to_files = Path("analysis/undistort/rawData/massive_acq/pan")
-    meas_long = np.load(Path(path_to_files, "blackbody_temperature_35.npy"))
-    meas_pan = meas_long[0]
-    plotGlAcrossFrames(meas_pan)
+def plotGlAcrossFramesPlotly(meas: np.ndarray, pix_idx: np.ndarray = None, wavelength: int = 0):
+    """Plot the grey-level of a pixel across all frames, assuming the first
+    dimension of the measurement is the number of frames, and the rest are the
+    spatial dimensions
+
+        Parameters:
+            meas: the array containing the raw data of the measurements
+            pix_idx: an nx2 array, where each row stands for a single pixel indices to be plotted.
+                    If None - random choice.
+            wavelength: The central wavelength of the BPF. If no filter - 0.
+
+    """
+    if pix_idx is None:  # choose 4 random pixels at random
+        pix_idx = np.random.randint(low=[0, 0], high=meas.shape[1:], size=(4, 2))
+    grey_levels = meas[:, pix_idx[:, 0], pix_idx[:, 1]]
+    x = np.arange(len(grey_levels)) / 3600
+    df = pd.DataFrame(columns=['time'], data=x.tolist())
+    for idx in range(grey_levels.shape[-1]):
+        df[str(pix_idx[idx])] = grey_levels[:, idx].tolist()
+    stmt = "Random Pixel Grey-Levels During Continuous Acquisition\t\t"
+    if wavelength != 0:
+        stmt += f'Filter {wavelength}nm'
+    else:
+        stmt += f'Pan-Chromatic'
+    fig = px.line(df, x='time', y=df.columns, title=stmt,
+                  labels={"time": "Time [minutes]", "value": "Grey Levels", "variable": "Pixels [h,w]"}, )
+    fig.show()
