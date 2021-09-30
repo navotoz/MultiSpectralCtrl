@@ -6,6 +6,7 @@ from time import time_ns, sleep
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 
 def mean(values: (list, tuple, np.ndarray, float)) -> float:
@@ -96,3 +97,22 @@ def save_average_from_images(path: (Path, str), suffix: str = 'npy'):
             avg = np.mean(np.stack([np.load(str(x)) for x in dir_path.glob(f'*.{suffix}')]), 0).astype('uint16')
             np.save(str(dir_path / 'average.npy'), avg)
             normalize_image(avg).save(str(dir_path / 'average.jpeg'), format='jpeg')
+
+
+def save_ndarray_as_jpeg(arr: np.ndarray, dest_folder: Path, ):
+    """
+
+    :param arr:
+        np.ndarray with dimensions [n_image, h, w]
+    :param dest_folder:
+        pathlib.Path of a directory to save the images.
+    """
+    if not dest_folder.is_dir():
+        raise NotADirectoryError(f'Given destination {str(dest_folder)} is not a folder.')
+
+    arr_ = arr.astype('float32') - arr.min(-1, keepdims=True).min(-2, keepdims=True).astype('float32')
+    arr_ /= arr_.max(-1, keepdims=True).max(-2, keepdims=True)
+    arr_ *= 255
+    arr_ = arr_.astype('uint8')
+    for idx, image in tqdm(enumerate(arr_), total=arr_.shape[0]):
+        Image.fromarray(image).save(dest_folder / f'{idx}.jpeg')
