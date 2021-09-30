@@ -1,3 +1,5 @@
+from multiprocessing.dummy import Pool
+
 import plotly.express as px
 import os
 import warnings
@@ -144,26 +146,19 @@ def calc_rx_power(temperature: float, central_wl: int = 10500, bw: int = 3000, *
     return (plank_filt * d_lambda).sum()
 
 
-def load_npy_into_dict(path_to_files: Path):
-    dict_measurements = {}
-
-    paths = list(path_to_files.glob('*.npy'))
-    for path in tqdm(paths, desc="Load measurements"):
-        temperature_blackbody = int(path.stem.split('_')[-1])
-        try:
-            meas = np.load(str(path))
-        except ValueError:
-            print(f'Cannot load file {str(path)}')
-            continue
-        list_filters = sorted(pd.read_csv(
-            path.with_suffix('.csv')).to_numpy()[:, 1])
-        for idx, filter_name in enumerate(list_filters):
-            dict_measurements.setdefault(
-                temperature_blackbody, {}).setdefault(filter_name, meas[idx])
-    return {k: dict_measurements[k] for k in sorted(dict_measurements.keys())}
+def load_npy(path: Path):
+    try:
+        data = path.stem.split('_')
+        temperature_blackbody = int(data[-3])
+        filter_name = int(data[-1])
+        meas = np.load(str(path))
+    except ValueError:
+        print(f'Cannot load file {str(path)}')
+        return None
+    return meas, filter_name, temperature_blackbody
 
 
-def get_meas(path_to_files: Path, filter: SpectralFilter = SpectralFilter.PAN, *, ommit_ops: Iterable = None):
+def get_meas(path_to_files: Path, filter_obj: SpectralFilter = SpectralFilter.PAN, *, ommit_ops: Iterable = None):
     """Get the measurements acquired by the FLIR LWIR camera using a specific
         filter 
 
@@ -172,7 +167,23 @@ def get_meas(path_to_files: Path, filter: SpectralFilter = SpectralFilter.PAN, *
             the prefiltering. e.g: [20, 40, 50] 
     """
 
-    dict_measurements = load_npy_into_dict(path_to_files)
+    paths = list(path_to_files.glob('*.npy'))
+
+    # multithreading loading
+    with Pool(8) as pool:
+        list_meas = list(tqdm(pool.imap(func=load_npy, iterable=paths), total=len(paths), desc="Load measurements"))
+    list_meas = list(filter(lambda x: x is not None, list_meas))
+
+    # list into dict
+    dict_measurements = {}
+    while list_meas:
+        meas, filter_name, t_bb = list_meas.pop()
+        dict_measurements.setdefault(t_bb, {}).setdefault(filter_name, meas)
+
+    # sort nested dict keys
+    for t_bb, v in dict_measurements.items():
+        dict_measurements[t_bb] = {k: v[k] for k in sorted(v.keys())}
+    dict_measurements = {k: dict_measurements[k] for k in sorted(dict_measurements.keys())}
 
     # remove invalid operating-points:
     if ommit_ops is None:
@@ -180,10 +191,14 @@ def get_meas(path_to_files: Path, filter: SpectralFilter = SpectralFilter.PAN, *
     for op in ommit_ops:
         dict_measurements.pop(op)
 
-    list_power_panchormatic = [calc_rx_power(
-        temperature=t_bb) for t_bb in dict_measurements.keys()]
-    return np.stack([dict_measurements[t_bb][filter.value] for t_bb in dict_measurements.keys()]), \
-           list_power_panchormatic, list(dict_measurements.keys())
+    list_power_panchromatic = [calc_rx_power(temperature=t_bb) for t_bb in dict_measurements.keys()]
+    list_blackbody_temperatures = list(dict_measurements.keys())
+
+    # leave only the required measurements, according to given filter
+    for t_bb, v in dict_measurements.items():
+        dict_measurements[t_bb] = v[filter_obj.value]
+    return np.stack([dict_measurements[t_bb] for t_bb in sorted(dict_measurements.keys())]), \
+           list_power_panchromatic, list_blackbody_temperatures
 
 
 def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: int = 4):
