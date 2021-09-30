@@ -38,6 +38,7 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
     blackbody = BlackBody()
     filterwheel = FilterWheel()
     camera = CameraCtrl(camera_parameters=params)
+    camera.start()
     path_to_save = Path(path_to_save)
     if not path_to_save.is_dir():
         path_to_save.mkdir(parents=True)
@@ -51,8 +52,8 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
             filterwheel.position = position
             dict_images.setdefault(t_bb, {}).setdefault(filter_name, [])
             list_fpa, list_housing = [], []
-            """ do FFC before every filter. This is done under the assumption that the FPA temperature vary 
-            significantly during each BB stop. 
+            """ do FFC before every filter. This is done under the assumption that the FPA temperature vary
+            significantly during each BB stop.
             e.g, 3000 image at 60Hz with 6 filters -> 50sec * 6 filters -> ~6 minutes"""
             while not camera.ffc():
                 continue
