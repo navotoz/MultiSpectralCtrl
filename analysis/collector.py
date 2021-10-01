@@ -6,6 +6,8 @@ from itertools import repeat
 from pathlib import Path
 from time import sleep
 
+from utils.misc import save_ndarray
+
 sys.path.append(str(Path().cwd().parent))
 
 import numpy as np
@@ -22,7 +24,9 @@ def th_saver(t_bb: int, filter_name: int, images: list, fpa: list, housing: list
     df = pd.DataFrame(columns=['FPA temperature', 'Housing temperature', 'Filter wavelength nm'],
                       data=[(f, h, wl) for f, h, wl in zip(fpa, housing, repeat(filter_name))])
     df.to_csv(path_or_buf=str(path.with_suffix('.csv')))
-    np.save(str(path.with_suffix('.npy')), np.stack(images))
+    images = np.stack(images)
+    np.save(str(path.with_suffix('.npy')), images)
+    save_ndarray(images, dest_folder=path.parent, type_of_files='gif', name=path.stem)
 
 
 def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
