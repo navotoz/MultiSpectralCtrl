@@ -6,9 +6,9 @@ from itertools import repeat
 from pathlib import Path
 from time import sleep
 
-from utils.misc import save_ndarray
-
 sys.path.append(str(Path().cwd().parent))
+
+from utils.misc import save_ndarray
 
 import numpy as np
 import pandas as pd
