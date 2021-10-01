@@ -142,6 +142,24 @@ def calc_rx_power(temperature: float, central_wl: int = 10500, bw: int = 3000, *
     return (plank_filt * d_lambda).sum()
 
 
+def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_filt_sz: int = 2):
+    """pre-filtering of raw measurements taken using Flir's TAU-2 LWIR camera.
+        The filtering pipe is based on insights gained and explored in the
+        'meas_inspection' notebook available under the same parent directory.
+
+        Parameters: cam_meas: a 4D hypercube that contains the data collected by
+        a set of measurements. first_valid_idx: the first valid measurement in
+        all operating points. All measurements taken before that will be
+        discarded. med_filt_sz: the size of the median filter used to clean dead
+        pixels from the measurements.
+    """
+    from scipy.ndimage import median_filter
+    cam_meas_valid = cam_meas[:, first_valid_meas:, ...]
+    cam_meas_filt = median_filter(
+        cam_meas_valid, size=(1, 1, med_filt_sz, med_filt_sz))
+    return cam_meas_filt
+
+
 def load_npy(path: Path):
     try:
         path, temperature_blackbody, filter_name = get_temperature_and_wavelength(path)
@@ -161,11 +179,11 @@ def get_temperature_and_wavelength(path: (Path, str)):
 
 def get_meas(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *, omit_ops: Iterable = None):
     """Get the measurements acquired by the FLIR LWIR camera using a specific
-        filter 
+        filter
 
         Parameters: path_to_files: the path to the source files containing the
             data. ommit_op: a list of the operating-points to ommit as part of
-            the prefiltering. e.g: [20, 40, 50] 
+            the prefiltering. e.g: [20, 40, 50]
     """
 
     paths = [get_temperature_and_wavelength(p) for p in Path(path_to_files).glob('*.npy')]
@@ -183,33 +201,14 @@ def get_meas(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *,
         meas, t_bb, filter_name = list_meas.pop()
         dict_measurements.setdefault(t_bb, meas)
 
-    # sort nested dict keys
-    dict_measurements = {k: dict_measurements[k] for k in sorted(dict_measurements.keys())}
-
     # remove invalid operating-points:
     if omit_ops is None:
         omit_ops = []
     for op in omit_ops:
         dict_measurements.pop(op)
 
-    list_power_panchromatic = [calc_rx_power(temperature=t_bb) for t_bb in dict_measurements.keys()]
-    list_blackbody_temperatures = list(dict_measurements.keys())
-    return np.stack(list(dict_measurements.values())), list_power_panchromatic, list_blackbody_temperatures
-
-
-def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_filt_sz: int = 2):
-    """pre-filtering of raw measurements taken using Flir's TAU-2 LWIR camera.
-        The filtering pipe is based on insights gained and explored in the
-        'meas_inspection' notebook available under the same parent directory.
-
-        Parameters: cam_meas: a 4D hypercube that contains the data collected by
-        a set of measurements. first_valid_idx: the first valid measurement in
-        all operating points. All measurements taken before that will be
-        discarded. med_filt_sz: the size of the median filter used to clean dead
-        pixels from the measurements.
-    """
-    from scipy.ndimage import median_filter
-    cam_meas_valid = cam_meas[:, first_valid_meas:, ...]
-    cam_meas_filt = median_filter(
-        cam_meas_valid, size=(1, 1, med_filt_sz, med_filt_sz))
-    return cam_meas_filt
+    # the dict keys are sorted each time, to save memory space
+    list_blackbody_temperatures = list(sorted(dict_measurements.keys()))
+    list_power_panchromatic = [calc_rx_power(temperature=t_bb) for t_bb in list_blackbody_temperatures]
+    meas = np.stack([dict_measurements[k] for k in list_blackbody_temperatures])
+    return meas, list_power_panchromatic, list_blackbody_temperatures
