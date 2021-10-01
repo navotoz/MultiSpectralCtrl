@@ -1,17 +1,16 @@
 import os
 import warnings
 from enum import Enum
-from itertools import product
+from multiprocessing.dummy import Pool
 from pathlib import Path
 from typing import Iterable
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
 
-class SpectralFilter(Enum):
+class FilterWavelength(Enum):
     """ An enumeration for Flir's LWIR filters, where the keys and values are
     the cenrtal frequencies of the filters in nano-meter."""
     PAN = 0
@@ -68,7 +67,7 @@ def calc_rx_power(temperature: float, central_wl: int = 10500, bw: int = 3000, *
     else:
         # load filter from xlsx:
         bp_filter = pd.read_excel(Path(os.path.dirname(__file__),
-                                       "../FiltersResponse.xlsx"), sheet_name=str(central_wl),
+                                       "FiltersResponse.xlsx"), sheet_name=str(central_wl),
                                   engine='openpyxl', index_col=0, usecols=[0, 1]).dropna().squeeze()
 
         # remove entries Bw far away from the central frequency:
@@ -143,128 +142,59 @@ def calc_rx_power(temperature: float, central_wl: int = 10500, bw: int = 3000, *
     return (plank_filt * d_lambda).sum()
 
 
-def load_npy_into_dict(path_to_files: Path):
-    dict_measurements = {}
-
-    paths = list(path_to_files.glob('*.npy'))
-    for path in tqdm(paths, desc="Load measurements"):
-        temperature_blackbody = int(path.stem.split('_')[-1])
-        try:
-            meas = np.load(str(path))
-        except ValueError:
-            print(f'Cannot load file {str(path)}')
-            continue
-        list_filters = sorted(pd.read_csv(
-            path.with_suffix('.csv')).to_numpy()[:, 1])
-        for idx, filter_name in enumerate(list_filters):
-            dict_measurements.setdefault(
-                temperature_blackbody, {}).setdefault(filter_name, meas[idx])
-    return {k: dict_measurements[k] for k in sorted(dict_measurements.keys())}
+def load_npy(path: Path):
+    try:
+        path, temperature_blackbody, filter_name = get_temperature_and_wavelength(path)
+        meas = np.load(str(path))
+    except ValueError:
+        print(f'Cannot load file {str(path)}')
+        return None
+    return meas, temperature_blackbody, filter_name
 
 
-def get_meas(path_to_files: Path, filter: SpectralFilter = SpectralFilter.PAN, *, ommit_ops: Iterable = None):
-    """Get the measurements acquired by the FLIR LWIR camera using a specific filter 
+def get_temperature_and_wavelength(path: (Path, str)):
+    data = Path(path).stem.split('_')
+    temperature_blackbody = int(data[-3])
+    filter_name = int(data[-1])
+    return path, temperature_blackbody, filter_name
 
-        Parameters:
-            path_to_files: the path to the source files containing the data.
-            ommit_op: a list of the operating-points to
-                ommit as part of the prefiltering. e.g: [20, 40, 50] 
+
+def get_meas(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *, omit_ops: Iterable = None):
+    """Get the measurements acquired by the FLIR LWIR camera using a specific
+        filter 
+
+        Parameters: path_to_files: the path to the source files containing the
+            data. ommit_op: a list of the operating-points to ommit as part of
+            the prefiltering. e.g: [20, 40, 50] 
     """
 
-    dict_measurements = load_npy_into_dict(path_to_files)
+    paths = [get_temperature_and_wavelength(p) for p in Path(path_to_files).glob('*.npy')]
+    paths = filter(lambda x: x[-1] == filter_wavelength.value, paths)  # only load meas with the given filter
+    paths = [p[0] for p in paths]
+
+    # multithreading loading
+    with Pool(8) as pool:
+        list_meas = list(tqdm(pool.imap(func=load_npy, iterable=paths), total=len(paths), desc="Load measurements"))
+    list_meas = list(filter(lambda x: x is not None, list_meas))
+
+    # list into dict
+    dict_measurements = {}
+    while list_meas:
+        meas, t_bb, filter_name = list_meas.pop()
+        dict_measurements.setdefault(t_bb, meas)
+
+    # sort nested dict keys
+    dict_measurements = {k: dict_measurements[k] for k in sorted(dict_measurements.keys())}
 
     # remove invalid operating-points:
-    if ommit_ops is None:
-        ommit_ops = []
-    for op in ommit_ops:
+    if omit_ops is None:
+        omit_ops = []
+    for op in omit_ops:
         dict_measurements.pop(op)
 
-    list_power_panchormatic = [calc_rx_power(temperature=t_bb) for t_bb in dict_measurements.keys()]
-    return np.stack([dict_measurements[t_bb][filter.value] for t_bb in dict_measurements.keys()]), \
-           list_power_panchormatic, list(dict_measurements.keys())
-
-
-def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: int = 4):
-    meas_ = meas.mean(1)
-
-    pixels = list(product(range(meas.shape[-2]), range(meas.shape[-1])))
-    np.random.shuffle(pixels)
-
-    fig, axs = plt.subplots(n_pixels_to_plot // 2, 2, dpi=300,
-                            tight_layout=True, sharex=True, sharey=True)
-    for ax, (h_, w_) in zip(axs.ravel(), pixels):
-        ax.scatter(list_blackbody_temperatures, meas_[:, h_, w_])
-        ax.set_title(f'({h_},{w_})')
-        ax.grid()
-    plt.suptitle(f'GL as a function of BlackBody temperature')
-    fig.supxlabel('BlackBody Temperature [C]')
-    fig.supylabel('Gray Levels [14Bit]')
-    plt.locator_params(axis="x", nbins=len(list_blackbody_temperatures))
-    plt.locator_params(axis="y", nbins=8)
-    plt.show()
-    plt.close()
-
-
-def plot_regression_p_vs_p(list_power_panchormatic, est_power_panchromatic, n_pixels_to_plot: int = 4):
-    pixels = list(product(range(
-        est_power_panchromatic.shape[-2]), range(est_power_panchromatic.shape[-1])))
-    np.random.shuffle(pixels)
-    if len(est_power_panchromatic.shape) == 4:
-        est = est_power_panchromatic.mean(1)
-    else:
-        est = est_power_panchromatic
-
-    fig, axs = plt.subplots(n_pixels_to_plot // 2, 2, dpi=300,
-                            tight_layout=True, sharex=True, sharey=True)
-    for ax, (h_, w_) in zip(axs.ravel(), pixels):
-        ax.plot(list_power_panchormatic,
-                est[:, h_, w_], c='r', label='Estimation', linewidth=1)
-        ax.scatter(list_power_panchormatic,
-                   est[:, h_, w_], c='r', marker='X', s=5)
-        ax.plot(list_power_panchormatic, list_power_panchormatic,
-                c='b', label='Model', linewidth=0.7)
-        ax.set_title(f'Pixel ({h_},{w_})')
-        ax.legend(prop={'size': 5})
-        ax.grid()
-        plt.setp(ax.xaxis.get_majorticklabels(), rotation=60)
-
-    plt.suptitle(f'Estimated Power as a function of the model Power')
-    fig.supxlabel('Power [W??]')
-    fig.supylabel('Power [W??]')
-    plt.locator_params(axis="x", nbins=len(list_power_panchormatic) + 1)
-    plt.locator_params(axis="y", nbins=8)
-    plt.show()
-    plt.close()
-
-
-def plot_regression_diff(list_power_panchormatic, est_power_panchromatic, n_pixels_to_plot: int = 4):
-    pixels = list(product(range(
-        est_power_panchromatic.shape[-2]), range(est_power_panchromatic.shape[-1])))
-    np.random.shuffle(pixels)
-    if len(est_power_panchromatic.shape) == 4:
-        est = est_power_panchromatic.mean(1)
-    else:
-        est = est_power_panchromatic
-
-    diff = est.copy()
-    for idx, t in enumerate(list_power_panchormatic):
-        diff[idx] -= t
-
-    fig, axs = plt.subplots(n_pixels_to_plot // 2, 2, dpi=300,
-                            tight_layout=True, sharex=True, sharey=True)
-    for ax, (h_, w_) in zip(axs.ravel(), pixels):
-        ax.scatter(list_power_panchormatic,
-                   diff[:, h_, w_], c='r', marker='X', s=5)
-        ax.set_title(f'Pixel ({h_},{w_})')
-        ax.grid()
-        plt.setp(ax.xaxis.get_majorticklabels(), rotation=60)
-    plt.suptitle(f'Difference between real and estiamted Power')
-    fig.supxlabel('Power [W??]')
-    fig.supylabel('Difference [W??]')
-    plt.locator_params(axis="x", nbins=len(list_power_panchormatic) + 1)
-    plt.locator_params(axis="y", nbins=8)
-    plt.show()
-    plt.close()
+    list_power_panchromatic = [calc_rx_power(temperature=t_bb) for t_bb in dict_measurements.keys()]
+    list_blackbody_temperatures = list(dict_measurements.keys())
+    return np.stack(list(dict_measurements.values())), list_power_panchromatic, list_blackbody_temperatures
 
 
 def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_filt_sz: int = 2):
@@ -272,22 +202,14 @@ def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_fil
         The filtering pipe is based on insights gained and explored in the
         'meas_inspection' notebook available under the same parent directory.
 
-        Parameters: 
-        cam_meas: a 4D hypercube that contains the data collected by
-            a set of measurements. 
-        first_valid_idx: the first valid measurement
-            in all operating points. All measurements taken before that will be
-            discarded. 
-        med_filt_sz: the size
-            of the median filter used to clean dead pixels from the
-            measurements.
+        Parameters: cam_meas: a 4D hypercube that contains the data collected by
+        a set of measurements. first_valid_idx: the first valid measurement in
+        all operating points. All measurements taken before that will be
+        discarded. med_filt_sz: the size of the median filter used to clean dead
+        pixels from the measurements.
     """
     from scipy.ndimage import median_filter
     cam_meas_valid = cam_meas[:, first_valid_meas:, ...]
     cam_meas_filt = median_filter(
         cam_meas_valid, size=(1, 1, med_filt_sz, med_filt_sz))
     return cam_meas_filt
-
-
-if __name__ == "__main__":
-    get_meas(Path("analysis/undistort/rawData/01_09_21"))
