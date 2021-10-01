@@ -4,6 +4,7 @@ import threading as th
 from functools import partial
 from itertools import repeat
 from pathlib import Path
+from time import sleep
 
 sys.path.append(str(Path().cwd().parent))
 
@@ -57,6 +58,7 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
             e.g, 3000 image at 60Hz with 6 filters -> 50sec * 6 filters -> ~6 minutes"""
             while not camera.ffc():
                 continue
+            sleep(1)  # clears the buffer after the FFC
             with tqdm(total=n_images) as progressbar:
                 progressbar.set_description_str(f'Filter {filter_name}nm')
                 progressbar.set_postfix_str(f'\tBlackBody {t_bb}C\t\tMeasurements: {idx}|{length_total}')
