@@ -99,14 +99,19 @@ def save_average_from_images(path: (Path, str), suffix: str = 'npy'):
             normalize_image(avg).save(str(dir_path / 'average.jpeg'), format='jpeg')
 
 
-def save_ndarray_as_jpeg(arr: np.ndarray, dest_folder: Path, ):
+def save_ndarray(arr: np.ndarray, dest_folder: (Path, str), type_of_files: str, name: str = ''):
     """
 
     :param arr:
         np.ndarray with dimensions [n_image, h, w]
     :param dest_folder:
         pathlib.Path of a directory to save the images.
+    :param type_of_files:
+        str can be either 'jpeg', 'jpg' or 'gif'.
+    :param name:
+        str the name of the file. If empty saves as 'res.gif'.
     """
+    dest_folder = Path(dest_folder)
     if not dest_folder.is_dir():
         raise NotADirectoryError(f'Given destination {str(dest_folder)} is not a folder.')
 
@@ -114,25 +119,14 @@ def save_ndarray_as_jpeg(arr: np.ndarray, dest_folder: Path, ):
     arr_ /= arr_.max(-1, keepdims=True).max(-2, keepdims=True)
     arr_ *= 255
     arr_ = arr_.astype('uint8')
-    for idx, image in tqdm(enumerate(arr_), total=arr_.shape[0]):
-        Image.fromarray(image).save(dest_folder / f'{idx}.jpeg')
 
-
-def save_ndarray_as_gif(arr: np.ndarray, dest_folder: Path, ):
-    """
-
-    :param arr:
-        np.ndarray with dimensions [n_image, h, w]
-    :param dest_folder:
-        pathlib.Path of a directory to save the images.
-    """
-    if not dest_folder.is_dir():
-        raise NotADirectoryError(f'Given destination {str(dest_folder)} is not a folder.')
-
-    arr_ = arr.astype('float32') - arr.min(-1, keepdims=True).min(-2, keepdims=True).astype('float32')
-    arr_ /= arr_.max(-1, keepdims=True).max(-2, keepdims=True)
-    arr_ *= 255
-    arr_ = arr_.astype('uint8')
-    arr_ = [Image.fromarray(p.squeeze()) for p in np.array_split(arr_, arr_.shape[0])]
-    image = arr_.pop()
-    image.save(fp=dest_folder / 'res.gif', save_all=True, append_images=arr_, duration=10, loop=0)
+    if type_of_files.lower() in ['jpeg', 'jpg']:
+        for idx, image in tqdm(enumerate(arr_), total=arr_.shape[0]):
+            Image.fromarray(image).save(dest_folder / f'{idx}.jpeg')
+    elif type_of_files.lower() in 'gif':
+        arr_ = [Image.fromarray(p.squeeze()) for p in np.array_split(arr_, arr_.shape[0])]
+        image = arr_.pop()
+        name = Path(name).with_suffix('.gif') if name else 'res.gif'
+        image.save(fp=dest_folder / name, save_all=True, append_images=arr_, duration=10, loop=0)
+    else:
+        raise TypeError(f"Expected type of file to be either 'jpeg', 'jpg' or 'gif', got {type_of_files}.")
