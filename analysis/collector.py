@@ -19,18 +19,19 @@ from devices.Camera.CameraProcess import CameraCtrl
 from devices.FilterWheel.FilterWheel import FilterWheel
 
 
-def th_saver(t_bb: int, filter_name: int, images: list, fpa: list, housing: list, path: Path):
+def th_saver(t_bb: int, filter_name: int, images: list, fpa: list, housing: list, path: Path,
+             save_gif: bool = False):
     path = path / f'blackbody_temperature_{t_bb:d}_wavelength_{filter_name:d}'
     df = pd.DataFrame(columns=['FPA temperature', 'Housing temperature', 'Filter wavelength nm'],
                       data=[(f, h, wl) for f, h, wl in zip(fpa, housing, repeat(filter_name))])
     df.to_csv(path_or_buf=str(path.with_suffix('.csv')))
-    images = np.stack(images)
-    np.save(str(path.with_suffix('.npy')), images)
-    save_ndarray(images, dest_folder=path.parent, type_of_files='gif', name=path.stem)
+    np.save(str(path.with_suffix('.npy')), np.stack(images))
+    if save_gif:
+        save_ndarray(np.stack(images), dest_folder=path.parent, type_of_files='gif', name=path.stem)
 
 
-def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
-            n_filters: int, n_images: int, bb_max: int, bb_min: int):
+def collect(*, params: dict, path_to_save: (str, Path), bb_stops: int,
+            n_filters: int, n_images: int, bb_max: int, bb_min: int, save_gif: bool):
     list_t_bb = np.linspace(start=bb_min, stop=bb_max, num=bb_stops, dtype=int)
     if not 0 < n_filters <= 6:
         raise ValueError(f"n_filters must be 0<n_filters<=6. Received {n_filters}.")
@@ -73,7 +74,7 @@ def collect(params: dict, path_to_save: (str, Path), bb_stops: int,
                     progressbar.update()
             list_threads.append(thread(kwargs=dict(t_bb=t_bb, filter_name=filter_name, path=path_to_save,
                                                    images=dict_images[t_bb].pop(filter_name), fpa=list_fpa.copy(),
-                                                   housing=list_housing.copy())))
+                                                   housing=list_housing.copy(), save_gif=save_gif)))
             list_threads[-1].start()
             idx += 1
     try:
@@ -105,6 +106,7 @@ parser.add_argument('--blackbody_max', help=f"Maximal temperature of BlackBody i
                     type=int, default=70)
 parser.add_argument('--blackbody_min', help=f"Minimal temperature of BlackBody in C.",
                     type=int, default=20)
+parser.add_argument('--gif', help=f"Saves a gif of each measurement.", action='store_true')
 args = parser.parse_args()
 
 params_default = dict(
@@ -128,4 +130,4 @@ params_default = dict(
 
 collect(params=params_default, path_to_save=Path(args.path), bb_stops=args.blackbody_stops,
         n_filters=args.n_filters, n_images=args.n_images, bb_max=args.blackbody_max,
-        bb_min=args.blackbody_min)
+        bb_min=args.blackbody_min, save_gif=args.gif)
