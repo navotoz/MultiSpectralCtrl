@@ -2,6 +2,7 @@ import logging
 import struct
 import threading as th
 from pathlib import Path
+from time import sleep
 
 import numpy as np
 import yaml
@@ -79,7 +80,8 @@ class Tau2Grabber(Tau):
             params = yaml.safe_load(yaml_or_dict)
         else:
             params = yaml_or_dict.copy()
-        self.ffc_mode = params.get('ffc_mode', 'external')
+        self.ffc_mode = params.get('ffc_mode', 'manual')
+        self.ffc_period = params.get('ffc_period', 0)  # default is no ffc
         self.ace = params.get('ace', 0)
         self.tlinear = params.get('tlinear', 0)
         self.isotherm = params.get('isotherm', 0)
