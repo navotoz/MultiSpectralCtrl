@@ -110,7 +110,8 @@ parser.add_argument('--gif', help=f"Saves a gif of each measurement.", action='s
 args = parser.parse_args()
 
 params_default = dict(
-    ffc_mode='external',  # FFC only when instructed
+    ffc_mode='auto',  # FFC every ffc_period
+    ffc_period=60 * 30,  # FFC every 1 minutes - 30Hz * 60 seconds (although the camera actually runs 60Hz)
     isotherm=0x0000,
     dde=0x0000,
     tlinear=0x0000,  # T-Linear disabled. The scene will not represent temperatures, because of the filters.
