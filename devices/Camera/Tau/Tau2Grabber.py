@@ -2,7 +2,6 @@ import logging
 import struct
 import threading as th
 from pathlib import Path
-from time import sleep
 
 import numpy as np
 import yaml

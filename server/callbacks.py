@@ -12,8 +12,8 @@ import pandas as pd
 from dash.dependencies import Input, Output, State
 from flask import Response, send_file, request
 
-# noinspection PyUnresolvedReferences
 from devices.Camera import T_HOUSING, T_FPA
+# noinspection PyUnresolvedReferences
 from server.app import app, server, logger, camera, filterwheel, counter_images  # filterwheel is used in the callbacks
 from server.tools import find_files_in_savepath, make_images_for_web_display, \
     make_links_from_files
