@@ -134,8 +134,3 @@ def save_ndarray(arr: np.ndarray, dest_folder: (Path, str), type_of_files: str, 
         image.save(fp=dest_folder / name, save_all=True, append_images=arr_, duration=10, loop=0)
     else:
         raise TypeError(f"Expected type of file to be either 'jpeg', 'jpg' or 'gif', got {type_of_files}.")
-
-
-
-save_ndarray(np.load('/home/navot/PycharmProjects/MultiSpectralCtrl/analysis/rawData/jitter/blackbody_temperature_35_wavelength_0.npy'),
-             dest_folder='/home/navot/Downloads', type_of_files='gif', name='fitter')
