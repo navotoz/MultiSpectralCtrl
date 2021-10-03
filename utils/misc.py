@@ -115,18 +115,27 @@ def save_ndarray(arr: np.ndarray, dest_folder: (Path, str), type_of_files: str, 
     if not dest_folder.is_dir():
         raise NotADirectoryError(f'Given destination {str(dest_folder)} is not a folder.')
 
-    arr_ = arr.astype('float32') - arr.min(-1, keepdims=True).min(-2, keepdims=True).astype('float32')
-    arr_ /= arr_.max(-1, keepdims=True).max(-2, keepdims=True)
-    arr_ *= 255
-    arr_ = arr_.astype('uint8')
-
     if type_of_files.lower() in ['jpeg', 'jpg']:
+        arr_ = arr.astype('float32') - arr.min(-1, keepdims=True).min(-2, keepdims=True).astype('float32')
+        arr_ /= arr_.max(-1, keepdims=True).max(-2, keepdims=True)
+        arr_ *= 255
+        arr_ = arr_.astype('uint8')
         for idx, image in tqdm(enumerate(arr_), total=arr_.shape[0]):
             Image.fromarray(image).save(dest_folder / f'{idx}.jpeg')
     elif type_of_files.lower() in 'gif':
-        arr_ = [Image.fromarray(p.squeeze()) for p in np.array_split(arr_, arr_.shape[0])]
+        arr_ = [p - p.min() for p in np.array_split(arr, arr.shape[0])]
+        for idx in tqdm(range(len(arr_)), desc='Prepare frames for gif'):
+            arr_[idx] = arr_[idx] / arr_[idx].max()
+            arr_[idx] *= 255
+            arr_[idx] = arr_[idx].astype('uint8').squeeze()
+            arr_[idx] = Image.fromarray(arr_[idx])
         image = arr_.pop()
         name = Path(name).with_suffix('.gif') if name else 'res.gif'
         image.save(fp=dest_folder / name, save_all=True, append_images=arr_, duration=10, loop=0)
     else:
         raise TypeError(f"Expected type of file to be either 'jpeg', 'jpg' or 'gif', got {type_of_files}.")
+
+
+
+save_ndarray(np.load('/home/navot/PycharmProjects/MultiSpectralCtrl/analysis/rawData/jitter/blackbody_temperature_35_wavelength_0.npy'),
+             dest_folder='/home/navot/Downloads', type_of_files='gif', name='fitter')
