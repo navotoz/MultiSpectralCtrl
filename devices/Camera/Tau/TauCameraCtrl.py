@@ -80,7 +80,10 @@ class Tau(CameraAbstract):
 
     def _get_values_without_arguments(self, command: ptc.Code) -> int:
         res = self.send_command(command=command, argument=None)
-        return struct.unpack('>h', res)[0] if res else 0xffff
+        if res is None:
+            return 0xffff
+        fmt = 'h' if len(res) == 2 else 'hh'
+        return struct.unpack('>' + fmt, res)[0]
 
     def _set_values_with_2bytes_send_recv(self, value: int, current_value: int, command: ptc.Code) -> bool:
         if value == current_value:
@@ -160,6 +163,22 @@ class Tau(CameraAbstract):
                 self._ffc_mode = {v: k for k, v in ptc.FFC_MODE_CODE_DICT.items()}[mode]
             else:
                 self._ffc_mode = mode
+
+    @property
+    def ffc_period(self) -> int:
+        return self._get_values_without_arguments(ptc.GET_FFC_PERIOD)
+
+    @ffc_period.setter
+    def ffc_period(self, period: int):
+        if not 0 <= period <= 30000:
+            raise ValueError(f'Given FFC period {period} not in 0 <= period <= 30000.')
+        res = False
+        for _ in range(5):
+            res = self._set_values_with_2bytes_send_recv(value=period, current_value=-1, command=ptc.SET_FFC_PERIOD)
+            if res is True:
+                break
+            sleep(1)
+        self._log_set_values(value=period, result=res, value_name='FFC Period')
 
     @property
     def correction_mask(self):
