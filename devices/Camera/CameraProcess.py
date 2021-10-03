@@ -66,7 +66,7 @@ class CameraCtrl(DeviceAbstract):
         except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError):
             pass
 
-    def _run(self):
+    def _run(self) -> None:
         self._workers_dict['conn'] = th.Thread(target=self._th_connect, name='th_cam_conn', daemon=False)
         self._workers_dict['get_t'] = th.Thread(target=self._th_getter_temperature, name='th_cam_get_t', daemon=True)
         self._workers_dict['getter'] = th.Thread(target=self._th_getter_image, name='th_cam_getter', daemon=False)
