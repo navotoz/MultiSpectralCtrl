@@ -48,6 +48,8 @@ parser.add_argument('--ffc_period', help=f"The number of frames between automati
                                          f"The camera calculates the frames as 30Hz. "
                                          f"e.g, setting to 1800 frames means a 60 seconds between FFC.", type=int,
                     default=60 * 30)  # FFC every 1 minutes - 30Hz * 60 seconds (although the camera actually runs 60Hz)
+parser.add_argument('--ffc_auto', help=f"Enforces the camera to perform FFC periodically "
+                                       f"according to ffc_period and temperature drift.", action='store_true')
 parser.add_argument('--tlinear', help=f"The grey levels are linear to the temperature as: 0.04 * t - 273.15.",
                     action='store_true')
 parser.add_argument('--blackbody_stops', help=f"How many BlackBody temperatures will be "
@@ -61,7 +63,7 @@ parser.add_argument('--gif', help=f"Saves a gif of each measurement.", action='s
 args = parser.parse_args()
 
 params = dict(
-    ffc_mode='auto',  # FFC every ffc_period
+    ffc_mode='auto' if args.ffc_auto else 'manual',
     ffc_period=int(args.ffc_period),
     isotherm=0x0000,
     dde=0x0000,
