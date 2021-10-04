@@ -100,7 +100,8 @@ def showFacetImages(img_arr, label_class, labels, facet_col=0, facet_col_wrap=4,
     fig.show()
 
 
-def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None, wavelength: int = 0):
+def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None, wavelength: int = 0, title: str = '',
+                       save_path: str = None, to_average: bool = False):
     """Plot the grey-level of a pixel across all frames, assuming the first
     dimension of the measurement is the number of frames, and the rest are the
     spatial dimensions
@@ -110,25 +111,32 @@ def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None, wavelength:
             pix_idx: an nx2 array, where each row stands for a single pixel indices to be plotted.
                     If None - random choice.
             wavelength: The central wavelength of the BPF. If no filter - 0.
-
+            title: if given, the title of the plot. Else, the default title is set.
+            save_path: if given, saves the figure before displaying.
+            to_average: if true, averages the value of the pixels.
     """
     if pix_idx is None:  # choose 4 random pixels at random
         pix_idx = np.random.randint(
             low=[0, 0], high=meas.shape[1:], size=(4, 2))
     grey_levels = meas[:, pix_idx[:, 0], pix_idx[:, 1]]
+    if to_average:
+        grey_levels = grey_levels.mean(-1)
     x = np.arange(len(grey_levels)) / 3600
     plt.figure(figsize=(16, 9))
-    plt.plot(x, grey_levels, label=pix_idx, linewidth=1)
-    stmt = "Random Pixel Grey-Levels During Continuous Acquisition\n"
-    if wavelength != 0:
-        stmt += f'Filter {wavelength}nm'
-    else:
-        stmt += f'Pan-Chromatic'
-    plt.title(stmt)
-    plt.xlabel("time[min]")
+    plt.plot(x, grey_levels, label=pix_idx if not to_average else None, linewidth=1)
+    if not title:
+        stmt = "Random Pixel Grey-Levels During Continuous Acquisition\n"
+        if wavelength != 0:
+            stmt += f'Filter {wavelength}nm'
+        else:
+            stmt += f'Pan-Chromatic'
+    plt.title(title)
+    plt.xlabel("Time [Minutes]")
     plt.ylabel("Grey-Level")
     plt.grid()
-    plt.legend()
+    plt.legend() if not to_average else None
+    if save_path:
+        plt.savefig(save_path, transparent=False)
     return grey_levels
 
 
