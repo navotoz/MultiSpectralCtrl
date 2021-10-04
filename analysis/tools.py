@@ -175,7 +175,10 @@ def load_npy(path: Path):
 
 
 def get_temperature_and_wavelength(path: (Path, str)):
-    data = Path(path).stem.split('_')
+    data = Path(path).stem
+    if '-' in data:
+        data = data.split('-')[0]
+    data = data.split('_')
     temperature_blackbody = int(data[-3])
     filter_name = int(data[-1])
     return path, temperature_blackbody, filter_name
