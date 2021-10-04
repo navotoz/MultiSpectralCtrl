@@ -131,6 +131,7 @@ def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None, wavelength:
         else:
             stmt += f'Pan-Chromatic'
     plt.title(title)
+    plt.xticks(np.linspace(0, x[-1], len(set(x.astype('int'))), dtype=int))
     plt.xlabel("Time [Minutes]")
     plt.ylabel("Grey-Level")
     plt.grid()
@@ -138,32 +139,3 @@ def plotGlAcrossFrames(meas: np.ndarray, pix_idx: np.ndarray = None, wavelength:
     if save_path:
         plt.savefig(save_path, transparent=False)
     return grey_levels
-
-
-def plotGlAcrossFramesPlotly(meas: np.ndarray, pix_idx: np.ndarray = None, wavelength: int = 0):
-    """Plot the grey-level of a pixel across all frames, assuming the first
-    dimension of the measurement is the number of frames, and the rest are the
-    spatial dimensions
-
-        Parameters:
-            meas: the array containing the raw data of the measurements
-            pix_idx: an nx2 array, where each row stands for a single pixel indices to be plotted.
-                    If None - random choice.
-            wavelength: The central wavelength of the BPF. If no filter - 0.
-
-    """
-    if pix_idx is None:  # choose 4 random pixels at random
-        pix_idx = np.random.randint(low=[0, 0], high=meas.shape[1:], size=(4, 2))
-    grey_levels = meas[:, pix_idx[:, 0], pix_idx[:, 1]]
-    x = np.arange(len(grey_levels)) / 3600
-    df = pd.DataFrame(columns=['time'], data=x.tolist())
-    for idx in range(grey_levels.shape[-1]):
-        df[str(pix_idx[idx])] = grey_levels[:, idx].tolist()
-    stmt = "Random Pixel Grey-Levels During Continuous Acquisition\t\t"
-    if wavelength != 0:
-        stmt += f'Filter {wavelength}nm'
-    else:
-        stmt += f'Pan-Chromatic'
-    fig = px.line(df, x='time', y=df.columns, title=stmt,
-                  labels={"time": "Time [minutes]", "value": "Grey Levels", "variable": "Pixels [h,w]"}, )
-    fig.show()
