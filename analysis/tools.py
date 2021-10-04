@@ -1,3 +1,6 @@
+import matplotlib.pyplot as plt
+import base64
+import io
 import os
 import warnings
 from enum import Enum
@@ -7,6 +10,7 @@ from typing import Iterable
 
 import numpy as np
 import pandas as pd
+from PIL import Image
 from tqdm import tqdm
 
 
@@ -212,3 +216,35 @@ def get_meas(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *,
     list_power_panchromatic = [calc_rx_power(temperature=t_bb) for t_bb in list_blackbody_temperatures]
     meas = np.stack([dict_measurements[k] for k in list_blackbody_temperatures])
     return meas, list_power_panchromatic, list_blackbody_temperatures
+
+
+def save_ndarray_as_base64(image: np.ndarray):
+    fmt_header = 'data:image/jpeg;base64,'
+    image -= image.min()
+    image = image - image.max()
+    image *= 255
+    image = image.astype('uint8')
+    with io.BytesIO() as buff:
+        Image.fromarray(image).save(buff, format='jpeg')
+        return fmt_header + base64.b64encode(buff.getvalue()).decode()
+
+
+def make_jupyter_markdown_figure(image: np.ndarray, path: (str, Path), title: str = ''):
+    """
+    Saves a .txt file with the full image encoded as base64.
+    The caption should be copied as a whole to a markdown cell in jupyter notebook.
+
+    :param image:
+        np.ndarray of dimensions (h, w).
+    :param path:
+        str of the full path to save the image.
+    :param title:
+        str. If empty, no caption is inserted to the figure.
+    """
+    image_base64 = save_ndarray_as_base64(image)
+    header = f'<figure><img  style="width:100%" src="{image_base64}">\n'
+    if title:
+        header += f'<figcaption align = "center">{title}</figcaption>\n'
+    header += '</figure>'
+    with open(path, 'w') as fp:
+        fp.write(header)
