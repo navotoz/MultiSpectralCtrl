@@ -55,7 +55,19 @@ parser.add_argument('--blackbody_max', help=f"Maximal temperature of BlackBody i
                     type=int, default=70)
 parser.add_argument('--blackbody_min', help=f"Minimal temperature of BlackBody in C.",
                     type=int, default=20)
+parser.add_argument('--no_save', help=f"Runs the camera, but without saving the outputs.", action='store_true')
 args = parser.parse_args()
+
+if args.no_save:
+    camera = CameraCtrl()
+    camera.start()
+    sleep(0.2)
+    camera.image
+    with tqdm(desc='Running camera without saving') as progressbar:
+        while True:
+            image = camera.image
+            progressbar.update()
+
 
 params = dict(
     lens_number=2,
