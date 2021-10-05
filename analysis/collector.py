@@ -1,9 +1,9 @@
 import argparse
 import sys
 import threading as th
+from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
-from itertools import repeat
 from pathlib import Path
 from time import sleep
 
@@ -11,26 +11,23 @@ import yaml
 
 sys.path.append(str(Path().cwd().parent))
 
-from utils.misc import save_ndarray
-
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
+
+import pickle
 
 from devices.BlackBodyCtrl import BlackBody
 from devices.Camera.CameraProcess import CameraCtrl
 from devices.FilterWheel.FilterWheel import FilterWheel
 
 
-def th_saver(t_bb_: int, filter_name_: int, images: list, fpa: list, housing: list, path: Path,
-             save_gif: bool = False):
-    path = path / f'blackbody_temperature_{t_bb_:d}_wavelength_{filter_name_:d}'
-    df = pd.DataFrame(columns=['FPA temperature', 'Housing temperature', 'Filter wavelength nm'],
-                      data=[(f, h, wl) for f, h, wl in zip(fpa, housing, repeat(filter_name_))])
-    df.to_csv(path_or_buf=str(path.with_suffix('.csv')))
-    np.save(str(path.with_suffix('.npy')), np.stack(images))
-    if save_gif:
-        save_ndarray(np.stack(images), dest_folder=path.parent, type_of_files='gif', name=path.stem)
+def th_saver(t_bb_: int, images: dict, fpa: dict, housing: dict, path: Path, params_cam: dict):
+    dict_results = {'camera_params': params_cam.copy(), 'measurements': {}}
+    for name_of_filter in list(images.keys()):
+        dict_results['measurements'].setdefault(name_of_filter, {}).setdefault('fpa', fpa.pop(name_of_filter))
+        dict_results['measurements'].setdefault(name_of_filter, {}).setdefault('housing', housing.pop(name_of_filter))
+        dict_results['measurements'].setdefault(name_of_filter, {}).setdefault('frames', images.pop(name_of_filter))
+    pickle.dump(dict_results, open(path / f'blackbody_temperature_{t_bb_:d}.pkl', 'wb'))
 
 
 parser = argparse.ArgumentParser(description='Measures the distortion in the Tau2 with the Filters.'
@@ -59,7 +56,6 @@ parser.add_argument('--blackbody_max', help=f"Maximal temperature of BlackBody i
                     type=int, default=70)
 parser.add_argument('--blackbody_min', help=f"Minimal temperature of BlackBody in C.",
                     type=int, default=20)
-parser.add_argument('--gif', help=f"Saves a gif of each measurement.", action='store_true')
 args = parser.parse_args()
 
 params = dict(
@@ -107,7 +103,8 @@ if __name__ == "__main__":
     if not path_to_save.is_dir():
         path_to_save.mkdir(parents=True)
 
-    dict_images = {}
+    dict_fpa, dict_housing, dict_images = {}, {}, {}
+
     length_total = len(list_t_bb) * len(list_filters)
     idx = 1
     for t_bb in list_t_bb:
@@ -115,7 +112,6 @@ if __name__ == "__main__":
         for position, filter_name in enumerate(sorted(list_filters), start=1):
             filterwheel.position = position
             dict_images.setdefault(t_bb, {}).setdefault(filter_name, [])
-            list_fpa, list_housing = [], []
             """ do FFC before every filter. This is done under the assumption that the FPA temperature vary
             significantly during each BB stop.
             e.g, 3000 image at 60Hz with 6 filters -> 50sec * 6 filters -> ~6 minutes"""
@@ -127,14 +123,14 @@ if __name__ == "__main__":
                 progressbar.set_postfix_str(f'\tBlackBody {t_bb}C\t\tMeasurements: {idx}|{length_total}')
                 while len(dict_images[t_bb][filter_name]) != n_images:
                     dict_images[t_bb][filter_name].append(camera.image)
-                    list_fpa.append(camera.fpa)
-                    list_housing.append(camera.housing)
+                    dict_fpa.setdefault(t_bb, {}).setdefault(filter_name, []).append(camera.fpa)
+                    dict_housing.setdefault(t_bb, {}).setdefault(filter_name, []).append(camera.housing)
                     progressbar.update()
-            list_threads.append(thread(kwargs=dict(t_bb_=t_bb, filter_name_=filter_name, path=path_to_save,
-                                                   images=dict_images[t_bb].pop(filter_name), fpa=list_fpa.copy(),
-                                                   housing=list_housing.copy(), save_gif=args.gif)))
-            list_threads[-1].start()
-            idx += 1
+                idx += 1
+        list_threads.append(thread(kwargs=dict(t_bb_=t_bb, path=path_to_save, params_cam=params,
+                                               images=dict_images.pop(t_bb), fpa=dict_fpa.pop(t_bb),
+                                               housing=dict_housing.pop(t_bb))))
+        list_threads[-1].start()
     try:
         camera.terminate()
     except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError, AssertionError):
