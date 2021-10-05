@@ -1,9 +1,10 @@
-import matplotlib.pyplot as plt
 import base64
 import io
 import os
+import pickle
 import warnings
 from enum import Enum
+from itertools import repeat
 from multiprocessing.dummy import Pool
 from pathlib import Path
 from typing import Iterable
@@ -164,48 +165,52 @@ def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_fil
     return cam_meas_filt
 
 
-def load_npy(path: Path):
+def load_pickle(path: Path):
     try:
-        path, temperature_blackbody, filter_name = get_temperature_and_wavelength(path)
-        meas = np.load(str(path))
+        path, temperature_blackbody = get_blackbody_temperature_from_path(path)
+        with open(str(path), 'rb') as fp:
+            meas = pickle.load(fp)
     except ValueError:
         print(f'Cannot load file {str(path)}')
         return None
-    return meas, temperature_blackbody, filter_name
+    return meas, temperature_blackbody
 
 
-def get_temperature_and_wavelength(path: (Path, str)):
+def get_blackbody_temperature_from_path(path: (Path, str)):
     data = Path(path).stem
     if '-' in data:
         data = data.split('-')[0]
     data = data.split('_')
-    temperature_blackbody = int(data[-3])
-    filter_name = int(data[-1])
-    return path, temperature_blackbody, filter_name
+    temperature_blackbody = int(data[-1])
+    return path, temperature_blackbody
 
 
-def get_meas(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *, omit_ops: Iterable = None):
-    """Get the measurements acquired by the FLIR LWIR camera using a specific
-        filter
+def load_filter_from_pickle(path_with_wl: tuple):
+    path, filter_wavelength = path_with_wl
+    meas, temperature_blackbody = load_pickle(path)
+    return meas['measurements'][filter_wavelength.value], temperature_blackbody
 
-        Parameters: path_to_files: the path to the source files containing the
-            data. ommit_op: a list of the operating-points to ommit as part of
-            the prefiltering. e.g: [20, 40, 50]
-    """
 
-    paths = [get_temperature_and_wavelength(p) for p in Path(path_to_files).glob('*.npy')]
-    paths = filter(lambda x: x[-1] == filter_wavelength.value, paths)  # only load meas with the given filter
-    paths = [p[0] for p in paths]
+def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *, omit_ops: Iterable = None):
+    paths = Path(path_to_files)
+    if paths.is_dir():
+        paths = list(path_to_files.glob('*.pkl'))
+    elif paths.is_file():
+        paths = [paths]
+    else:
+        raise RuntimeError(f'No .pkl files were found in {path_to_files}.')
 
     # multithreading loading
     with Pool(8) as pool:
-        list_meas = list(tqdm(pool.imap(func=load_npy, iterable=paths), total=len(paths), desc="Load measurements"))
+        list_meas = list(tqdm(pool.imap(func=load_filter_from_pickle,
+                                        iterable=zip(paths, repeat(filter_wavelength))),
+                              total=len(paths), desc="Load measurements"))
     list_meas = list(filter(lambda x: x is not None, list_meas))
 
     # list into dict
     dict_measurements = {}
     while list_meas:
-        meas, t_bb, filter_name = list_meas.pop()
+        meas, t_bb = list_meas.pop()
         dict_measurements.setdefault(t_bb, meas)
 
     # remove invalid operating-points:
@@ -216,9 +221,11 @@ def get_meas(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *,
 
     # the dict keys are sorted each time, to save memory space
     list_blackbody_temperatures = list(sorted(dict_measurements.keys()))
-    list_power_panchromatic = [calc_rx_power(temperature=t_bb) for t_bb in list_blackbody_temperatures]
-    meas = np.stack([dict_measurements[k] for k in list_blackbody_temperatures])
-    return meas, list_power_panchromatic, list_blackbody_temperatures
+    list_power = [calc_rx_power(temperature=t_bb) for t_bb in list_blackbody_temperatures]
+    frames = np.stack([dict_measurements[k]['frames'] for k in list_blackbody_temperatures])
+    fpa = np.stack([dict_measurements[k]['fpa'] for k in list_blackbody_temperatures])
+    housing = np.stack([dict_measurements[k]['housing'] for k in list_blackbody_temperatures])
+    return frames, fpa.squeeze(), housing.squeeze(), list_power, list_blackbody_temperatures
 
 
 def save_ndarray_as_base64(image: np.ndarray):
