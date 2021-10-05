@@ -63,6 +63,7 @@ parser.add_argument('--gif', help=f"Saves a gif of each measurement.", action='s
 args = parser.parse_args()
 
 params = dict(
+    lens_number=2,
     ffc_mode='auto' if args.ffc_auto else 'manual',
     ffc_period=int(args.ffc_period),
     isotherm=0x0000,
