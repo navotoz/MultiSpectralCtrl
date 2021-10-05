@@ -371,5 +371,5 @@ class Tau(CameraAbstract):
             except (TypeError, struct.error, IndexError, RuntimeError, AttributeError):
                 continue
             if value == res:
-                self._log.info(f'Set Lens number to {value+1}.')
+                self._log.info(f'Set Lens number to {value + 1}.')
                 return
