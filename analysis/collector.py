@@ -1,7 +1,6 @@
 import argparse
 import sys
 import threading as th
-from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 from pathlib import Path
