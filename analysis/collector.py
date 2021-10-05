@@ -137,10 +137,17 @@ if __name__ == "__main__":
             idx += 1
     try:
         camera.terminate()
+        print('Camera terminated.')
     except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError, AssertionError):
         pass
     try:
         blackbody.__del__()
+        print('BlackBody terminated.')
+    except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError, AssertionError):
+        pass
+    try:
+        del filterwheel
+        print('Filterwheel terminated.')
     except (ValueError, TypeError, AttributeError, RuntimeError, NameError, KeyError, AssertionError):
         pass
     [p.join() for p in list_threads]
