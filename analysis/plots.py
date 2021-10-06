@@ -1,11 +1,15 @@
 from itertools import product
 from pathlib import Path
+from time import sleep
+from IPython.display import display, Latex
+import seaborn as sns
 
 import matplotlib.pyplot as plt
 import numpy as np
 import plotly.express as px
+from sklearn.linear_model import LinearRegression
 
-from tools import get_measurements, FilterWavelength
+from tools import get_measurements, FilterWavelength, choose_random_pixels, get_blackbody_temperature_from_path
 
 
 def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: int = 4):
@@ -102,47 +106,136 @@ def showFacetImages(img_arr, label_class, labels, facet_col=0, facet_col_wrap=4,
     fig.show()
 
 
-def plotGlAcrossFrames(path_to_file: (str, Path), filter_wavelength: FilterWavelength,
-                       pix_idx: np.ndarray = None, title: str = '',
-                       save_path: str = None, to_average: bool = False):
+def plot_gl(*, grey_levels: np.ndarray, save_path: str = None, to_average: bool = False):
     """Plot the grey-level of a pixel across all frames, assuming the first
     dimension of the measurement is the number of frames, and the rest are the
     spatial dimensions
 
         Parameters:
-            filter_wavelength:
-            path_to_file: the path to the required measurements .pkl file.
-            pix_idx: an nx2 array, where each row stands for a single pixel indices to be plotted.
-                    If None - random choice.
-            title: if given, the title of the plot. Else, the default title is set.
+            grey_levels:
             save_path: if given, saves the figure before displaying.
             to_average: if true, averages the value of the pixels.
     """
 
-    meas, fpa, housing, _, _ = get_measurements(path_to_files=path_to_file, filter_wavelength=filter_wavelength)
-    meas = meas.squeeze()
-
-    if pix_idx is None:  # choose 4 random pixels at random
-        pix_idx = np.random.randint(
-            low=[0, 0], high=meas.shape[-2:], size=(4, 2))
-    grey_levels = meas[:, pix_idx[:, 0], pix_idx[:, 1]]
     if to_average:
         grey_levels = grey_levels.mean(-1)
     x = np.arange(len(grey_levels)) / 3600
     plt.figure(figsize=(16, 9))
-    plt.plot(x, grey_levels, label=pix_idx if not to_average else None, linewidth=1)
-    if not title:
-        stmt = "Random Pixel Grey-Levels During Continuous Acquisition\n"
-        if filter_wavelength.value != 0:
-            stmt += f'Filter {filter_wavelength.value}nm'
-        else:
-            stmt += f'Pan-Chromatic'
-    plt.title(title)
+    plt.plot(x, grey_levels, linewidth=1)
+    plt.title("Random Pixel Grey-Levels During Continuous Acquisition")
     plt.xticks(np.linspace(0, x[-1], len(set(x.astype('int'))), dtype=int))
     plt.xlabel("Time [Minutes]")
     plt.ylabel("Grey-Level")
     plt.grid()
-    plt.legend() if not to_average else None
     if save_path:
         plt.savefig(save_path, transparent=False)
-    return grey_levels, fpa, housing
+    return grey_levels
+
+
+def plot_gl_and_camera_temperature(*, grey_levels: np.ndarray, housing: np.ndarray, fpa: np.ndarray):
+    x_time = np.array(range(grey_levels.shape[0])) / 3600
+    gl = grey_levels[:, 1]
+
+    fig, ax = plt.subplots(figsize=(16, 9))
+
+    twin_housing = ax.twinx()
+    twin_fpa = ax.twinx()
+
+    # Offset the right spine of twin_housing.  The ticks and label have already been
+    # placed on the right by twinx above.
+    twin_housing.spines.right.set_position(("axes", 1.08))
+
+    p1, = ax.plot(x_time, gl, "b-", label="Grey Levels")
+    p2, = twin_housing.plot(x_time, housing, "r-", label="Housing [C]")
+    p3, = twin_fpa.plot(x_time, fpa, "g-", label="FPA [C]")
+
+    ax.set_ylabel("Grey Levels")
+    ax.set_xlabel("Time [Minutes]")
+    twin_housing.set_ylabel('Housing [C]')
+    twin_fpa.set_ylabel('FPA [C]')
+
+    ax.yaxis.label.set_color(p1.get_color())
+    twin_housing.yaxis.label.set_color(p2.get_color())
+    twin_fpa.yaxis.label.set_color(p3.get_color())
+
+    tkw = dict(size=4, width=1.5)
+    ax.tick_params(axis='y', colors=p1.get_color(), **tkw)
+    twin_housing.tick_params(axis='y', colors=p2.get_color(), **tkw)
+    twin_fpa.tick_params(axis='y', colors=p3.get_color(), **tkw)
+    ax.tick_params(axis='x', **tkw)
+
+    ax.legend(handles=[p1, p2, p3])
+
+    ax.set_title("Grey Level and Camera's Temperature along different frames")
+    plt.grid()
+    plt.show()
+    plt.close()
+
+
+def plot_regression_gl_to_t(*, grey_levels: np.ndarray, fpa: np.ndarray,):
+    x, y = fpa[:, None], grey_levels[:, 0][:, None]
+    lr = LinearRegression().fit(x, y)
+    plt.figure(figsize=(16, 9))
+    res = sns.regplot(x=x, y=y, fit_reg=True)
+    plt.title(f"Regression model for grey-level Vs temperature")
+    plt.xlabel("Temperature[C]")
+    plt.ylabel("Grey-Level")
+    plt.grid()
+    plt.show()
+    plt.close()
+    sleep(0.5)
+
+    display(Latex(
+        fr"Regression result: $GL = {lr.coef_.squeeze():.3f} \times T +{lr.intercept_.squeeze():.3f}$"))
+    display(Latex(fr"$R^2 = {lr.score(x, y):.3f}$"))
+    print("Correlation Coefficients:")
+    print(np.corrcoef(x.squeeze(), y.squeeze()))
+    print()
+
+
+def plot_tlinear_effect(grey_levels: np.ndarray, temperature_blackbody: int):
+    x_time = np.array(range(grey_levels.shape[0])) / 3600
+    t = 0.04 * grey_levels - 273.15
+
+    plt.figure(figsize=(16, 9))
+    plt.plot(x_time, t, label='Camera estimation [C]')
+    plt.plot(x_time, np.ones_like(x_time) * temperature_blackbody, '--b', linewidth=2,
+             label='BlackBody temperature [C]')
+    plt.legend()
+    plt.title(f'Camera temperature estimation')
+    plt.xlabel('Time [Minutes]')
+    plt.ylabel('Temperature [C]')
+    plt.yticks(np.linspace(t.min(), t.max(), 15))
+    plt.xticks(np.arange(x_time.min(), x_time.max(), 2))
+    plt.grid()
+    plt.show()
+
+    plt.figure(figsize=(16, 9))
+    plt.plot(x_time, t - temperature_blackbody)
+    plt.plot(x_time, np.zeros_like(x_time), '--b', linewidth=2)
+    plt.title(f'Camera temperature estimation Error\nBlackBody temperature {temperature_blackbody}C')
+    plt.xlabel('Time [Minutes]')
+    plt.ylabel('Temperature difference [C]')
+    plt.yticks(np.linspace((t - temperature_blackbody).min(), (t - temperature_blackbody).max(), 15))
+    plt.xticks(np.arange(x_time.min(), x_time.max(), 2))
+    plt.grid()
+    plt.show()
+
+
+def load_and_plot(path: (str, Path)):
+    path = Path(path)
+    path, temperature_blackbody = get_blackbody_temperature_from_path(path)
+    grey_levels, fpa, housing, _, _, camera_parameters = get_measurements(path_to_files=path,
+                                                                          filter_wavelength=FilterWavelength.PAN)
+    pix_idx = choose_random_pixels(n_pixels=4, size=grey_levels.shape[-2:])
+    grey_levels = grey_levels[:, pix_idx[:, 0], pix_idx[:, 1]]
+    camera_parameters = camera_parameters[0]
+    sleep(0.5)
+
+    print(f"\nFFC {camera_parameters['ffc_period'] != 0}\t TLinear {camera_parameters['tlinear'] == 1}", flush=True)
+    plot_gl(grey_levels=grey_levels)
+    plot_gl_and_camera_temperature(grey_levels=grey_levels, housing=housing, fpa=fpa)
+    plot_regression_gl_to_t(grey_levels=grey_levels, fpa=fpa)
+    if camera_parameters['tlinear']:
+        plot_tlinear_effect(grey_levels, temperature_blackbody)
+    print('#' * 80 + '\n' + '#' * 80 + '\n', flush=True)

@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from tqdm import tqdm
+from scipy.ndimage import median_filter
 
 
 class FilterWavelength(Enum):
@@ -158,7 +159,6 @@ def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_fil
         discarded. med_filt_sz: the size of the median filter used to clean dead
         pixels from the measurements.
     """
-    from scipy.ndimage import median_filter
     cam_meas_valid = cam_meas[:, first_valid_meas:, ...]
     cam_meas_filt = median_filter(
         cam_meas_valid, size=(1, 1, med_filt_sz, med_filt_sz))
@@ -188,7 +188,7 @@ def get_blackbody_temperature_from_path(path: (Path, str)):
 def load_filter_from_pickle(path_with_wl: tuple):
     path, filter_wavelength = path_with_wl
     meas, temperature_blackbody = load_pickle(path)
-    return meas['measurements'][filter_wavelength.value], temperature_blackbody
+    return meas['measurements'][filter_wavelength.value], temperature_blackbody, meas['camera_params']
 
 
 def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *, omit_ops: Iterable = None):
@@ -210,8 +210,8 @@ def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavele
     # list into dict
     dict_measurements = {}
     while list_meas:
-        meas, t_bb = list_meas.pop()
-        dict_measurements.setdefault(t_bb, meas)
+        meas, t_bb, camera_params = list_meas.pop()
+        dict_measurements.setdefault(t_bb, (meas, camera_params))
 
     # remove invalid operating-points:
     if omit_ops is None:
@@ -222,10 +222,11 @@ def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavele
     # the dict keys are sorted each time, to save memory space
     list_blackbody_temperatures = list(sorted(dict_measurements.keys()))
     list_power = [calc_rx_power(temperature=t_bb) for t_bb in list_blackbody_temperatures]
-    frames = np.stack([dict_measurements[k]['frames'] for k in list_blackbody_temperatures])
-    fpa = np.stack([dict_measurements[k]['fpa'] for k in list_blackbody_temperatures])
-    housing = np.stack([dict_measurements[k]['housing'] for k in list_blackbody_temperatures])
-    return frames, fpa.squeeze(), housing.squeeze(), list_power, list_blackbody_temperatures
+    frames = np.stack([dict_measurements[k][0].pop('frames') for k in list_blackbody_temperatures])
+    fpa = np.stack([dict_measurements[k][0].pop('fpa') for k in list_blackbody_temperatures])
+    housing = np.stack([dict_measurements[k][0].pop('housing') for k in list_blackbody_temperatures])
+    return frames.squeeze(), fpa.squeeze(), housing.squeeze(), list_power, list_blackbody_temperatures, \
+           [p[-1] for p in dict_measurements.values()]
 
 
 def save_ndarray_as_base64(image: np.ndarray):
@@ -258,3 +259,7 @@ def make_jupyter_markdown_figure(image: np.ndarray, path: (str, Path), title: st
     header += '</figure>'
     with open(path, 'w') as fp:
         fp.write(header)
+
+
+def choose_random_pixels(n_pixels: int, size: tuple):
+    return np.random.randint(low=[0, 0], high=size, size=(n_pixels, 2))
