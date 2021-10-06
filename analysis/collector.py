@@ -61,11 +61,13 @@ args = parser.parse_args()
 if args.no_save:
     camera = CameraCtrl()
     camera.start()
-    sleep(0.2)
-    camera.image
+    while not camera.is_camera_alive:
+        sleep(0.5)
+        pass
     with tqdm(desc='Running camera without saving') as progressbar:
         while True:
             image = camera.image
+            progressbar.set_postfix_str(f'FPA: {camera.fpa/100}C\t Housing: {camera.housing/100}C')
             progressbar.update()
 
 
@@ -130,8 +132,8 @@ if __name__ == "__main__":
                 continue
             sleep(1)  # clears the buffer after the FFC
             with tqdm(total=n_images) as progressbar:
-                progressbar.set_description_str(f'Filter {filter_name}nm')
-                progressbar.set_postfix_str(f'\tBlackBody {t_bb}C\t\tMeasurements: {idx}|{length_total}')
+                progressbar.set_description_str(f'{filter_name}nm')
+                progressbar.set_postfix_str(f'BlackBody {t_bb}C, Idx {idx}|{length_total}')
                 while len(dict_images[t_bb][filter_name]) != n_images:
                     dict_images[t_bb][filter_name].append(camera.image)
                     dict_fpa.setdefault(t_bb, {}).setdefault(filter_name, []).append(camera.fpa)
