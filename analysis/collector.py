@@ -61,11 +61,13 @@ args = parser.parse_args()
 if args.no_save:
     camera = CameraCtrl()
     camera.start()
-    sleep(0.2)
-    camera.image
+    while not camera.is_camera_alive:
+        sleep(0.5)
+        pass
     with tqdm(desc='Running camera without saving') as progressbar:
         while True:
             image = camera.image
+            progressbar.set_postfix_str(f'FPA: {camera.fpa/100}C\t Housing: {camera.housing/100}C')
             progressbar.update()
 
 
