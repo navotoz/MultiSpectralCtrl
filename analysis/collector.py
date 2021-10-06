@@ -132,7 +132,7 @@ if __name__ == "__main__":
                 continue
             sleep(1)  # clears the buffer after the FFC
             with tqdm(total=n_images) as progressbar:
-                progressbar.set_description_str(f'Filter {filter_name}nm')
+                progressbar.set_description_str(f'{filter_name}nm')
                 progressbar.set_postfix_str(f'BlackBody {t_bb}C, Measurements: {idx}|{length_total}')
                 while len(dict_images[t_bb][filter_name]) != n_images:
                     dict_images[t_bb][filter_name].append(camera.image)
