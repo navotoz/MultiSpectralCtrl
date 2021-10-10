@@ -1,13 +1,17 @@
 import logging
 import socket
 import threading as th
+from pathlib import Path
 from queue import SimpleQueue, Empty
 from time import time_ns, sleep
 
-from utils.logger import make_logger
+import utils.constants as const
+from utils.logger import make_logger, make_logging_handlers
+from utils.misc import SyncFlag
 
 TIMEOUT_IN_SECONDS = 3
 DATAGRAM_MAX_SIZE = 1024
+BLACKBODY_NAME = 'blackbody'
 
 
 class BlackBody:
@@ -173,3 +177,78 @@ class BlackBody:
     @property
     def is_dummy(self):
         return False
+
+
+class BlackBodyThread(th.Thread):
+    _blackbody: (BlackBody, None) = None
+    _workers_dict = {}
+
+    def __init__(self, logfile_path: (str, Path), output_folder_path: (str, Path)):
+        super(BlackBodyThread, self).__init__()
+        self._lock_access = th.Lock()
+        self._event_is_connected = th.Event()
+        self._event_is_connected.clear()
+        self._flag_run = SyncFlag(init_state=True)
+
+        self._logging_handlers = make_logging_handlers(logfile_path=logfile_path)
+        self._log_temperature = make_logger(f'{BLACKBODY_NAME}Temperatures',
+                                            make_logging_handlers(output_folder_path / 'temperatures.txt', False))
+
+    def run(self):
+        self._workers_dict['conn'] = th.Thread(target=self._th_conn, name='bb_conn')
+        self._workers_dict['conn'].start()
+
+    def _th_conn(self):
+        while self._flag_run:
+            try:
+                self._blackbody = BlackBody(logging_handlers=self._logging_handlers)
+                self._event_is_connected.set()
+                return
+            except (RuntimeError, BrokenPipeError):
+                pass
+            sleep(3)
+
+    @property
+    def temperature(self) -> (float, int):
+        with self._lock_access:
+            return self._blackbody.temperature if self._event_is_connected.is_set() else None
+
+    @temperature.setter
+    def temperature(self, temperature_to_set: (int, float)):
+        if self._event_is_connected.is_set():
+            with self._lock_access:
+                self._blackbody.temperature = temperature_to_set
+
+    @property
+    def is_connected(self) -> bool:
+        return self._event_is_connected.is_set()
+
+    def terminate(self):
+        try:
+            self._blackbody.__del__()
+        except (RuntimeError, OSError, ValueError, IOError, AttributeError):
+            pass
+
+
+class BlackBodyDummyThread:
+    def __init__(self):
+        super().__init__()
+        self._lock_access = th.Lock()
+        self._temperature = 0.0
+
+    @property
+    def temperature(self) -> (float, int):
+        with self._lock_access:
+            return self._temperature
+
+    @temperature.setter
+    def temperature(self, temperature_to_set: (int, float)):
+        with self._lock_access:
+            self._temperature = temperature_to_set
+
+    @property
+    def is_connected(self) -> bool:
+        return True
+
+    def terminate(self):
+        pass

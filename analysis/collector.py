@@ -61,7 +61,7 @@ args = parser.parse_args()
 if args.no_save:
     camera = CameraCtrl()
     camera.start()
-    while not camera.is_camera_alive:
+    while not camera.is_connected:
         sleep(0.5)
         pass
     with tqdm(desc='Running camera without saving') as progressbar:
