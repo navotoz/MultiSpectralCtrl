@@ -225,8 +225,9 @@ def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavele
     frames = np.stack([dict_measurements[k][0].pop('frames') for k in list_blackbody_temperatures])
     fpa = np.stack([dict_measurements[k][0].pop('fpa') for k in list_blackbody_temperatures])
     housing = np.stack([dict_measurements[k][0].pop('housing') for k in list_blackbody_temperatures])
+    cam_params = [p[-1] for p in dict_measurements.values()]
     return frames.squeeze(), fpa.squeeze(), housing.squeeze(), list_power, list_blackbody_temperatures, \
-           [p[-1] for p in dict_measurements.values()]
+           cam_params
 
 
 def save_ndarray_as_base64(image: np.ndarray):
