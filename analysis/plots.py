@@ -221,13 +221,35 @@ def plot_tlinear_effect(grey_levels: np.ndarray, temperature_blackbody: int):
     plt.grid()
     plt.show()
 
+def plot_regression(x, y, xlabel=None, ylabel=None, title=None):
+    lr = LinearRegression().fit(x, y)
+    plt.figure(figsize=(16, 9))
+    sns.regplot(x=x, y=y, fit_reg=True)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    plt.grid()
+
+    display(Latex(
+        fr"Regression result: $GL = {lr.coef_.squeeze():.3f} \times T +{lr.intercept_.squeeze():.3f}$"))
+    display(Latex(fr"$R^2 = {lr.score(x, y):.3f}$"))
+    return lr
+
+def plot_rand_pix_regress(x_vals, meas, xlabel=None):
+    i, j = choose_random_pixels(1, meas.shape[2:])
+    regress_target_eg = meas[..., i, j].flatten()
+    x, y = np.array(x_vals).repeat(meas.shape[1])[:, np.newaxis], regress_target_eg[:, np.newaxis]
+    res = plot_regression(x, y, xlabel=xlabel, ylabel="Grey-Level", title=f"Regression model for random pixel {(i, j)}")
+    return res
+
+
 
 def load_and_plot(path: (str, Path)):
     path = Path(path)
     path, temperature_blackbody = get_blackbody_temperature_from_path(path)
     grey_levels, fpa, housing, _, _, camera_parameters = get_measurements(path_to_files=path,
                                                                           filter_wavelength=FilterWavelength.PAN)
-    pix_idx = choose_random_pixels(n_pixels=4, size=grey_levels.shape[-2:])
+    pix_idx = choose_random_pixels(n_pixels=4, img_dims=grey_levels.shape[-2:])
     grey_levels = grey_levels[:, pix_idx[:, 0], pix_idx[:, 1]]
     camera_parameters = camera_parameters[0]
     sleep(0.5)
