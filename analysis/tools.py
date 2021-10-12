@@ -18,6 +18,7 @@ from scipy.ndimage import median_filter
 from scipy.interpolate import interp1d
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
+import plotly.express as px
 
 
 class FilterWavelength(Enum):
@@ -46,12 +47,22 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
     # todo: use TAU's spec to asses the natural band-width of the camera for
     # improving pan-chromatic and filtered calculations
 
-    # # constants:
+    # %%
+    # setup
+
+    # constants:
     KB = 1.380649e-23  # [Joule/Kelvin]
     H = 6.62607004e-34  # [m^2*kg/sec]
     C = 2.99792458e8  # [m/sec]
 
-    #
+    # define grid of wavelengths over the entire band of interest with a 1nm granularity:
+    wl_band = (7_000, 14_000)  # in [nm]
+    d_lambda = 1e-9
+    wl_grid = np.arange(start=wl_band[0], stop=wl_band[-1], dtype=int)
+
+    # %%
+    # Auxiliary functions
+
     def bb(lamda: float, T: float):
         """calculates spectral radiance (Plank's function)
 
@@ -62,72 +73,55 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
         return 2 * H * C ** 2 / np.power(lamda, 5) * \
             1 / (np.exp(H * C / (KB * T * lamda)) - 1)
 
-    # Celsuis to Kelvin:
-    def c2k(T):
-        return T + 273.15
+    def c2k(T): return T + 273.15
+    def k2c(T): return T - 273.15
 
-    def k2c(T):
-        return T - 273.15
-    # %%
-    # calculate lens response:
+    def read_trans_resp(sheet_name):
+        """Read the transmittance response from an excel sheet into a pandas series"""
+        trans_resp_raw = pd.read_excel(Path(os.path.dirname(__file__), "FiltersResponse.xlsx"),
+                                       sheet_name=sheet_name, engine='openpyxl', index_col=0, usecols=[0, 1]).dropna().squeeze()
+        # convert Transmission from percents to normalized values:
+        trans_resp_raw /= 100
+        trans_resp_raw.index *= 1e3  # convert index to [nm]
 
-    lens_resp_raw = pd.read_excel(Path(os.path.dirname(__file__),
-                                       "FiltersResponse.xlsx"), sheet_name="lens_680138-002",
-                                  engine='openpyxl', index_col=0, usecols=[0, 1]).dropna().squeeze()
-    # convert Transmission from percent to normalized values:
-    lens_resp_raw /= 100
+        # interpolate the values over the wavelength's grid:
+        interp_model = interp1d(x=trans_resp_raw.index,
+                                y=trans_resp_raw.values, kind="linear")
 
-    # interpolate at regular grid with 1nm granularity:
-    # TODO: complete lens model once lens responsivity is available from 7micro as well
-    wl_band = ((lens_resp_raw.index[0] - 1) * 1000,
-               lens_resp_raw.index[-1] * 1000)  # in [nm]
-    # granularity in meters (will be used later on for the actual power calculation)
-    d_lambda = 1e-9
-    # grid with 1nm granularity
-    wl_grid = np.arange(start=wl_band[0], stop=wl_band[-1], dtype=int)
-    lens_resp = pd.Series(index=wl_grid, data=np.ones_like(wl_grid))
+        trans_resp = pd.Series(index=wl_grid, data=interp_model(wl_grid))
+        return trans_resp
 
     # %%
-    # calculate filter's response:
+    # calculate optical elements responses. microbolometer response was taken from the paper "Spectral response of microbolometers for hyperspectral imaging" https://www.researchgate.net/publication/316709375_Spectral_response_of_microbolometers_for_hyperspectral_imaging
+    sens_trans = read_trans_resp("microbolometer")
+    lens_trans = read_trans_resp("lens_680138-002")
 
     if filt == FilterWavelength.PAN:
         # assume ideal rectangular filter with 3000nm bandwidth and a constant amplification of 1
-        central_wl = (0.5 * (wl_band[0] + wl_band[1])).astype(int)
-        filt_resp = pd.Series(index=wl_grid, data=np.ones_like(wl_grid))
+        filt_trans = pd.Series(index=wl_grid, data=np.ones_like(wl_grid))
 
     else:
-        bw = 1000
-        central_wl = filt.value
-        # load filter from xlsx:
-        filt_resp_raw = pd.read_excel(Path(os.path.dirname(__file__),
-                                           "FiltersResponse.xlsx"), sheet_name=str(central_wl),
-                                      engine='openpyxl', index_col=0, usecols=[0, 1]).dropna().squeeze()
-        filt_resp_raw.index *= 1e3  # convert to [nm]
-
-        # interpolate the values in the relevant grid:
-        interp_model = interp1d(x=filt_resp_raw.index,
-                                y=filt_resp_raw.values, kind="cubic")
-
-        filt_resp = pd.Series(index=wl_grid, data=interp_model(wl_grid))
+        filt_trans = read_trans_resp(str(filt.value))
 
         # remove entries Bw far away from the central frequency:
-        below_bw = filt_resp.index.values < (central_wl - bw)
-        above_bw = filt_resp.index.values > (central_wl + bw)
+        bw = 1000
+        below_bw = filt_trans.index.values < (filt.value - bw)
+        above_bw = filt_trans.index.values > (filt.value + bw)
         inside_bw = np.bitwise_not(np.bitwise_or(below_bw, above_bw))
-        filt_resp = filt_resp[inside_bw]
+        filt_trans = filt_trans[inside_bw]
         # convert Transmission from percent to normalized values:
-        filt_resp /= 100
 
     # %%
     # calculate the equivalent system's transmittance to black-body radiation:
 
-    plank = pd.Series(index=np.arange(1e6, dtype=int) ,dtype=float)  # [nm]
+    plank = pd.Series(index=np.arange(1e6, dtype=int), dtype=float)  # [nm]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
         plank.loc[:] = bb(plank.index * d_lambda, c2k(temperature))
 
-    trans_resp = lens_resp[filt_resp.index] * filt_resp
-    plank_trans = plank.loc[filt_resp.index] * trans_resp
+    trans_resp = sens_trans[filt_trans.index] * \
+        lens_trans[filt_trans.index] * filt_trans
+    plank_trans = plank.loc[filt_trans.index] * trans_resp
 
     # %%
     # Plot results:
@@ -146,10 +140,12 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
         fig, ax = plt.subplots(1, 2, figsize=(16, 9))
 
         # plot transmittance response:
-        ax[0].plot(lens_resp * 100, label="Lense transmittance")
+        ax[0].plot(sens_trans * 100,
+                   label="Microbolometer (sensor) transmittance")
+        ax[0].plot(lens_trans * 100, label="Lense transmittance")
         if filt != FilterWavelength.PAN:
-            ax[0].plot(filt_resp * 100,
-                    label=f"{filt.value//1000} $\mu m$ filter transmittance")
+            ax[0].plot(filt_trans * 100,
+                       label=f"{filt.value//1000} $\mu m$ filter transmittance")
         ax[0].plot(trans_resp * 100, label=f"combined transmittance")
         ax[0].set_title("Optical Transmittance")
         ax[0].set_ylabel("Transmittance [%]")
@@ -170,7 +166,7 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
         if filt == FilterWavelength.PAN:
             fig.suptitle(f"Pan-Chromatic at T={c2k(temperature)}[K]")
         else:
-            fig.suptitle(f"{central_wl} nm Filter at T={c2k(temperature)}[K]")
+            fig.suptitle(f"{filt.value} nm Filter at T={c2k(temperature)}[K]")
         plt.show()
 
     return rad_power(plank_trans, d_lambda)
@@ -228,10 +224,10 @@ def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavele
     else:
         raise RuntimeError(f'No .pkl files were found in {path_to_files}.')
 
-    # remove regression models from list (if any exist):
-    regression_idx = [i for i, path in enumerate(paths) if "regression_model" in str(path)]
-    for idx in regression_idx:
-        paths.pop(idx)
+    # remove non-related pkl files from list (if any exist):
+    remove_paths = [path for path in paths if "blackbody_temperature" not in str(path)]
+    for path in remove_paths:
+        paths.remove(path)
 
     # multithreading loading
     with Pool(8) as pool:
@@ -301,11 +297,48 @@ def make_jupyter_markdown_figure(image: np.ndarray, path: (str, Path), title: st
 
 def choose_random_pixels(n_pixels: int, img_dims: tuple):
     ndims = len(img_dims)
-    return np.random.randint(low=[0] * ndims, high=img_dims, size=(n_pixels, ndims))
+    idx_mat = np.random.randint(
+        low=[0] * ndims, high=img_dims, size=(n_pixels, ndims))
+    
+    # organize indices in lists of lists:
+    idx_list = [list(col) for col in idx_mat.T]
+    return idx_list
 
+def lin_regress_pixelwise(x_vals, meas, debug=False):
+    """performs a pixel-wise linear regression, assuming the 1st dimension corresponds to the samples, and the others are spatial dimensions"""
+    meas_shape = meas.shape
+    x = np.array(x_vals).repeat(meas.shape[1])[:, np.newaxis]
+    lr = LinearRegression()
+    lr_res = {"slopes": np.zeros(
+        meas_shape[2:]), "intercepts": np.zeros(meas_shape[2:])}
+    
+    for i in tqdm(range(meas_shape[2])):
+        for j in range(meas_shape[3]):
+            lr_ij = lr.fit(x, meas[..., i, j].flatten())
+            lr_res["slopes"][i, j] = lr_ij.coef_
+            lr_res["intercepts"][i, j] = lr_ij.intercept_
+            
+    if debug:
+        # plot slopes:
+        fig = px.imshow(lr_res["slopes"], color_continuous_scale='gray',
+                        title="Linear Regression Slopes Map")
+        fig.show()
+        fig = px.imshow(lr_res["intercepts"], color_continuous_scale='gray',
+                        title="Linear Regression Intercepts Map")
+        fig.show()
+    return lr_res
 
 def main():
-    calc_rx_power(temperature=32)
+    path_to_files = Path.cwd() / "analysis" / "undistort"
+    while not (path_to_files / "rawData").is_dir():
+        path_to_files = path_to_files.parent
+    path_to_files = path_to_files / "rawData" / 'calib' / 'tlinear_1'
+
+    meas_panchromatic, fpa, housing, list_power_panchromatic, list_blackbody_temperatures, _ =\
+        get_measurements(path_to_files, filter_wavelength=FilterWavelength.PAN)
+
+    lin_regress_pixelwise(list_blackbody_temperatures, meas_panchromatic[::4, ...], debug=True)
+
 
 if __name__ == "__main__":
     main()

@@ -239,7 +239,7 @@ def plot_rand_pix_regress(x_vals, meas, xlabel=None):
     i, j = choose_random_pixels(1, meas.shape[2:])
     regress_target_eg = meas[..., i, j].flatten()
     x, y = np.array(x_vals).repeat(meas.shape[1])[:, np.newaxis], regress_target_eg[:, np.newaxis]
-    res = plot_regression(x, y, xlabel=xlabel, ylabel="Grey-Level", title=f"Regression model for random pixel {(i, j)}")
+    res = plot_regression(x, y, xlabel=xlabel, ylabel="Grey-Level", title=f"Regression model for random pixel {(i[0], j[0])}")
     return res
 
 
