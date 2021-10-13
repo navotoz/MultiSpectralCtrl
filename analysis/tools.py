@@ -8,21 +8,19 @@ from itertools import repeat
 from multiprocessing.dummy import Pool
 from pathlib import Path
 from typing import Iterable
+import multiprocessing as mp
 
 import numpy as np
 import pandas as pd
-from PIL import Image
-import scipy
-from tqdm import tqdm
-from scipy.ndimage import median_filter
-from scipy.interpolate import interp1d
-from sklearn.linear_model import LinearRegression
-import matplotlib.pyplot as plt
 import plotly.express as px
+from PIL import Image
+from scipy.interpolate import interp1d
+from scipy.ndimage import median_filter
+from tqdm import tqdm
 
 
 class FilterWavelength(Enum):
-    """ An enumeration for Flir's LWIR filters, where the keys and values are
+    """An enumeration for Flir's LWIR filters, where the keys and values are
     the cenrtal frequencies of the filters in nano-meter."""
     PAN = 0
     nm8000 = 8000
@@ -66,9 +64,9 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
     def bb(lamda: float, T: float):
         """calculates spectral radiance (Plank's function)
 
-            Parameters:
-                lamda: the wavelength in meters
-                T: the temperature in Kelvin
+        Parameters:
+            lamda: the wavelength in meters
+            T: the temperature in Kelvin
         """
         return 2 * H * C ** 2 / np.power(lamda, 5) * \
             1 / (np.exp(H * C / (KB * T * lamda)) - 1)
@@ -174,14 +172,14 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
 
 def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_filt_sz: int = 2):
     """pre-filtering of raw measurements taken using Flir's TAU-2 LWIR camera.
-        The filtering pipe is based on insights gained and explored in the
-        'meas_inspection' notebook available under the same parent directory.
+    The filtering pipe is based on insights gained and explored in the
+    'meas_inspection' notebook available under the same parent directory.
 
-        Parameters: cam_meas: a 4D hypercube that contains the data collected by
-        a set of measurements. first_valid_idx: the first valid measurement in
-        all operating points. All measurements taken before that will be
-        discarded. med_filt_sz: the size of the median filter used to clean dead
-        pixels from the measurements.
+    Parameters: cam_meas: a 4D hypercube that contains the data collected by
+    a set of measurements. first_valid_idx: the first valid measurement in
+    all operating points. All measurements taken before that will be
+    discarded. med_filt_sz: the size of the median filter used to clean dead
+    pixels from the measurements.
     """
     cam_meas_valid = cam_meas[:, first_valid_meas:, ...]
     cam_meas_filt = median_filter(
@@ -229,6 +227,15 @@ def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavele
     for path in remove_paths:
         paths.remove(path)
 
+    # remove invalid operating-points:
+    if n_meas_to_load is not None:
+        meas_idx_to_load = np.random.randint(0, len(paths), n_meas_to_load)
+        new_list = []
+        for op in range(len(paths)):
+            if op in meas_idx_to_load:
+                new_list.append(paths[op])
+        paths = new_list
+
     # multithreading loading
     with Pool(8) as pool:
         list_meas = list(tqdm(pool.imap(func=load_filter_from_pickle,
@@ -241,12 +248,6 @@ def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavele
     while list_meas:
         meas, t_bb, camera_params = list_meas.pop()
         dict_measurements.setdefault(t_bb, (meas, camera_params))
-
-    # remove invalid operating-points:
-    if omit_ops is None:
-        omit_ops = []
-    for op in omit_ops:
-        dict_measurements.pop(op)
 
     # the dict keys are sorted each time, to save memory space
     list_blackbody_temperatures = list(sorted(dict_measurements.keys()))
@@ -299,45 +300,58 @@ def choose_random_pixels(n_pixels: int, img_dims: tuple):
     ndims = len(img_dims)
     idx_mat = np.random.randint(
         low=[0] * ndims, high=img_dims, size=(n_pixels, ndims))
-    
+
     # organize indices in lists of lists:
     idx_list = [list(col) for col in idx_mat.T]
     return idx_list
 
-def lin_regress_pixelwise(x_vals, meas, debug=False):
-    """performs a pixel-wise linear regression, assuming the 1st dimension corresponds to the samples, and the others are spatial dimensions"""
+
+def poly_regress_pixelwise(x_vals, meas, deg=1, is_inverse=False, debug=False):
+    """performs a pixel-wise polynomial regression, assuming the 1st dimension corresponds to the samples, and the others are spatial dimensions"""
+
+    # reshape data to facilitate and parallelize the regression
     meas_shape = meas.shape
-    x = np.array(x_vals).repeat(meas.shape[1])[:, np.newaxis]
-    lr = LinearRegression()
-    lr_res = {"slopes": np.zeros(
-        meas_shape[2:]), "intercepts": np.zeros(meas_shape[2:])}
-    
-    for i in tqdm(range(meas_shape[2])):
-        for j in range(meas_shape[3]):
-            lr_ij = lr.fit(x, meas[..., i, j].flatten())
-            lr_res["slopes"][i, j] = lr_ij.coef_
-            lr_res["intercepts"][i, j] = lr_ij.intercept_
-            
+    x = np.array(x_vals).repeat(meas.shape[1])
+    meas_2d = meas.reshape(-1, meas_shape[2] * meas_shape[3])
+
+    # Parallel regression
+    with mp.Pool(mp.cpu_count()) as pool:
+        regress_res_list = tqdm(
+            pool.starmap(np.polyfit, [(x, col, deg) for col in meas_2d.T]))
+
+    # reorder results in matrix format
+    n_coeffs = deg + 1
+    regress_res_mat = np.zeros((n_coeffs, *meas_shape[2:]))
+    for k, pix_reg in enumerate(regress_res_list):
+        i, j = np.unravel_index(k, meas_shape[2:])
+        regress_res_mat[:, i, j] = pix_reg
+
+    # slice matrix by coefficients and put in dictionary
+    regress_res_dict = {f"p{k}": regress_res_mat[k] for k in range(n_coeffs)}
+
     if debug:
         # plot slopes:
-        fig = px.imshow(lr_res["slopes"], color_continuous_scale='gray',
-                        title="Linear Regression Slopes Map")
-        fig.show()
-        fig = px.imshow(lr_res["intercepts"], color_continuous_scale='gray',
-                        title="Linear Regression Intercepts Map")
-        fig.show()
-    return lr_res
+        for k in range(n_coeffs):
+            fig = px.imshow(
+                regress_res_dict[f"p{k}"],
+                color_continuous_scale="gray",
+                title=f"$p_{k}$ coefficient Map",
+            )
+            fig.show()
+
+    return regress_res_dict
+
 
 def main():
     path_to_files = Path.cwd() / "analysis" / "undistort"
     while not (path_to_files / "rawData").is_dir():
         path_to_files = path_to_files.parent
-    path_to_files = path_to_files / "rawData" / 'calib' / 'tlinear_1'
+    path_to_files = path_to_files / "rawData" / "calib" / "tlinear_1"
+    meas_panchromatic, _, _, _, list_blackbody_temperatures, _ =\
+        get_measurements(path_to_files, filter_wavelength=FilterWavelength.PAN, n_meas_to_load=3)
 
-    meas_panchromatic, fpa, housing, list_power_panchromatic, list_blackbody_temperatures, _ =\
-        get_measurements(path_to_files, filter_wavelength=FilterWavelength.PAN)
-
-    lin_regress_pixelwise(list_blackbody_temperatures, meas_panchromatic[::4, ...], debug=True)
+    poly_regress_pixelwise(list_blackbody_temperatures,
+                           meas_panchromatic, debug=True)
 
 
 if __name__ == "__main__":

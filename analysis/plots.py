@@ -1,15 +1,16 @@
 from itertools import product
 from pathlib import Path
 from time import sleep
-from IPython.display import display, Latex
-import seaborn as sns
 
 import matplotlib.pyplot as plt
 import numpy as np
 import plotly.express as px
+import seaborn as sns
+from IPython.display import Latex, display
 from sklearn.linear_model import LinearRegression
 
-from tools import get_measurements, FilterWavelength, choose_random_pixels, get_blackbody_temperature_from_path
+from tools import (FilterWavelength, choose_random_pixels,
+                   get_blackbody_temperature_from_path, get_measurements)
 
 
 def plot_gl_as_func_temp(meas, list_blackbody_temperatures, n_pixels_to_plot: int = 4):
@@ -221,25 +222,28 @@ def plot_tlinear_effect(grey_levels: np.ndarray, temperature_blackbody: int):
     plt.grid()
     plt.show()
 
-def plot_regression(x, y, xlabel=None, ylabel=None, title=None):
-    lr = LinearRegression().fit(x, y)
+
+def plot_regression(x, y, deg=1, xlabel=None, ylabel=None, title=None):
+    coeffs = np.polyfit(x, y, deg)
     plt.figure(figsize=(16, 9))
-    sns.regplot(x=x, y=y, fit_reg=True)
+    sns.regplot(x=x, y=y, order=deg)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.title(title)
     plt.grid()
 
+    n_coeffs = deg+1
+    regression_formula = [f"{coeffs[k]:.3f} \times T^{deg-k} +" for k in range(n_coeffs) if k < deg]
+    regression_formula.append(f"{coeffs[-1]:.3f}")
+    # TODO: finalize regression formula in display
     display(Latex(
-        fr"Regression result: $GL = {lr.coef_.squeeze():.3f} \times T +{lr.intercept_.squeeze():.3f}$"))
-    display(Latex(fr"$R^2 = {lr.score(x, y):.3f}$"))
-    return lr
+        fr"Regression result: $GL = {coeffs[0]:.3f} \times T +{coeffs[1]:.3f}$"))
+    return coeffs
 
-def plot_rand_pix_regress(x_vals, meas, xlabel=None):
+def plot_rand_pix_regress(x_vals, meas, deg=1, xlabel=None):
     i, j = choose_random_pixels(1, meas.shape[2:])
-    regress_target_eg = meas[..., i, j].flatten()
-    x, y = np.array(x_vals).repeat(meas.shape[1])[:, np.newaxis], regress_target_eg[:, np.newaxis]
-    res = plot_regression(x, y, xlabel=xlabel, ylabel="Grey-Level", title=f"Regression model for random pixel {(i[0], j[0])}")
+    x, y = np.array(x_vals).repeat(meas.shape[1]), meas[..., i, j].flatten()
+    res = plot_regression(x, y, deg, xlabel, ylabel="Grey-Level", title=f"Regression model for random pixel {(i[0], j[0])}")
     return res
 
 
