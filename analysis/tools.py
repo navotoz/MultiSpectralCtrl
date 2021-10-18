@@ -7,12 +7,9 @@ from enum import Enum
 from itertools import repeat
 from multiprocessing.dummy import Pool
 from pathlib import Path
-from typing import Iterable
-import multiprocessing as mp
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
 from PIL import Image
 from scipy.interpolate import interp1d
 from scipy.ndimage import median_filter
@@ -213,7 +210,7 @@ def load_filter_from_pickle(path_with_wl: tuple):
     return meas['measurements'][filter_wavelength.value], temperature_blackbody, meas['camera_params']
 
 
-def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *, omit_ops: Iterable = None):
+def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *, n_meas_to_load: int = None):
     paths = Path(path_to_files)
     if paths.is_dir():
         paths = list(path_to_files.glob('*.pkl'))
@@ -223,11 +220,12 @@ def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavele
         raise RuntimeError(f'No .pkl files were found in {path_to_files}.')
 
     # remove non-related pkl files from list (if any exist):
-    remove_paths = [path for path in paths if "blackbody_temperature" not in str(path)]
+    remove_paths = [
+        path for path in paths if "blackbody_temperature" not in str(path)]
     for path in remove_paths:
         paths.remove(path)
 
-    # remove invalid operating-points:
+    # load a limited number of operating-points (useful for debug):
     if n_meas_to_load is not None:
         meas_idx_to_load = np.random.randint(0, len(paths), n_meas_to_load)
         new_list = []
@@ -306,53 +304,4 @@ def choose_random_pixels(n_pixels: int, img_dims: tuple):
     return idx_list
 
 
-def poly_regress_pixelwise(x_vals, meas, deg=1, is_inverse=False, debug=False):
-    """performs a pixel-wise polynomial regression, assuming the 1st dimension corresponds to the samples, and the others are spatial dimensions"""
 
-    # reshape data to facilitate and parallelize the regression
-    meas_shape = meas.shape
-    x = np.array(x_vals).repeat(meas.shape[1])
-    meas_2d = meas.reshape(-1, meas_shape[2] * meas_shape[3])
-
-    # Parallel regression
-    with mp.Pool(mp.cpu_count()) as pool:
-        regress_res_list = tqdm(
-            pool.starmap(np.polyfit, [(x, col, deg) for col in meas_2d.T]))
-
-    # reorder results in matrix format
-    n_coeffs = deg + 1
-    regress_res_mat = np.zeros((n_coeffs, *meas_shape[2:]))
-    for k, pix_reg in enumerate(regress_res_list):
-        i, j = np.unravel_index(k, meas_shape[2:])
-        regress_res_mat[:, i, j] = pix_reg
-
-    # slice matrix by coefficients and put in dictionary
-    regress_res_dict = {f"p{k}": regress_res_mat[k] for k in range(n_coeffs)}
-
-    if debug:
-        # plot slopes:
-        for k in range(n_coeffs):
-            fig = px.imshow(
-                regress_res_dict[f"p{k}"],
-                color_continuous_scale="gray",
-                title=f"$p_{k}$ coefficient Map",
-            )
-            fig.show()
-
-    return regress_res_dict
-
-
-def main():
-    path_to_files = Path.cwd() / "analysis" / "undistort"
-    while not (path_to_files / "rawData").is_dir():
-        path_to_files = path_to_files.parent
-    path_to_files = path_to_files / "rawData" / "calib" / "tlinear_1"
-    meas_panchromatic, _, _, _, list_blackbody_temperatures, _ =\
-        get_measurements(path_to_files, filter_wavelength=FilterWavelength.PAN, n_meas_to_load=3)
-
-    poly_regress_pixelwise(list_blackbody_temperatures,
-                           meas_panchromatic, debug=True)
-
-
-if __name__ == "__main__":
-    main()

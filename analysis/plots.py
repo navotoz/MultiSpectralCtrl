@@ -233,11 +233,12 @@ def plot_regression(x, y, deg=1, xlabel=None, ylabel=None, title=None):
     plt.grid()
 
     n_coeffs = deg+1
-    regression_formula = [f"{coeffs[k]:.3f} \times T^{deg-k} +" for k in range(n_coeffs) if k < deg]
-    regression_formula.append(f"{coeffs[-1]:.3f}")
+    regression_parts = [rf"{coeffs[k]:.3f} \times T^{deg-k} +" for k in range(n_coeffs) if k < deg]
+    regression_parts.append(f"{coeffs[-1]:.3f}")
+    regression_formula = f"$GL = {' '.join(regression_parts)}$".replace("T^1", "T")
     # TODO: finalize regression formula in display
     display(Latex(
-        fr"Regression result: $GL = {coeffs[0]:.3f} \times T +{coeffs[1]:.3f}$"))
+        fr"Regression result: {regression_formula}"))
     return coeffs
 
 def plot_rand_pix_regress(x_vals, meas, deg=1, xlabel=None):
