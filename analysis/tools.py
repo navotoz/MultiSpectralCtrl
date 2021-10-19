@@ -304,4 +304,3 @@ def choose_random_pixels(n_pixels: int, img_dims: tuple):
     return idx_list
 
 
-

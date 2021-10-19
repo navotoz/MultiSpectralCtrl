@@ -12,9 +12,10 @@
 /download/
 /log/
 *.pyc
-*/.vscode/
+/.vscode/
 .ipynb_checkpoints/
 **/rawData
 */measurements
 jitter copy.ipynb
 **/models/
+/__pycache__/

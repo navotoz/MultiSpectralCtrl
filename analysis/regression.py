@@ -1,3 +1,4 @@
+from os import stat
 from typing import Iterable
 import numpy as np
 import multiprocessing as mp
@@ -5,12 +6,11 @@ from tqdm import tqdm
 from pathlib import Path
 import plotly.express as px
 import pickle as pkl
+import matplotlib.pyplot as plt
+from tools import choose_random_pixels
 
-from analysis.tools import choose_random_pixels
 
-
-def poly_regress(x: np.ndarray, y: np.ndarray, ord: int, is_inverse:bool=False) -> np.ndarray:
-    # TODO: 1. simplify predict to allow easy and simple predictions (only polyval). 2. add a function to allow for parallel prediction (e.g with full matrix size) 3. add R^2 to the rand_pix_plot method
+def poly_regress(x: np.ndarray, y: np.ndarray, ord: int) -> np.ndarray:
     """performs a multi-threaded linear regression and returns a list where the ith element are the regression coefficients for the ith feature.
 
         Parameters:
@@ -18,13 +18,7 @@ def poly_regress(x: np.ndarray, y: np.ndarray, ord: int, is_inverse:bool=False) 
             y: a 2d matrix where the ith column holds the ith dependent feature
             deg: the degree of the fitted polynomial
     """
-    # Parallel regression
-    if is_inverse:
-        x, y = y, x
-        map_args = [(temperature, y, ord) for temperature in x]
-    else:
-        map_args = [(x, temperature, ord) for temperature in y]
-
+    map_args = [(x_row, y_row, ord) for x_row, y_row in zip(x, y)]
     with mp.Pool(mp.cpu_count()) as pool:
         regress_res = pool.starmap(np.polyfit, tqdm(map_args, desc="Performing Regression"))
 
@@ -32,39 +26,57 @@ def poly_regress(x: np.ndarray, y: np.ndarray, ord: int, is_inverse:bool=False) 
 
 
 class GlRegressor:
-    def __init__(self, x_var: Iterable, grey_levels: np.ndarray, is_inverse: bool = False):
+    def __init__(self, x_var: Iterable, grey_levels: np.ndarray):
         self.gl_shape = grey_levels.shape
         self.x = np.array(x_var)
         self.y = grey_levels
         self.coeffs = None  # the coefficients of the fitted regression model
-        self._is_inverse = is_inverse
 
-    @property
-    def is_inverse(self):
-        return self._is_inverse
-    
-    @is_inverse.setter
-    def is_inverse(self, is_inverse):
-        if is_inverse != self._is_inverse:
-            self._is_inverse = is_inverse
-            self.coeffs = None  # clear coeffs to avoid confusion
+    def _reshape_regress(self, var, target_shape=None, phase="pre"):
+        """Reshapes the variable before or after the regression fit"""
 
-    def fit(self, deg: int = 1, debug: bool = False):
+        if phase =="pre":
+            src_shape_rolled = np.roll(range(var.ndim), 2)
+            var_trans = var.transpose(src_shape_rolled)
+            var_reshaped = var_trans.reshape(np.prod(var_trans.shape[:2]), -1)
+        elif phase == "post":
+            if target_shape is None:
+                res_dim = np.prod(var.shape) // np.prod(self.y.shape[-2:])
+                target_shape = (res_dim, *self.y.shape[-2:])
+            var_trans = var.T
+            var_reshaped = var_trans.reshape(target_shape)
+        else:
+            raise Exception("Not a valid phase!")
+        return var_reshaped
+
+    def get_vars_reshaped(self):
+        """Returns a 2d re-shaped version of the variables to facilitate the fitting process, such that each row corresponds to measurements of a different pixel"""
+        # broadcast x to the shape of y 
+        x_broad = np.broadcast_to(self.x[None, ...], np.roll(self.gl_shape, -1)) 
+
+        # transpose x to be compatible with y
+        x_trans = np.transpose(x_broad, np.roll(range(self.y.ndim), 1))
+        
+        x_reshaped, y_reshaped = self._reshape_regress(x_trans), self._reshape_regress(self.y)
+
+        return x_reshaped, y_reshaped
+
+    def fit(self, deg: int = 1, is_inverse: bool =False, debug: bool = False):
         """performs a pixel-wise polynomial regression for grey_levels vs an independent variable
 
             Parameters:
-                x_var: an iterable holding the independent variables for the regression model
-                grey_levels: the measured grey-levels, assuming the 1st dimension corresponds to the samples, and the others are spatial dimensions
                 deg: the degree of the fitted polynomial
                 is_inverse: flag for calculating the inverse regression (temperature vs grey-levels)
                 debug: flag for plotting the regression maps.
         """
 
         # reshape data to facilitate and parallelize the regression
-        x = self.x.repeat(self.gl_shape[1])
-        y = self.y.reshape(-1, self.gl_shape[2] * self.gl_shape[3]).T
+        x, y = self.get_vars_reshaped()
 
-        regress_res_list = poly_regress(x, y, deg, self.is_inverse)  # perform the regression
+        if is_inverse:
+            x, y = y, x
+
+        regress_res_list = poly_regress(x, y, deg)  # perform the regression
 
         # reorder results in matrix format
         n_coeffs = deg + 1
@@ -88,20 +100,24 @@ class GlRegressor:
             Returns: 
                 results: len(x_query) feature maps, where results[i] corresponds to the predicted features for x_query[i] 
         """
-
+        if not isinstance(x_query, np.ndarray):
+            x_query = np.array(x_query)
         self._assert_coeffs()
-        coeffs_for_val = self.coeffs.transpose(1, 2, 0).reshape(-1, len(self.coeffs))
-        if len(x_query.shape) > 1: # it's a full grey-level measurement matrix -  need to reshape and run by frames:
-            x_query_reshaped = x_query.transpose(2, 3, 0, 1).reshape(
-                self.gl_shape[2] * self.gl_shape[3], -1)  # TODO: make transposition more general
-            map_args = [(coeffs, query) for coeffs, query in zip(coeffs_for_val, x_query_reshaped)]
-            with mp.Pool(mp.cpu_count()) as pool:
-                results = pool.starmap(np.polyval, tqdm(map_args, desc="Predicting"))
-            results = np.array(results)
-            return results.T.reshape(x_query.shape)
+        coeffs_for_pred = self._reshape_regress(self.coeffs)
+
+        if x_query.ndim < 2 or not x_query.shape[-2:] == self.gl_shape[-2:]:  # input shape is incompatible with spatial dimensions
+            x_row_vec = x_query.flatten()[None, ...]
+            x_for_pred = np.repeat(x_row_vec, np.prod(self.gl_shape[-2:]), axis=0)
         else:
-            results = np.apply_along_axis(np.polyval, 1, coeffs_for_val, x_query)
-            return results.T.reshape(len(x_query), *self.gl_shape[2:])
+            x_for_pred = self._reshape_regress(x_query)
+
+        map_args = [(coeffs, query) for coeffs, query in zip(coeffs_for_pred, x_for_pred)]
+        with mp.Pool(mp.cpu_count()) as pool:
+            preds = pool.starmap(np.polyval, tqdm(map_args, desc="Predicting"))
+
+        preds = np.array(preds)
+
+        return self._reshape_regress(preds, phase="post")
 
 
     def show_coeffs(self):
@@ -116,33 +132,36 @@ class GlRegressor:
             fig.show()
 
 
-    # def plot_rand_pix(self, xlabel=None):
-    #     self._assert_coeffs()
-    #     deg = len(self.coeffs) - 1
-    #     i, j = choose_random_pixels(1, self.gl_shape[2:])
+    def plot_rand_pix(self, xlabel=None):
 
-    #     res = self.predict()
-    #     coeffs = np.polyfit(x, y, deg)
-    #     plt.figure(figsize=(16, 9))
-    #     sns.regplot(x=x, y=y, order=deg)
-    #     plt.xlabel(xlabel)
-    #     plt.ylabel(ylabel)
-    #     plt.title(title)
-    #     plt.grid()
+        self._assert_coeffs()
+        deg = len(self.coeffs) - 1
+        i, j = choose_random_pixels(1, self.gl_shape[2:])
+        y = self.y[..., i, j].flatten()
+        x = np.repeat(self.x, len(y) // len(self.x))
+        p = self.coeffs[:, i, j].flatten()
+        y_hat = np.polyval(p, x)
+        err = y-y_hat
+        rmse = np.sqrt((err ** 2).mean())
 
-    #     n_coeffs = deg+1
-    #     regression_parts = [
-    #         rf"{coeffs[k]:.3f} \times T^{deg-k} +" for k in range(n_coeffs) if k < deg]
-    #     regression_parts.append(f"{coeffs[-1]:.3f}")
-    #     regression_formula = f"$GL = {' '.join(regression_parts)}$".replace(
-    #         "T^1", "T")
-    #     # TODO: finalize regression formula in display
-    #     display(Latex(
-    #         fr"Regression result: {regression_formula}"))
-    #     return coeffs
-    #         res = plot_regression(x, y, deg, xlabel, ylabel="Grey-Level",
-    #                             title=f"Regression model for random pixel {(i[0], j[0])}")
-    #     return res
+        # get fitted model formula:
+        regression_parts = [rf"{p[k]:.3f} \times T^{deg-k} +" for k in range(len(p)) if k < deg]
+        regression_parts.append(f"{p[-1]:.3f}")
+        regression_formula = f"$GL = {' '.join(regression_parts)}$".replace(
+            "T^1", "T")
+
+        # plot results:
+        _, ax = plt.subplots(figsize=(16, 9))
+        ax.scatter(x, y, label="samples")
+        x_lim = ax.axes.get_xlim()
+        ax.plot(x_lim, np.polyval(p, x_lim), linestyle="--",
+                label=f"fitted model (rmse={rmse:.3f})")
+        ax.set_title(regression_formula)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel("GL")
+        ax.grid()
+        ax.legend()
+        
 
     def get_coeffs(self):
         """slice coefficient matrix by coefficients and put in a dictionary"""
@@ -172,13 +191,14 @@ def main():
     re_run_regression = False
 
     if re_run_regression:
-        gl_regressor.fit(is_inverse=False, debug=True)
-        gl_regressor.save_model(Path.cwd() / "analysis" / "models" / "gl2t_lin.npy")
+        gl_regressor.fit(is_inverse=False)
+        gl_regressor.save_model(
+            Path.cwd() / "analysis" / "models" / "t2gl_lin.npy")
     else:
         gl_regressor.load_model(
-            Path.cwd() / "analysis" / "models" / "gl2t_lin.npy")
-
-    result = gl_regressor.predict(list_blackbody_temperatures)
+            Path.cwd() / "analysis" / "models" / "t2gl_lin.npy")
+    gl_regressor.plot_rand_pix()
+    result = gl_regressor.predict(meas_panchromatic.mean(axis=1))
 
 if __name__ == "__main__":
     main()
