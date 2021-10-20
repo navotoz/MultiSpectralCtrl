@@ -213,7 +213,7 @@ class GlRegressor:
 
         # Average Estimation Error for all OPs:
         est_err = y - y_hat
-        err_df = pd.DataFrame(est_err.reshape(est_err.shape[0], -1).T, columns=x)
+        err_df = pd.DataFrame(est_err.reshape(est_err.shape[0], -1).T, columns=np.round(x, decimals=2))
 
         if debug:
             self.plot_rand_pix()

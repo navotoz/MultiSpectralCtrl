@@ -14,6 +14,7 @@ from PIL import Image
 from scipy.interpolate import interp1d
 from scipy.ndimage import median_filter
 from tqdm import tqdm
+import multiprocessing as mp
 
 
 class FilterWavelength(Enum):
@@ -210,7 +211,7 @@ def load_filter_from_pickle(path_with_wl: tuple):
     return meas['measurements'][filter_wavelength.value], temperature_blackbody, meas['camera_params']
 
 
-def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *, n_meas_to_load: int = None):
+def load_bb_dict(path_to_files, filter_wavelength, n_meas_to_load):
     paths = Path(path_to_files)
     if paths.is_dir():
         paths = list(path_to_files.glob('*.pkl'))
@@ -235,7 +236,7 @@ def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavele
         paths = new_list
 
     # multithreading loading
-    with Pool(8) as pool:
+    with Pool(mp.cpu_count()) as pool:
         list_meas = list(tqdm(pool.imap(func=load_filter_from_pickle,
                                         iterable=zip(paths, repeat(filter_wavelength))),
                               total=len(paths), desc="Load measurements"))
@@ -246,18 +247,46 @@ def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavele
     while list_meas:
         meas, t_bb, camera_params = list_meas.pop()
         dict_measurements.setdefault(t_bb, (meas, camera_params))
+    return dict_measurements
 
-    # the dict keys are sorted each time, to save memory space
-    list_blackbody_temperatures = list(sorted(dict_measurements.keys()))
-    list_power = [calc_rx_power(temperature=t_bb)
-                  for t_bb in list_blackbody_temperatures]
-    frames = np.stack([dict_measurements[k][0].pop('frames')
-                      for k in list_blackbody_temperatures])
-    fpa = np.stack([dict_measurements[k][0].pop('fpa')
-                   for k in list_blackbody_temperatures])
-    housing = np.stack([dict_measurements[k][0].pop('housing')
-                       for k in list_blackbody_temperatures])
-    cam_params = [p[-1] for p in dict_measurements.values()]
+
+def _load_filter_fast(path):
+    return path.stem, np.load(path)
+
+def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *, n_meas_to_load: int = None , fast_load:bool=False):
+    if not fast_load:
+        dict_measurements = load_bb_dict(
+            path_to_files, filter_wavelength, n_meas_to_load)
+        
+        # the dict keys are sorted each time, to save memory space
+        list_blackbody_temperatures = list(sorted(dict_measurements.keys()))
+        frames = np.stack([dict_measurements[k][0].pop('frames')
+                        for k in list_blackbody_temperatures])
+        fpa = np.stack([dict_measurements[k][0].pop('fpa')
+                    for k in list_blackbody_temperatures])
+        housing = np.stack([dict_measurements[k][0].pop('housing')
+                        for k in list_blackbody_temperatures])
+        cam_params = [p[-1] for p in dict_measurements.values()]
+
+    else:
+        path_to_filt = path_to_files / filter_wavelength.name
+        f_list = [file for file in path_to_filt.glob("*") if file.is_file()]
+        # with Pool(mp.cpu_count()) as pool:
+        #     res = pool.imap(_load_filter_fast, tqdm(f_list, desc="Load measurements"))
+        res = []
+        for file in tqdm(f_list, desc="Load measurements"):
+            res.append(_load_filter_fast(file))
+        # list_meas = list(filter(lambda x: x is not None, list_meas))
+        # for file in path_to_filt.glob("*"):
+        #     list_blackbody_temperatures.append(file.stem) 
+        #     frames_list.append(np.load(file))
+        list_blackbody_temperatures = [int(tup[0]) for tup in res]
+        frames = np.stack([tup[1] for tup in res])
+        fpa = housing = cam_params = np.array([])
+
+    list_power = [calc_rx_power(temperature=t_bb, filt=filter_wavelength)
+                    for t_bb in list_blackbody_temperatures]
+
     return frames.squeeze(), fpa.squeeze(), housing.squeeze(), list_power, list_blackbody_temperatures, \
         cam_params
 
@@ -304,3 +333,36 @@ def choose_random_pixels(n_pixels: int, img_dims: tuple):
     return idx_list
 
 
+def calc_r2(y_hat, y):
+    """calculates the coefficient of determination of a model fit"""
+    y_bar = y.mean()
+    ss_res = ((y-y_hat) ** 2).sum()
+    ss_tot = ((y-y_bar) ** 2).sum()
+    r_2 = 1 - ss_res / ss_tot
+
+    return r_2
+
+
+def split_by_filt(path_to_files, filter_wavelength: FilterWavelength, *, n_meas_to_load: int = None):
+    """split the raw black-body measurement files to subfiles by filter"""
+    for filt_wl in FilterWavelength:
+        target_path = path_to_files / filt_wl.name
+        if not target_path.is_dir():
+            target_path.mkdir()
+
+        dict_measurements = load_bb_dict(
+            path_to_files, filt_wl, n_meas_to_load)
+        for temperature in dict_measurements.keys():
+            frames = np.array(dict_measurements[temperature][0]["frames"])
+            np.save(target_path / f"{temperature}.npy", frames)
+
+
+
+def main():
+
+    path = Path(r"analysis\rawData\calib\tlinear_0")
+    split_by_filt(path, filter_wavelength=FilterWavelength.PAN)
+
+
+if __name__ == "__main__":
+    main()
