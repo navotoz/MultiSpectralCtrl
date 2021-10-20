@@ -2,6 +2,7 @@ from os import stat
 from typing import Iterable
 import numpy as np
 import multiprocessing as mp
+import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
 import plotly.express as px
@@ -26,11 +27,13 @@ def poly_regress(x: np.ndarray, y: np.ndarray, ord: int) -> np.ndarray:
 
 
 class GlRegressor:
-    def __init__(self, x_var: Iterable, grey_levels: np.ndarray):
+    def __init__(self, x_var: Iterable, grey_levels: np.ndarray, train_val_rat = 0.5):
         self.gl_shape = grey_levels.shape
         self.x = np.array(x_var)
         self.y = grey_levels
+        self.train_val_rat = train_val_rat
         self.coeffs = None  # the coefficients of the fitted regression model
+        self.is_inverse = False
 
     def _reshape_regress(self, var, target_shape=None, phase="pre"):
         """Reshapes the variable before or after the regression fit"""
@@ -49,15 +52,27 @@ class GlRegressor:
             raise Exception("Not a valid phase!")
         return var_reshaped
 
-    def get_vars_reshaped(self):
+    def _decimate_vars(self, vars, offset=0):
+        dec_rate = int(1 / self.train_val_rat)
+        vars_dec = [var[offset::dec_rate] for var in vars]
+        return vars_dec
+
+
+    def _prep_vars_for_regress(self):
         """Returns a 2d re-shaped version of the variables to facilitate the fitting process, such that each row corresponds to measurements of a different pixel"""
+
+        # decimate variables according to training-validation ratio:
+
+        x, y = self._decimate_vars((self.x, self.y))
+
         # broadcast x to the shape of y 
-        x_broad = np.broadcast_to(self.x[None, ...], np.roll(self.gl_shape, -1)) 
+        x_broad = np.broadcast_to(x, np.roll(y.shape, -1))
 
         # transpose x to be compatible with y
-        x_trans = np.transpose(x_broad, np.roll(range(self.y.ndim), 1))
+        x_trans = np.transpose(x_broad, np.roll(range(y.ndim), 1))
         
-        x_reshaped, y_reshaped = self._reshape_regress(x_trans), self._reshape_regress(self.y)
+        x_reshaped, y_reshaped = self._reshape_regress(
+            x_trans), self._reshape_regress(y)
 
         return x_reshaped, y_reshaped
 
@@ -71,10 +86,11 @@ class GlRegressor:
         """
 
         # reshape data to facilitate and parallelize the regression
-        x, y = self.get_vars_reshaped()
+        x, y = self._prep_vars_for_regress()
 
         if is_inverse:
             x, y = y, x
+            self.is_inverse = True
 
         regress_res_list = poly_regress(x, y, deg)  # perform the regression
 
@@ -137,11 +153,27 @@ class GlRegressor:
         self._assert_coeffs()
         deg = len(self.coeffs) - 1
         i, j = choose_random_pixels(1, self.gl_shape[2:])
-        y = self.y[..., i, j].flatten()
-        x = np.repeat(self.x, len(y) // len(self.x))
+
+        def _prep_for_vis(x, y, type):
+            offset = 0 if type == "train" else 1
+            x, y = self._decimate_vars((x, y), offset)
+            y_vis = y[..., i, j].flatten()
+            x_vis = np.repeat(x, len(y_vis) // len(x))
+            return x_vis, y_vis
+            
+        y = self.y
+        x = self.x
+
+        x_train, y_train = _prep_for_vis(x, y, "train")
+        x_val, y_val = _prep_for_vis(x, y, "val")
+
+        if self.is_inverse:
+            x_train, y_train = y_train, x_train
+            x_val, y_val = y_val, x_val
+
         p = self.coeffs[:, i, j].flatten()
-        y_hat = np.polyval(p, x)
-        err = y-y_hat
+        y_hat = np.polyval(p, np.concatenate((x_train, x_val)))
+        err = np.concatenate((y_train, y_val))-y_hat
         rmse = np.sqrt((err ** 2).mean())
 
         # get fitted model formula:
@@ -151,17 +183,48 @@ class GlRegressor:
             "T^1", "T")
 
         # plot results:
-        _, ax = plt.subplots(figsize=(16, 9))
-        ax.scatter(x, y, label="samples")
+        _, ax = plt.subplots()
+        ax.scatter(x_train, y_train, label="regression samples")
+        ax.scatter(x_val, y_val, label="validation samples")
         x_lim = ax.axes.get_xlim()
-        ax.plot(x_lim, np.polyval(p, x_lim), linestyle="--",
+        x_query = np.linspace(start=x_lim[0], stop=x_lim[1], num=100)
+        ax.plot(x_query, np.polyval(p, x_query), linestyle="--", color="k",
                 label=f"fitted model (rmse={rmse:.3f})")
         ax.set_title(regression_formula)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel("GL")
         ax.grid()
         ax.legend()
+        if self.is_inverse:
+            ax.set_xlabel("GL")
+            ax.set_ylabel(xlabel)
+
+        else:
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel("GL")
         
+    def validate(self, debug=False):
+        """Validate the performance of the regression over both training and validation sets"""
+        x, y = self.x, self.y.mean(axis=1)
+        x_reshaped = np.broadcast_to(x, np.roll(y.shape, -1))
+        x_reshaped = np.transpose(x_reshaped, np.roll(range(y.ndim), 1))
+
+        if self.is_inverse:
+            x_reshaped, y = y, x_reshaped
+        y_hat = self.predict(x_reshaped)
+
+        # Average Estimation Error for all OPs:
+        est_err = y - y_hat
+        err_df = pd.DataFrame(est_err.reshape(est_err.shape[0], -1).T, columns=x)
+
+        if debug:
+            self.plot_rand_pix()
+            _, ax = plt.subplots()
+            np.sqrt((err_df**2).mean()).plot.bar(ax=ax)
+            ax.set_xlabel("Operating Point")
+            ax.set_ylabel("Estimation Error")
+            ax.set_title("Estimation RMSE")
+            ax.grid(axis="y")
+
+        return y_hat, err_df
 
     def get_coeffs(self):
         """slice coefficient matrix by coefficients and put in a dictionary"""
@@ -172,10 +235,16 @@ class GlRegressor:
         return coeffs_dict
 
     def save_model(self, target_path: Path):
-        np.save(target_path, self.coeffs)
+        model = {"coeffs":self.coeffs, "is_inverse":self.is_inverse}
+        with open(target_path, "wb") as file:
+            pkl.dump(model, file)
 
     def load_model(self, source_path: Path):
-        self.coeffs = np.load(source_path)
+        with open(source_path, "rb") as file:
+            model = pkl.load(file)
+
+        self.coeffs = model["coeffs"]
+        self.is_inverse = model["is_inverse"]
 
 
 def main():
@@ -183,22 +252,22 @@ def main():
     path_to_files = Path.cwd() / "analysis" / "rawData" / "calib" / "tlinear_0"
     meas_panchromatic, _, _, _, list_blackbody_temperatures, _ =\
         get_measurements(
-            path_to_files, filter_wavelength=FilterWavelength.PAN, n_meas_to_load=3)
+            path_to_files, filter_wavelength=FilterWavelength.PAN, n_meas_to_load=5)
 
     gl_regressor = GlRegressor(list_blackbody_temperatures, meas_panchromatic)
 
     # whether to re-run the regression or take the results from the previous regression:
-    re_run_regression = False
+    re_run_regression = True
 
     if re_run_regression:
-        gl_regressor.fit(is_inverse=False)
+        gl_regressor.fit(is_inverse=True)
         gl_regressor.save_model(
-            Path.cwd() / "analysis" / "models" / "t2gl_lin.npy")
+            Path.cwd() / "analysis" / "models" / "gl2t_lin.pkl")
     else:
         gl_regressor.load_model(
-            Path.cwd() / "analysis" / "models" / "t2gl_lin.npy")
-    gl_regressor.plot_rand_pix()
-    result = gl_regressor.predict(meas_panchromatic.mean(axis=1))
-
+            Path.cwd() / "analysis" / "models" / "gl2t_lin.pkl")
+    # gl_regressor.plot_rand_pix()
+    result = gl_regressor.validate()
+    a = 1
 if __name__ == "__main__":
     main()
