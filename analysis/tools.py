@@ -15,17 +15,21 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import median_filter
 from tqdm import tqdm
 import multiprocessing as mp
+import random
 
 
 class FilterWavelength(Enum):
-    """An enumeration for Flir's LWIR filters, where the keys and values are
-    the cenrtal frequencies of the filters in nano-meter."""
+    """An enumeration for Flir's LWIR filters, where the keys and values are the central frequencies of the filters in nano-meter."""
     PAN = 0
     nm8000 = 8000
     nm9000 = 9000
     nm10000 = 10000
     nm11000 = 11000
     nm12000 = 12000
+
+
+def c2k(T): return T + 273.15
+def k2c(T): return T - 273.15
 
 
 def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.PAN, debug=False):
@@ -51,7 +55,8 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
     H = 6.62607004e-34  # [m^2*kg/sec]
     C = 2.99792458e8  # [m/sec]
 
-    # define grid of wavelengths over the entire band of interest with a 1nm granularity:
+    # define grid of wavelengths over the entire band of interest with a 1nm
+    # granularity:
     wl_band = (7_000, 14_000)  # in [nm]
     d_lambda = 1e-9
     wl_grid = np.arange(start=wl_band[0], stop=wl_band[-1], dtype=int)
@@ -62,18 +67,14 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
     def bb(lamda: float, T: float):
         """calculates spectral radiance (Plank's function)
 
-        Parameters:
-            lamda: the wavelength in meters
-            T: the temperature in Kelvin
+        Parameters: lamda: the wavelength in meters T: the temperature in Kelvin
         """
         return 2 * H * C ** 2 / np.power(lamda, 5) * \
             1 / (np.exp(H * C / (KB * T * lamda)) - 1)
 
-    def c2k(T): return T + 273.15
-    def k2c(T): return T - 273.15
-
     def read_trans_resp(sheet_name):
-        """Read the transmittance response from an excel sheet into a pandas series"""
+        """Read the transmittance response from an excel sheet into a pandas
+        series"""
         trans_resp_raw = pd.read_excel(Path(os.path.dirname(__file__), "FiltersResponse.xlsx"),
                                        sheet_name=sheet_name, engine='openpyxl', index_col=0, usecols=[0, 1]).dropna().squeeze()
         # convert Transmission from percents to normalized values:
@@ -88,12 +89,16 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
         return trans_resp
 
     # %%
-    # calculate optical elements responses. microbolometer response was taken from the paper "Spectral response of microbolometers for hyperspectral imaging" https://www.researchgate.net/publication/316709375_Spectral_response_of_microbolometers_for_hyperspectral_imaging
+    # calculate optical elements responses. microbolometer response was taken
+    # from the paper "Spectral response of microbolometers for hyperspectral
+    # imaging"
+    # https://www.researchgate.net/publication/316709375_Spectral_response_of_microbolometers_for_hyperspectral_imaging
     sens_trans = read_trans_resp("microbolometer")
     lens_trans = read_trans_resp("lens_680138-002")
 
     if filt == FilterWavelength.PAN:
-        # assume ideal rectangular filter with 3000nm bandwidth and a constant amplification of 1
+        # assume ideal rectangular filter with 3000nm bandwidth and a constant
+        # amplification of 1
         filt_trans = pd.Series(index=wl_grid, data=np.ones_like(wl_grid))
 
     else:
@@ -121,7 +126,7 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
 
     # %%
     # Plot results:
-    def rad_power(density, dl): return np.nansum(plank * d_lambda)
+    def rad_power(density, dl): return np.nansum(density * dl)
     if debug:
         import matplotlib.pyplot as plt
 
@@ -160,29 +165,35 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
         ax[1].set_title("The filtered segment of the spectral radiance")
         ax[1].set_xlim([0, 2e4])
         if filt == FilterWavelength.PAN:
-            fig.suptitle(f"Pan-Chromatic at T={c2k(temperature)}[K]")
+            fig.suptitle(f"Pan-Chromatic at T={temperature}[C]")
         else:
-            fig.suptitle(f"{filt.value} nm Filter at T={c2k(temperature)}[K]")
+            fig.suptitle(f"{filt.value} nm Filter at T={temperature}[C]")
         plt.show()
 
     return rad_power(plank_trans, d_lambda)
 
 
-def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 3, med_filt_sz: int = 2):
+def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 0, med_filt_sz: int = 2):
     """pre-filtering of raw measurements taken using Flir's TAU-2 LWIR camera.
     The filtering pipe is based on insights gained and explored in the
     'meas_inspection' notebook available under the same parent directory.
 
-    Parameters: cam_meas: a 4D hypercube that contains the data collected by
-    a set of measurements. first_valid_idx: the first valid measurement in
-    all operating points. All measurements taken before that will be
-    discarded. med_filt_sz: the size of the median filter used to clean dead
-    pixels from the measurements.
+        Parameters: 
+            cam_meas: a 4D hypercube that contains the data collected by a set of measurements. 
+            first_valid_idx: the first valid measurement in all operating points. All measurements taken before that will be discarded. 
+            med_filt_sz: the size of the median filter used to clean dead pixels from the measurements.
     """
+
     cam_meas_valid = cam_meas[:, first_valid_meas:, ...]
-    cam_meas_filt = median_filter(
-        cam_meas_valid, size=(1, 1, med_filt_sz, med_filt_sz))
-    return cam_meas_filt
+    meas_shape = cam_meas_valid.shape
+    med_filt_shape = np.pad(np.array((med_filt_sz, med_filt_sz)), pad_width=(
+        len(meas_shape)-3, 0), constant_values=1)
+    map_args = [(meas, tuple(med_filt_shape)) for meas in cam_meas_valid]
+    with mp.Pool(mp.cpu_count()) as pool:
+        cam_meas_filt = pool.starmap(median_filter, tqdm(
+            map_args, desc="Pre-Filtering Measurements"))
+
+    return np.array(cam_meas_filt)
 
 
 def load_pickle(path: Path):
@@ -196,7 +207,7 @@ def load_pickle(path: Path):
     return meas, temperature_blackbody
 
 
-def get_blackbody_temperature_from_path(path: (Path, str)):
+def get_blackbody_temperature_from_path(path: tuple[Path, str]):
     data = Path(path).stem
     if '-' in data:
         data = data.split('-')[0]
@@ -253,39 +264,46 @@ def load_bb_dict(path_to_files, filter_wavelength, n_meas_to_load):
 def _load_filter_fast(path):
     return path.stem, np.load(path)
 
-def get_measurements(path_to_files: (Path, str), filter_wavelength: FilterWavelength, *, n_meas_to_load: int = None , fast_load:bool=False):
+
+def get_measurements(path_to_files: tuple[Path, str], filter_wavelength: FilterWavelength, *, n_meas_to_load: int = None,
+                     fast_load: bool = False, do_prefilt=False, temperature_units="C"):
     if not fast_load:
         dict_measurements = load_bb_dict(
             path_to_files, filter_wavelength, n_meas_to_load)
-        
+
         # the dict keys are sorted each time, to save memory space
         list_blackbody_temperatures = list(sorted(dict_measurements.keys()))
         frames = np.stack([dict_measurements[k][0].pop('frames')
-                        for k in list_blackbody_temperatures])
+                           for k in list_blackbody_temperatures])
         fpa = np.stack([dict_measurements[k][0].pop('fpa')
-                    for k in list_blackbody_temperatures])
-        housing = np.stack([dict_measurements[k][0].pop('housing')
                         for k in list_blackbody_temperatures])
+        housing = np.stack([dict_measurements[k][0].pop('housing')
+                            for k in list_blackbody_temperatures])
         cam_params = [p[-1] for p in dict_measurements.values()]
 
     else:
         path_to_filt = path_to_files / filter_wavelength.name
         f_list = [file for file in path_to_filt.glob("*") if file.is_file()]
-        # with Pool(mp.cpu_count()) as pool:
-        #     res = pool.imap(_load_filter_fast, tqdm(f_list, desc="Load measurements"))
+        if n_meas_to_load is not None:
+            f_list = random.choices(f_list, k=n_meas_to_load)
+        # with Pool(mp.cpu_count()) as pool: res = pool.imap(_load_filter_fast,
+        #     tqdm(f_list, desc="Load measurements"))
         res = []
         for file in tqdm(f_list, desc="Load measurements"):
             res.append(_load_filter_fast(file))
-        # list_meas = list(filter(lambda x: x is not None, list_meas))
-        # for file in path_to_filt.glob("*"):
-        #     list_blackbody_temperatures.append(file.stem) 
-        #     frames_list.append(np.load(file))
         list_blackbody_temperatures = [int(tup[0]) for tup in res]
         frames = np.stack([tup[1] for tup in res])
         fpa = housing = cam_params = np.array([])
 
     list_power = [calc_rx_power(temperature=t_bb, filt=filter_wavelength)
-                    for t_bb in list_blackbody_temperatures]
+                  for t_bb in tqdm(list_blackbody_temperatures, desc="calculating power")]
+
+    if temperature_units == "K":
+        list_blackbody_temperatures = [c2k(t)
+                                       for t in list_blackbody_temperatures]
+
+    if do_prefilt:
+        frames = prefilt_cam_meas(frames)
 
     return frames.squeeze(), fpa.squeeze(), housing.squeeze(), list_power, list_blackbody_temperatures, \
         cam_params
@@ -302,17 +320,14 @@ def save_ndarray_as_base64(image: np.ndarray):
         return fmt_header + base64.b64encode(buff.getvalue()).decode()
 
 
-def make_jupyter_markdown_figure(image: np.ndarray, path: (str, Path), title: str = ''):
+def make_jupyter_markdown_figure(image: np.ndarray, path: tuple[str, Path], title: str = ''):
     """
-    Saves a .txt file with the full image encoded as base64.
-    The caption should be copied as a whole to a markdown cell in jupyter notebook.
+    Saves a .txt file with the full image encoded as base64. The caption should
+    be copied as a whole to a markdown cell in jupyter notebook.
 
-    :param image:
-        np.ndarray of dimensions (h, w).
-    :param path:
-        str of the full path to save the image.
-    :param title:
-        str. If empty, no caption is inserted to the figure.
+    :param image: np.ndarray of dimensions (h, w). :param path: str of the full
+        path to save the image. :param title: str. If empty, no caption is
+        inserted to the figure.
     """
     image_base64 = save_ndarray_as_base64(image)
     header = f'<figure><img  style="width:100%" src="{image_base64}">\n'
@@ -357,11 +372,30 @@ def split_by_filt(path_to_files, filter_wavelength: FilterWavelength, *, n_meas_
             np.save(target_path / f"{temperature}.npy", frames)
 
 
-
 def main():
+    from regression import GlRegressor
+    # path = Path(r"analysis\rawData\calib\tlinear_0") split_by_filt(path,
+    # filter_wavelength=FilterWavelength.PAN)
+    path_to_files = Path("analysis") / "rawData" / "calib" / "tlinear_0"
+    meas_panchromatic, _, _, list_power_panchromatic, _, _ =\
+        get_measurements(
+            path_to_files, filter_wavelength=FilterWavelength.PAN, fast_load=True, n_meas_to_load=3, do_prefilt=True)
 
-    path = Path(r"analysis\rawData\calib\tlinear_0")
-    split_by_filt(path, filter_wavelength=FilterWavelength.PAN)
+    gl_regressor = GlRegressor(
+        list_power_panchromatic, meas_panchromatic)
+
+    # whether to re-run the regression or take the results from the previous regression:
+    re_run_regression = True
+
+    path_to_models = Path("analysis") / "models"
+    if re_run_regression:
+        gl_regressor.fit()
+        gl_regressor.save_model(path_to_models / "p2gl_lin.pkl")
+    else:
+        gl_regressor.load_model(path_to_models / "p2gl_lin.pkl")
+
+    # gl_regressor.show_coeffs()
+    gl_hat, err_df = gl_regressor.validate(debug=True)
 
 
 if __name__ == "__main__":

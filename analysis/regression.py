@@ -8,10 +8,10 @@ from pathlib import Path
 import plotly.express as px
 import pickle as pkl
 import matplotlib.pyplot as plt
-from tools import choose_random_pixels
+from tools import choose_random_pixels, calc_r2
 
 
-def poly_regress(x: np.ndarray, y: np.ndarray, ord: int) -> np.ndarray:
+def poly_regress(x: np.ndarray, y: np.ndarray, ord) -> np.ndarray:
     """performs a multi-threaded linear regression and returns a list where the ith element are the regression coefficients for the ith feature.
 
         Parameters:
@@ -21,17 +21,22 @@ def poly_regress(x: np.ndarray, y: np.ndarray, ord: int) -> np.ndarray:
     """
     map_args = [(x_row, y_row, ord) for x_row, y_row in zip(x, y)]
     with mp.Pool(mp.cpu_count()) as pool:
-        regress_res = pool.starmap(np.polyfit, tqdm(map_args, desc="Performing Regression"))
+        regress_res = pool.starmap(np.polyfit, tqdm(
+            map_args, desc="Performing Regression"))
 
     return np.array(list(regress_res))
 
 
 class GlRegressor:
-    def __init__(self, x_var: Iterable, grey_levels: np.ndarray, train_val_rat = 0.5):
+    def __init__(self, x_var: Iterable, grey_levels: np.ndarray, deg: int = 1, feature_power=1, train_val_rat = 0.5, x_label="T"):
         self.gl_shape = grey_levels.shape
         self.x = np.array(x_var)
         self.y = grey_levels
+        self.deg = deg
+        self.feature_power = feature_power  # the power of the independent features (x -> x ** feature_power)
         self.train_val_rat = train_val_rat
+        # the physical independent variable (used for plotting)
+        self.x_label = x_label
         self.coeffs = None  # the coefficients of the fitted regression model
         self.is_inverse = False
 
@@ -57,13 +62,13 @@ class GlRegressor:
         vars_dec = [var[offset::dec_rate] for var in vars]
         return vars_dec
 
-
+    
     def _prep_vars_for_regress(self):
         """Returns a 2d re-shaped version of the variables to facilitate the fitting process, such that each row corresponds to measurements of a different pixel"""
 
         # decimate variables according to training-validation ratio:
 
-        x, y = self._decimate_vars((self.x, self.y))
+        x, y = self._decimate_vars((self.x ** self.feature_power, self.y))
 
         # broadcast x to the shape of y 
         x_broad = np.broadcast_to(x, np.roll(y.shape, -1))
@@ -76,7 +81,7 @@ class GlRegressor:
 
         return x_reshaped, y_reshaped
 
-    def fit(self, deg: int = 1, is_inverse: bool =False, debug: bool = False):
+    def fit(self, is_inverse: bool =False, debug: bool = False):
         """performs a pixel-wise polynomial regression for grey_levels vs an independent variable
 
             Parameters:
@@ -92,10 +97,10 @@ class GlRegressor:
             x, y = y, x
             self.is_inverse = True
 
-        regress_res_list = poly_regress(x, y, deg)  # perform the regression
+        regress_res_list = poly_regress(x, y, self.deg)  # perform the regression
 
         # reorder results in matrix format
-        n_coeffs = deg + 1
+        n_coeffs = self.deg + 1
         regress_res_mat = regress_res_list.reshape(
             *self.gl_shape[2:], n_coeffs).transpose(2, 0, 1)
         self.coeffs = regress_res_mat
@@ -107,33 +112,52 @@ class GlRegressor:
         """Check if the coefficients are available"""
         assert self.coeffs is not None
 
-    def predict(self, x_query):
+    @staticmethod
+    def _solve_inverse(coeffs, y):
+        if len(coeffs) == 2: # model is linear
+            a, b = coeffs
+            sol = (y-b) / a
+        elif len(coeffs) ==3: # model is quadratic 
+            a, b, c = coeffs
+            # we assume that the solution is the positive root:
+            sol = (-b + np.sqrt(b ^ 2 - 4*a*c)) / (2*a)
+        else:
+            raise Exception("Model Order is too high to provide a solution")
+        return sol
+
+    def predict(self, query_pts, is_inverse=False):
         """Predict the target values by applying the regression model on the query point.  
 
             Parameters:
-                x_query: the query points
-
+                query_pts: the query points for the prediction
+                is_inverse: flag indicating whether to predict x from y instead of y from x
             Returns: 
                 results: len(x_query) feature maps, where results[i] corresponds to the predicted features for x_query[i] 
         """
-        if not isinstance(x_query, np.ndarray):
-            x_query = np.array(x_query)
+        if not isinstance(query_pts, np.ndarray):
+            query_pts = np.array(query_pts)
+        query_pts = query_pts ** self.feature_power  # convert to features
         self._assert_coeffs()
         coeffs_for_pred = self._reshape_regress(self.coeffs)
 
-        if x_query.ndim < 2 or not x_query.shape[-2:] == self.gl_shape[-2:]:  # input shape is incompatible with spatial dimensions
-            x_row_vec = x_query.flatten()[None, ...]
+        if query_pts.ndim < 2 or not query_pts.shape[-2:] == self.gl_shape[-2:]:  # input shape is incompatible with spatial dimensions
+            x_row_vec = query_pts.flatten()[None, ...]
             x_for_pred = np.repeat(x_row_vec, np.prod(self.gl_shape[-2:]), axis=0)
         else:
-            x_for_pred = self._reshape_regress(x_query)
+            x_for_pred = self._reshape_regress(query_pts)
 
         map_args = [(coeffs, query) for coeffs, query in zip(coeffs_for_pred, x_for_pred)]
         with mp.Pool(mp.cpu_count()) as pool:
-            preds = pool.starmap(np.polyval, tqdm(map_args, desc="Predicting"))
-
+            if is_inverse:
+                preds = pool.starmap(self._solve_inverse, tqdm(
+                    map_args, desc="Predicting"))
+                preds = preds ** (1/self.feature_power)  # return predictions in the variable instead of features
+            else:
+                preds = pool.starmap(np.polyval, tqdm(
+                    map_args, desc="Predicting"))
         preds = np.array(preds)
 
-        return self._reshape_regress(preds, phase="post")
+        return self._reshape_regress(preds, phase="post").squeeze()
 
 
     def show_coeffs(self):
@@ -148,7 +172,7 @@ class GlRegressor:
             fig.show()
 
 
-    def plot_rand_pix(self, xlabel=None):
+    def plot_rand_pix(self):
 
         self._assert_coeffs()
         deg = len(self.coeffs) - 1
@@ -162,7 +186,7 @@ class GlRegressor:
             return x_vis, y_vis
             
         y = self.y
-        x = self.x
+        x = self.x ** self.feature_power
 
         x_train, y_train = _prep_for_vis(x, y, "train")
         x_val, y_val = _prep_for_vis(x, y, "val")
@@ -173,33 +197,39 @@ class GlRegressor:
 
         p = self.coeffs[:, i, j].flatten()
         y_hat = np.polyval(p, np.concatenate((x_train, x_val)))
-        err = np.concatenate((y_train, y_val))-y_hat
-        rmse = np.sqrt((err ** 2).mean())
+        y_gt = np.concatenate((y_train, y_val))
+        err = y_gt-y_hat
+        r_2 = calc_r2(y_hat, y_gt)
 
         # get fitted model formula:
-        regression_parts = [rf"{p[k]:.3f} \times T^{deg-k} +" for k in range(len(p)) if k < deg]
-        regression_parts.append(f"{p[-1]:.3f}")
+        xlabel = self.x_label
+        regression_parts = [
+            rf"{p[k]:.3e} \times {xlabel}^{self.feature_power * (deg-k)} +" for k in range(len(p)) if k < deg]
+        regression_parts.append(f"{p[-1]:.3e}")
         regression_formula = f"$GL = {' '.join(regression_parts)}$".replace(
-            "T^1", "T")
+            f"{xlabel}^1", xlabel)
 
         # plot results:
         _, ax = plt.subplots()
-        ax.scatter(x_train, y_train, label="regression samples")
+        ax.scatter(x_train,y_train, label="regression samples")
         ax.scatter(x_val, y_val, label="validation samples")
         x_lim = ax.axes.get_xlim()
         x_query = np.linspace(start=x_lim[0], stop=x_lim[1], num=100)
         ax.plot(x_query, np.polyval(p, x_query), linestyle="--", color="k",
-                label=f"fitted model (rmse={rmse:.3f})")
+                label=f"fitted model (R^2={r_2:.3f})")
         ax.set_title(regression_formula)
         ax.grid()
         ax.legend()
+        x_label = f"${xlabel}^{self.feature_power}$"
         if self.is_inverse:
             ax.set_xlabel("GL")
-            ax.set_ylabel(xlabel)
+            ax.set_ylabel(x_label)
 
         else:
-            ax.set_xlabel(xlabel)
+            ax.set_xlabel(x_label)
             ax.set_ylabel("GL")
+
+        plt.show()
         
     def validate(self, debug=False):
         """Validate the performance of the regression over both training and validation sets"""
@@ -223,7 +253,9 @@ class GlRegressor:
             ax.set_ylabel("Estimation Error")
             ax.set_title("Estimation RMSE")
             ax.grid(axis="y")
-
+            plt.show()
+            plt.tight_layout()
+            
         return y_hat, err_df
 
     def get_coeffs(self):
@@ -235,7 +267,7 @@ class GlRegressor:
         return coeffs_dict
 
     def save_model(self, target_path: Path):
-        model = {"coeffs":self.coeffs, "is_inverse":self.is_inverse}
+        model = {"coeffs":self.coeffs, "is_inverse":self.is_inverse, "feature_power":self.feature_power}
         with open(target_path, "wb") as file:
             pkl.dump(model, file)
 
@@ -245,29 +277,21 @@ class GlRegressor:
 
         self.coeffs = model["coeffs"]
         self.is_inverse = model["is_inverse"]
-
+        self.feature_power = model["feature_power"]
 
 def main():
     from tools import get_measurements, FilterWavelength
     path_to_files = Path.cwd() / "analysis" / "rawData" / "calib" / "tlinear_0"
     meas_panchromatic, _, _, _, list_blackbody_temperatures, _ =\
         get_measurements(
-            path_to_files, filter_wavelength=FilterWavelength.PAN, n_meas_to_load=5)
+            path_to_files, filter_wavelength=FilterWavelength.PAN, fast_load=True, temperature_units="K")
+    x = np.array(list_blackbody_temperatures)
+    gl_regressor = GlRegressor(x, meas_panchromatic, feature_power=4)
+    gl_regressor.fit()
+    gl_regressor.load_model(Path(r"C:\Users\omriberm\OneDrive - Intel Corporation\Documents\Omri\TAU\Thesis\MultiSpectralCtrl\analysis\models") / "t2gl_4ord.pkl")
 
-    gl_regressor = GlRegressor(list_blackbody_temperatures, meas_panchromatic)
-
-    # whether to re-run the regression or take the results from the previous regression:
-    re_run_regression = True
-
-    if re_run_regression:
-        gl_regressor.fit(is_inverse=True)
-        gl_regressor.save_model(
-            Path.cwd() / "analysis" / "models" / "gl2t_lin.pkl")
-    else:
-        gl_regressor.load_model(
-            Path.cwd() / "analysis" / "models" / "gl2t_lin.pkl")
-    # gl_regressor.plot_rand_pix()
-    result = gl_regressor.validate()
+    gl_regressor.validate(debug=True)
     a = 1
 if __name__ == "__main__":
     main()
+
