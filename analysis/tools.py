@@ -28,8 +28,8 @@ class FilterWavelength(Enum):
     nm12000 = 12000
 
 
-def c2k(T): return T + 273.15
-def k2c(T): return T - 273.15
+def c2k(T): return np.asarray(T) + 273.15
+def k2c(T): return np.asarray(T) - 273.15
 
 
 def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.PAN, debug=False):
@@ -395,7 +395,7 @@ def main():
         gl_regressor.load_model(path_to_models / "p2gl_lin.pkl")
 
     # gl_regressor.show_coeffs()
-    gl_hat, err_df = gl_regressor.validate(debug=True)
+    gl_hat, err_df = gl_regressor.eval(debug=True)
 
 
 if __name__ == "__main__":
