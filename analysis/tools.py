@@ -373,30 +373,7 @@ def split_by_filt(path_to_files, filter_wavelength: FilterWavelength, *, n_meas_
 
 
 def main():
-    from regression import GlRegressor
-    # path = Path(r"analysis\rawData\calib\tlinear_0") split_by_filt(path,
-    # filter_wavelength=FilterWavelength.PAN)
-    path_to_files = Path("analysis") / "rawData" / "calib" / "tlinear_0"
-    meas_panchromatic, _, _, list_power_panchromatic, _, _ =\
-        get_measurements(
-            path_to_files, filter_wavelength=FilterWavelength.PAN, fast_load=True, n_meas_to_load=3, do_prefilt=True)
-
-    gl_regressor = GlRegressor(
-        list_power_panchromatic, meas_panchromatic)
-
-    # whether to re-run the regression or take the results from the previous regression:
-    re_run_regression = True
-
-    path_to_models = Path("analysis") / "models"
-    if re_run_regression:
-        gl_regressor.fit()
-        gl_regressor.save_model(path_to_models / "p2gl_lin.pkl")
-    else:
-        gl_regressor.load_model(path_to_models / "p2gl_lin.pkl")
-
-    # gl_regressor.show_coeffs()
-    gl_hat, err_df = gl_regressor.eval(debug=True)
-
+    ...
 
 if __name__ == "__main__":
     main()

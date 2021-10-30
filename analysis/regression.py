@@ -1,30 +1,10 @@
-from os import stat
-from typing import Iterable
 import numpy as np
-import multiprocessing as mp
 import pandas as pd
-from tqdm import tqdm
 from pathlib import Path
 import plotly.express as px
 import pickle as pkl
 import matplotlib.pyplot as plt
 from tools import choose_random_pixels, calc_r2, c2k, k2c
-
-
-def poly_regress(x: np.ndarray, y: np.ndarray, ord) -> np.ndarray:
-    """performs a multi-threaded linear regression and returns a list where the ith element are the regression coefficients for the ith feature.
-
-        Parameters:
-            x: a 2d matrix where the ith column holds the independent variables for the ith dependent feature
-            y: a 2d matrix where the ith column holds the ith dependent feature
-            deg: the degree of the fitted polynomial
-    """
-    map_args = [(x_row, y_row, ord) for x_row, y_row in zip(x, y)]
-    with mp.Pool(mp.cpu_count()) as pool:
-        regress_res = pool.starmap(np.polyfit, tqdm(
-            map_args, desc="Performing Regression"))
-
-    return np.array(list(regress_res))
 
 
 class GlRegressor:
@@ -36,19 +16,20 @@ class GlRegressor:
 
     def _decimate_var(self, var, train_val_rat, offset=0):
         dec_rate = int(1 / train_val_rat)
-        var_dec = var[offset::dec_rate] 
+        var_dec = var[offset::dec_rate]
         return var_dec
 
     def _pre_proc_var(self, var, train_val_rat, n_meas=None):
         """Returns a 2d re-shaped version of the variables to facilitate the fitting process, such that each row corresponds to measurements of a different pixel"""
 
         var_dec = self._decimate_var(var, train_val_rat)
-        if n_meas not in var.shape:  # true if this is the independent variable (a 1d vector)
+        # true if this is the independent variable (a 1d vector)
+        if n_meas not in var.shape:
             # broadcast x to the shape of y's columns dimension:
             var_reshaped = np.repeat(var_dec, n_meas)
         else:
             # reshape matrix to a 2D matrix where the columns are the raveled spatial pixels and the columns are
-            var_reshaped = var_dec.reshape(np.prod(var_dec.shape[:2]), -1).T
+            var_reshaped = var_dec.reshape(np.prod(var_dec.shape[:2]), -1)
         return var_reshaped
 
     def fit(self, x: np.ndarray, y: np.ndarray, deg: int = 1, feature_power: float = 1, train_val_rat: float = 0.5, debug: bool = False):
@@ -71,24 +52,14 @@ class GlRegressor:
         n_meas = y.shape[1]
         phi_x_regress, y_regress = self._pre_proc_var(
             phi_x, train_val_rat, n_meas), self._pre_proc_var(y, train_val_rat, n_meas)
-        
-        # make phi_x dimensions consistent with y:
-        phi_x_regress = np.repeat(
-            phi_x_regress[None, :], y_regress.shape[0], axis=0)
         print("Pre-Processing is Complete!")
-        
+
         # perform the regression
-        regress_res_list = poly_regress(phi_x_regress, y_regress, deg)  
-
-        # reshape results in matrix format
-        n_coeffs = deg + 1
-        spat_dims = y.shape[2:]
-        regress_res_mat = regress_res_list.reshape(
-            *spat_dims, n_coeffs).transpose(2, 0, 1)
-        self.coeffs = regress_res_mat
-
+        print("Performing the regression (this might take a few seconds...)")
+        regress_res = np.polyfit(phi_x_regress, y_regress, deg)
+        self.coeffs = regress_res.reshape(-1, *y.shape[2:])
+        print("Regression is complete!")
         if debug:
-            # TODO: correct this function
             self.plot_rand_pix(phi_x, y, train_val_rat)
 
     def _assert_coeffs(self):
@@ -120,39 +91,32 @@ class GlRegressor:
 
         if not isinstance(query_pts, np.ndarray):
             query_pts = np.asarray(query_pts)
-        
+
         if not is_inverse and self.feature_power != 1:
             query_pts = query_pts ** self.feature_power  # convert to features
 
         spat_dims = self.coeffs.shape[-2:]
         self._assert_coeffs()  # make sure coefficients are available
-        coeffs_for_pred = self.coeffs.reshape(2, -1).T
+        coeffs_for_pred = self.coeffs.reshape(2, -1)
 
         query_shape = query_pts.shape
-        if query_pts.ndim < 2 :  # query is a 1d vector -> repeat it to match the number of pixels 
-            query_for_pred = np.repeat(query_pts[None, ...], np.prod(spat_dims), axis=0)
+        if query_pts.ndim < 2:  # query is a 1d vector -> repeat it to match the number of pixels
+            query_for_pred = np.repeat(
+                query_pts[..., None], np.prod(spat_dims), axis=1)
         else:
-            query_for_pred = self._pre_proc_var(query_pts, 1, query_pts.shape[0])
+            query_for_pred = self._pre_proc_var(
+                query_pts, 1, query_pts.shape[0])
 
-        # calculate predications:
-        map_args = [(coeffs, query)
-                    for coeffs, query in zip(coeffs_for_pred, query_for_pred)]
-        if is_inverse:
-            pred_func = self._solve_inverse
-        else:
-            pred_func = np.polyval
-        with mp.Pool(mp.cpu_count()) as pool:
-            preds_lst = pool.starmap(pred_func, tqdm(
-                map_args, desc="Predicting"))
-
+        # calculate and reshape predications:
+        print("Calculating predictions (this might take a few seconds)...")
+        preds = self._solve_inverse(coeffs_for_pred, query_for_pred)
         # reshape predictions:
-        print("Reshaping predictions...")
-        preds = np.asarray(preds_lst)
-        preds_reshaped = preds.T.reshape(-1, *spat_dims)
-        if query_pts.ndim > 3: # further reshaping is required 
+        preds_reshaped = preds.reshape(-1, *spat_dims)
+        if query_pts.ndim > 3:  # further reshaping is required
             preds_reshaped = preds_reshaped.reshape(query_shape)
-        
-        if is_inverse and self.feature_power !=1:  # convert predicted features back to the original independent variable:
+
+        # convert predicted features back to the original independent variable:
+        if is_inverse and self.feature_power != 1:
             preds_reshaped **= 1 / self.feature_power
         print("Predictions are ready!")
 
@@ -277,16 +241,15 @@ def main():
     gl_regressor = GlRegressor()
     gl_regressor.fit(x, meas_panchromatic, deg=1,
                      feature_power=4, train_val_rat=0.5, debug=True)
-    # gl_regressor.load_model(Path(
-    #     r"C:\Users\omriberm\OneDrive - Intel Corporation\Documents\Omri\TAU\Thesis\MultiSpectralCtrl\analysis\models") / "t2gl_4ord.pkl")
+    gl_regressor.load_model(Path(
+        r"C:\Users\omriberm\OneDrive - Intel Corporation\Documents\Omri\TAU\Thesis\MultiSpectralCtrl\analysis\models") / "t2gl_4ord.pkl")
     # y_hat = gl_regressor.predict(x)
     # ax_lbls = {"xlabel": "Temperature[C]", "ylabel": "Grey-levels"}
     # eval_res = gl_regressor.eval(meas_panchromatic, y_hat,
     #                              list_blackbody_temperatures, debug=True, ax_lbls=ax_lbls)
-    # x_hat = k2c(gl_regressor.predict(meas_panchromatic, is_inverse=True))
+    x_hat = k2c(gl_regressor.predict(meas_panchromatic, is_inverse=True))
     # eval_res = gl_regressor.eval(k2c(x), x_hat, list_blackbody_temperatures, debug=True)
 
 
 if __name__ == "__main__":
     main()
-
