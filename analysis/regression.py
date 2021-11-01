@@ -6,7 +6,6 @@ import pickle as pkl
 import matplotlib.pyplot as plt
 from tools import choose_random_pixels, calc_r2, c2k, k2c
 
-
 class GlRegressor:
     def __init__(self, x_label="T"):
         # the physical independent variable (used for plotting)
@@ -55,7 +54,7 @@ class GlRegressor:
         print("Pre-Processing is Complete!")
 
         # perform the regression
-        print("Performing the regression (this might take a few seconds...)")
+        print("Performing the regression (this might take a few seconds/minutes, depending on the data size...)")
         regress_res = np.polyfit(phi_x_regress, y_regress, deg)
         self.coeffs = regress_res.reshape(-1, *y.shape[2:])
         print("Regression is complete!")
@@ -74,7 +73,7 @@ class GlRegressor:
         elif len(coeffs) == 3:  # model is quadratic
             a, b, c = coeffs
             # we assume that the solution is the positive root:
-            sol = (-b + np.sqrt(b ^ 2 - 4*a*c)) / (2*a)
+            sol = (-b + np.sqrt(b ** 2 - 4*a*(c-y))) / (2*a)
         else:
             raise Exception("Model Order is too high to provide a solution")
         return sol
@@ -97,19 +96,24 @@ class GlRegressor:
 
         spat_dims = self.coeffs.shape[-2:]
         self._assert_coeffs()  # make sure coefficients are available
-        coeffs_for_pred = self.coeffs.reshape(2, -1)
+        coeffs_for_pred = self.coeffs.reshape(len(self.coeffs), -1)
 
-        query_shape = query_pts.shape
-        if query_pts.ndim < 2:  # query is a 1d vector -> repeat it to match the number of pixels
-            query_for_pred = np.repeat(
-                query_pts[..., None], np.prod(spat_dims), axis=1)
-        else:
-            query_for_pred = self._pre_proc_var(
-                query_pts, 1, query_pts.shape[0])
-
-        # calculate and reshape predications:
         print("Calculating predictions (this might take a few seconds)...")
-        preds = self._solve_inverse(coeffs_for_pred, query_for_pred)
+        if is_inverse:
+            query_shape = query_pts.shape
+            if len(query_shape) < 2:  # query is a 1d vector -> repeat it to match the number of pixels
+                query_for_pred = np.repeat(
+                    query_pts[..., None], np.prod(spat_dims), axis=1)
+            else:
+                query_for_pred = self._pre_proc_var(
+                    query_pts, 1, query_pts.shape[0])
+
+            preds = self._solve_inverse(coeffs_for_pred, query_for_pred)
+
+        else:
+            preds = np.apply_along_axis(
+                np.polyval, 0, coeffs_for_pred, query_pts)
+
         # reshape predictions:
         preds_reshaped = preds.reshape(-1, *spat_dims)
         if query_pts.ndim > 3:  # further reshaping is required
@@ -236,19 +240,18 @@ def main():
     path_to_files = Path.cwd() / "analysis" / "rawData" / "calib" / "tlinear_0"
     meas_panchromatic, _, _, _, list_blackbody_temperatures, _ =\
         get_measurements(
-            path_to_files, filter_wavelength=FilterWavelength.PAN, fast_load=True)
+            path_to_files, filter_wavelength=FilterWavelength.PAN, fast_load=True, n_meas_to_load=3)
     x = np.asarray(c2k(list_blackbody_temperatures))
     gl_regressor = GlRegressor()
-    gl_regressor.fit(x, meas_panchromatic, deg=1,
-                     feature_power=4, train_val_rat=0.5, debug=True)
-    gl_regressor.load_model(Path(
-        r"C:\Users\omriberm\OneDrive - Intel Corporation\Documents\Omri\TAU\Thesis\MultiSpectralCtrl\analysis\models") / "t2gl_4ord.pkl")
+    # gl_regressor.fit(x, meas_panchromatic, deg=1,
+    #                  feature_power=4, train_val_rat=0.5, debug=True)
+    gl_regressor.load_model(Path.cwd() / "analysis" / "models" / "t2gl_1ord.pkl")
     # y_hat = gl_regressor.predict(x)
     # ax_lbls = {"xlabel": "Temperature[C]", "ylabel": "Grey-levels"}
     # eval_res = gl_regressor.eval(meas_panchromatic, y_hat,
     #                              list_blackbody_temperatures, debug=True, ax_lbls=ax_lbls)
     x_hat = k2c(gl_regressor.predict(meas_panchromatic, is_inverse=True))
-    # eval_res = gl_regressor.eval(k2c(x), x_hat, list_blackbody_temperatures, debug=True)
+    eval_res = gl_regressor.eval(k2c(x), x_hat, list_blackbody_temperatures, debug=True)
 
 
 if __name__ == "__main__":

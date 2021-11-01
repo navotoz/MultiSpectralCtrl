@@ -236,7 +236,6 @@ def plot_regression(x, y, deg=1, xlabel=None, ylabel=None, title=None):
     regression_parts = [rf"{coeffs[k]:.3f} \times T^{deg-k} +" for k in range(n_coeffs) if k < deg]
     regression_parts.append(f"{coeffs[-1]:.3f}")
     regression_formula = f"$GL = {' '.join(regression_parts)}$".replace("T^1", "T")
-    # TODO: finalize regression formula in display
     display(Latex(
         fr"Regression result: {regression_formula}"))
     return coeffs
