@@ -5,11 +5,13 @@ import plotly.express as px
 import pickle as pkl
 import matplotlib.pyplot as plt
 from tools import choose_random_pixels, calc_r2, c2k, k2c
-
+import multiprocessing as mp
+from tqdm import tqdm
 class GlRegressor:
-    def __init__(self, x_label="T"):
+    def __init__(self, is_parallel=False, x_label="T"):
         # the physical independent variable (used for plotting)
         self.x_label = x_label
+        self.is_parallel = is_parallel  # flag for using parallel computing when fitting and predicting
         self.coeffs = None  # the coefficients of the fitted regression model
         self.is_inverse = False
 
@@ -30,6 +32,7 @@ class GlRegressor:
             # reshape matrix to a 2D matrix where the columns are the raveled spatial pixels and the columns are
             var_reshaped = var_dec.reshape(np.prod(var_dec.shape[:2]), -1)
         return var_reshaped
+
 
     def fit(self, x: np.ndarray, y: np.ndarray, deg: int = 1, feature_power: float = 1, train_val_rat: float = 0.5, debug: bool = False):
         """performs a pixel-wise polynomial regression for grey_levels vs an independent variable
@@ -52,18 +55,28 @@ class GlRegressor:
         phi_x_regress, y_regress = self._pre_proc_var(
             phi_x, train_val_rat, n_meas), self._pre_proc_var(y, train_val_rat, n_meas)
         print("Pre-Processing is Complete!")
-
+        
         # perform the regression
         print("Performing the regression (this might take a few seconds/minutes, depending on the data size...)")
-        regress_res = np.polyfit(phi_x_regress, y_regress, deg)
-        self.coeffs = regress_res.reshape(-1, *y.shape[2:])
+        if self.is_parallel:
+            map_args = [(phi_x_regress, y_row, deg) for y_row in y_regress.T]
+            with mp.Pool(mp.cpu_count()) as pool:
+                regress_res_list = pool.starmap(np.polyfit, tqdm(
+                    map_args, desc="Performing Regression"))
+            regress_res = np.array(list(regress_res_list)).T
+        else:
+            regress_res = np.polyfit(phi_x_regress, y_regress, deg)
         print("Regression is complete!")
+
+        self.coeffs = regress_res.reshape(-1, *y.shape[2:])
+
         if debug:
             self.plot_rand_pix(phi_x, y, train_val_rat)
 
     def _assert_coeffs(self):
         """Check if the coefficients are available"""
         assert self.coeffs is not None
+
 
     @staticmethod
     def _solve_inverse(coeffs, y):
@@ -77,6 +90,43 @@ class GlRegressor:
         else:
             raise Exception("Model Order is too high to provide a solution")
         return sol
+
+    def _get_preds(self, x, is_inverse):
+        
+        # reshape coefficients:
+        self._assert_coeffs()  
+        coeffs_for_pred = self.coeffs.reshape(len(self.coeffs), -1)
+
+        # reshape query points to comply with the required arguments shape:
+        query_shape = x.shape
+        if len(query_shape) < 2:  # query is a 1d vector -> repeat it to match the number of pixels
+            query_for_pred = x
+        else:
+            query_for_pred = self._pre_proc_var(x, 1, x.shape[0])
+
+        # predict:
+        if self.is_parallel:
+            if is_inverse:
+                map_args = [(coeffs, query)
+                            for coeffs, query in zip(coeffs_for_pred.T, query_for_pred.T)]
+                pred_func = self._solve_inverse
+            else:
+                map_args = [(coeffs, query_for_pred)
+                            for coeffs in coeffs_for_pred.T]
+                pred_func = np.polyval
+            with mp.Pool(mp.cpu_count()) as pool:
+                preds_lst = pool.starmap(pred_func, tqdm(
+                    map_args, desc="Predicting"))
+            preds = np.asarray(preds_lst).T
+
+        else:
+            if is_inverse:            
+                preds = self._solve_inverse(coeffs_for_pred, query_for_pred)
+            else:
+                preds = np.apply_along_axis(
+                    np.polyval, 0, coeffs_for_pred, query_for_pred)
+
+        return preds
 
     def predict(self, query_pts, is_inverse=False):
         """Predict the target values by applying the regression model on the query point.  
@@ -94,30 +144,13 @@ class GlRegressor:
         if not is_inverse and self.feature_power != 1:
             query_pts = query_pts ** self.feature_power  # convert to features
 
-        spat_dims = self.coeffs.shape[-2:]
-        self._assert_coeffs()  # make sure coefficients are available
-        coeffs_for_pred = self.coeffs.reshape(len(self.coeffs), -1)
-
-        print("Calculating predictions (this might take a few seconds)...")
-        if is_inverse:
-            query_shape = query_pts.shape
-            if len(query_shape) < 2:  # query is a 1d vector -> repeat it to match the number of pixels
-                query_for_pred = np.repeat(
-                    query_pts[..., None], np.prod(spat_dims), axis=1)
-            else:
-                query_for_pred = self._pre_proc_var(
-                    query_pts, 1, query_pts.shape[0])
-
-            preds = self._solve_inverse(coeffs_for_pred, query_for_pred)
-
-        else:
-            preds = np.apply_along_axis(
-                np.polyval, 0, coeffs_for_pred, query_pts)
+        # get predictions:
+        preds = self._get_preds(query_pts, is_inverse)
 
         # reshape predictions:
-        preds_reshaped = preds.reshape(-1, *spat_dims)
+        preds_reshaped = preds.reshape(-1, *self.coeffs.shape[-2:])
         if query_pts.ndim > 3:  # further reshaping is required
-            preds_reshaped = preds_reshaped.reshape(query_shape)
+            preds_reshaped = preds_reshaped.reshape(query_pts.shape)
 
         # convert predicted features back to the original independent variable:
         if is_inverse and self.feature_power != 1:
@@ -242,16 +275,17 @@ def main():
         get_measurements(
             path_to_files, filter_wavelength=FilterWavelength.PAN, fast_load=True, n_meas_to_load=3)
     x = np.asarray(c2k(list_blackbody_temperatures))
-    gl_regressor = GlRegressor()
+    gl_regressor = GlRegressor(is_parallel=False)
     # gl_regressor.fit(x, meas_panchromatic, deg=1,
     #                  feature_power=4, train_val_rat=0.5, debug=True)
     gl_regressor.load_model(Path.cwd() / "analysis" / "models" / "t2gl_1ord.pkl")
-    # y_hat = gl_regressor.predict(x)
+    y_hat = gl_regressor.predict(x)
     # ax_lbls = {"xlabel": "Temperature[C]", "ylabel": "Grey-levels"}
     # eval_res = gl_regressor.eval(meas_panchromatic, y_hat,
     #                              list_blackbody_temperatures, debug=True, ax_lbls=ax_lbls)
-    x_hat = k2c(gl_regressor.predict(meas_panchromatic, is_inverse=True))
-    eval_res = gl_regressor.eval(k2c(x), x_hat, list_blackbody_temperatures, debug=True)
+    # x_hat = k2c(gl_regressor.predict(meas_panchromatic, is_inverse=True))
+    # eval_res = gl_regressor.eval(k2c(x), x_hat, list_blackbody_temperatures, debug=True)
+    a = 1
 
 
 if __name__ == "__main__":

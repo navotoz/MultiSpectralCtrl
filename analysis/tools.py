@@ -285,7 +285,7 @@ def get_measurements(path_to_files: tuple[Path, str], filter_wavelength: FilterW
         path_to_filt = path_to_files / filter_wavelength.name
         f_list = [file for file in path_to_filt.glob("*") if file.is_file()]
         if n_meas_to_load is not None:
-            f_list = random.choices(f_list, k=n_meas_to_load)
+            f_list = random.sample(f_list, k=n_meas_to_load)
         # with Pool(mp.cpu_count()) as pool: res = pool.imap(_load_filter_fast,
         #     tqdm(f_list, desc="Load measurements"))
         res = []
