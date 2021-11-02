@@ -372,6 +372,13 @@ def split_by_filt(path_to_files, filter_wavelength: FilterWavelength, *, n_meas_
             np.save(target_path / f"{temperature}.npy", frames)
 
 
+def find_parent_dir(parent_dir_name):
+    cur_path = Path.cwd()
+    while not (cur_path / parent_dir_name).is_dir():
+        cur_path = cur_path.parent
+    return (cur_path / parent_dir_name)
+
+
 def main():
     ...
 
