@@ -7,6 +7,7 @@ from enum import Enum
 from itertools import repeat
 from multiprocessing.dummy import Pool
 from pathlib import Path
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -85,7 +86,7 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
         interp_model = interp1d(x=trans_resp_raw.index,
                                 y=trans_resp_raw.values, kind="linear")
 
-        trans_resp = pd.Series(index=wl_grid, data=interp_model(wl_grid))
+        trans_resp = interp_model(wl_grid)
         return trans_resp
 
     # %%
@@ -93,61 +94,76 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
     # from the paper "Spectral response of microbolometers for hyperspectral
     # imaging"
     # https://www.researchgate.net/publication/316709375_Spectral_response_of_microbolometers_for_hyperspectral_imaging
-    sens_trans = read_trans_resp("microbolometer")
-    lens_trans = read_trans_resp("lens_680138-002")
+    sens_resp = read_trans_resp("microbolometer")
+    lens_resp = read_trans_resp("lens_680138-002")
 
     if filt == FilterWavelength.PAN:
         # assume ideal rectangular filter with 3000nm bandwidth and a constant
         # amplification of 1
-        filt_trans = pd.Series(index=wl_grid, data=np.ones_like(wl_grid))
-
+        filt_resp = np.ones_like(wl_grid)
+        filt_grid = wl_grid
     else:
-        filt_trans = read_trans_resp(str(filt.value))
+        filt_resp = read_trans_resp(str(filt.value))
 
         # remove entries Bw far away from the central frequency:
         bw = 1000
-        below_bw = filt_trans.index.values < (filt.value - bw)
-        above_bw = filt_trans.index.values > (filt.value + bw)
+        below_bw = wl_grid < (filt.value - bw)
+        above_bw = wl_grid > (filt.value + bw)
         inside_bw = np.bitwise_not(np.bitwise_or(below_bw, above_bw))
-        filt_trans = filt_trans[inside_bw]
+        filt_grid = wl_grid[inside_bw]
+        filt_resp = filt_resp[inside_bw]
         # convert Transmission from percent to normalized values:
 
     # %%
     # calculate the equivalent system's transmittance to black-body radiation:
-
-    plank = pd.Series(index=np.arange(1e6, dtype=int), dtype=float)  # [nm]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
-        plank.loc[:] = bb(plank.index * d_lambda, c2k(temperature))
+        if isinstance(temperature, np.ndarray):  # temperature is a vector - need to vectorize all inputs:
+            plank_trunc = bb(filt_grid[..., None] * d_lambda, c2k(temperature[None, ...]))
+        else:
+            plank_trunc = bb(filt_grid * d_lambda, c2k(temperature))
 
-    trans_resp = sens_trans[filt_trans.index] * \
-        lens_trans[filt_trans.index] * filt_trans
-    plank_trans = plank.loc[filt_trans.index] * trans_resp
+    overlap_idx = [i for i, wl in enumerate(wl_grid) if wl in filt_grid]
+    trans_resp = sens_resp[overlap_idx] * lens_resp[overlap_idx] * filt_resp
+    plank_resp = plank_trunc.T * trans_resp
 
     # %%
     # Plot results:
-    def rad_power(density, dl): return np.nansum(density * dl)
+    def rad_power(density, dl): return np.nansum(density * dl, axis=0)
     if debug:
         import matplotlib.pyplot as plt
 
         # validate integral over whole spectrum:
         sigma = 5.670373e-8  # [W/(m^2K^4)]
+
+        if isinstance(temperature, np.ndarray):
+            temperature_eg = temperature[0]
+            plank_resp_eg =  plank_resp[0]
+        else:
+            temperature_eg = temperature
+            plank_resp_eg = plank_resp
+
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            plank = bb(np.arange(1e6, dtype=int) *
+                       d_lambda, c2k(temperature_eg))
         L = rad_power(plank, d_lambda)  # integrate over plank
         T_hat = k2c(np.power(L / sigma * np.pi, 1 / 4))
-        print(f"Input temperature: {temperature:.4f}")
+        print(f"Input temperature: {temperature_eg:.4f}")
         print(
             f"Estimated temperature (by integrating over plank's function): {T_hat:.4f}")
 
         fig, ax = plt.subplots(1, 2, figsize=(16, 9))
 
         # plot transmittance response:
-        ax[0].plot(sens_trans * 100,
+        ax[0].plot(wl_grid, sens_resp * 100,
                    label="Microbolometer (sensor) transmittance")
-        ax[0].plot(lens_trans * 100, label="Lense transmittance")
+        ax[0].plot(wl_grid, lens_resp * 100, label="Lense transmittance")
         if filt != FilterWavelength.PAN:
-            ax[0].plot(filt_trans * 100,
+            ax[0].plot(filt_grid, filt_resp * 100,
                        label=f"{filt.value//1000} $\mu m$ filter transmittance")
-        ax[0].plot(trans_resp * 100, label=f"combined transmittance")
+        ax[0].plot(filt_grid, trans_resp * 100, label=f"combined transmittance")
         ax[0].set_title("Optical Transmittance")
         ax[0].set_ylabel("Transmittance [%]")
         ax[0].set_xlabel("$\lambda$[nm]")
@@ -156,8 +172,8 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
 
         # plot raw spectrum and transmitted spectrum:
         ax[1].plot(plank, label="complete spectrum")
-        ax[1].plot(wl_grid, plank.loc[wl_grid], label="TAU-2 bandwidth")
-        ax[1].plot(plank_trans, label="transmitted spectrum")
+        ax[1].plot(wl_grid, plank[wl_grid], label="TAU-2 bandwidth")
+        ax[1].plot(filt_grid, plank_resp_eg, label="transmitted spectrum")
         ax[1].set_ylabel("Spectral Radiance")
         ax[1].set_xlabel("$\lambda$[nm]")
         ax[1].grid()
@@ -165,12 +181,12 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
         ax[1].set_title("The filtered segment of the spectral radiance")
         ax[1].set_xlim([0, 2e4])
         if filt == FilterWavelength.PAN:
-            fig.suptitle(f"Pan-Chromatic at T={temperature}[C]")
+            fig.suptitle(f"Pan-Chromatic at T={temperature_eg}[C]")
         else:
-            fig.suptitle(f"{filt.value} nm Filter at T={temperature}[C]")
+            fig.suptitle(f"{filt.value} nm Filter at T={temperature_eg}[C]")
         plt.show()
 
-    return rad_power(plank_trans, d_lambda)
+    return rad_power(plank_resp.T, d_lambda)
 
 
 def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 0, med_filt_sz: int = 2):
@@ -207,7 +223,7 @@ def load_pickle(path: Path):
     return meas, temperature_blackbody
 
 
-def get_blackbody_temperature_from_path(path: tuple[Path, str]):
+def get_blackbody_temperature_from_path(path: Union[Path, str]):
     data = Path(path).stem
     if '-' in data:
         data = data.split('-')[0]
@@ -265,8 +281,7 @@ def _load_filter_fast(path):
     return path.stem, np.load(path)
 
 
-def get_measurements(path_to_files: tuple[Path, str], filter_wavelength: FilterWavelength, *, n_meas_to_load: int = None,
-                     fast_load: bool = False, do_prefilt=False, temperature_units="C"):
+def get_measurements(path_to_files: Union[Path, str], filter_wavelength: FilterWavelength, *, n_meas_to_load: int = None, fast_load: bool = False, do_prefilt=False, temperature_units="C"):
     if not fast_load:
         dict_measurements = load_bb_dict(
             path_to_files, filter_wavelength, n_meas_to_load)
@@ -320,7 +335,7 @@ def save_ndarray_as_base64(image: np.ndarray):
         return fmt_header + base64.b64encode(buff.getvalue()).decode()
 
 
-def make_jupyter_markdown_figure(image: np.ndarray, path: tuple[str, Path], title: str = ''):
+def make_jupyter_markdown_figure(image: np.ndarray, path: Union[str, Path], title: str = ''):
     """
     Saves a .txt file with the full image encoded as base64. The caption should
     be copied as a whole to a markdown cell in jupyter notebook.
@@ -380,7 +395,9 @@ def find_parent_dir(parent_dir_name):
 
 
 def main():
-    ...
+    # calc_rx_power(32, FilterWavelength.nm9000, debug=True)
+    arr = np.arange(10)
+    res_vec = calc_rx_power(arr, FilterWavelength.nm9000, debug=True)
 
 if __name__ == "__main__":
     main()

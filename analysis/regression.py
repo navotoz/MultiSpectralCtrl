@@ -4,14 +4,18 @@ from pathlib import Path
 import plotly.express as px
 import pickle as pkl
 import matplotlib.pyplot as plt
+from tools import FilterWavelength, calc_rx_power, find_parent_dir
 from tools import choose_random_pixels, calc_r2, c2k, k2c
 import multiprocessing as mp
 from tqdm import tqdm
+
+
 class GlRegressor:
     def __init__(self, is_parallel=False, x_label="T"):
         # the physical independent variable (used for plotting)
         self.x_label = x_label
-        self.is_parallel = is_parallel  # flag for using parallel computing when fitting and predicting
+        # flag for using parallel computing when fitting and predicting
+        self.is_parallel = is_parallel
         self.coeffs = None  # the coefficients of the fitted regression model
         self.is_inverse = False
 
@@ -31,7 +35,7 @@ class GlRegressor:
         else:
             # reshape matrix to a 2D matrix where the columns are the raveled spatial pixels and the columns are
             var_reshaped = var_dec.reshape(np.prod(var_dec.shape[:2]), -1)
-        return var_reshaped
+        return var_reshaped.squeeze()
 
 
     def fit(self, x: np.ndarray, y: np.ndarray, deg: int = 1, feature_power: float = 1, train_val_rat: float = 0.5, debug: bool = False):
@@ -91,7 +95,8 @@ class GlRegressor:
             raise Exception("Model Order is too high to provide a solution")
         return sol
 
-    def _get_preds(self, x, is_inverse):
+    def _get_preds(self, x, is_inverse, is_pixel_wise):
+
         
         # reshape coefficients:
         self._assert_coeffs()  
@@ -111,8 +116,11 @@ class GlRegressor:
                             for coeffs, query in zip(coeffs_for_pred.T, query_for_pred.T)]
                 pred_func = self._solve_inverse
             else:
-                map_args = [(coeffs, query_for_pred)
-                            for coeffs in coeffs_for_pred.T]
+                if is_pixel_wise:
+                    map_args = [(coeffs, queries)
+                                for coeffs, queries in zip(coeffs_for_pred.T, query_for_pred.T)]
+                else:
+                    map_args = [(coeffs, query_for_pred) for coeffs in coeffs_for_pred.T]
                 pred_func = np.polyval
             with mp.Pool(mp.cpu_count()) as pool:
                 preds_lst = pool.starmap(pred_func, tqdm(
@@ -120,20 +128,25 @@ class GlRegressor:
             preds = np.asarray(preds_lst).T
 
         else:
-            if is_inverse:            
+            if is_inverse:
                 preds = self._solve_inverse(coeffs_for_pred, query_for_pred)
             else:
-                preds = np.apply_along_axis(
-                    np.polyval, 0, coeffs_for_pred, query_for_pred)
+                if is_pixel_wise:
+                    preds = np.asarray([np.polyval(coeffs, queries) for coeffs, queries in
+                                        zip(coeffs_for_pred.T, query_for_pred.T)]).reshape(self.coeffs.shape[-2:])
+                else:
+                    preds = np.apply_along_axis(
+                        np.polyval, 0, coeffs_for_pred, query_for_pred)
 
         return preds
 
-    def predict(self, query_pts, is_inverse=False):
-        """Predict the target values by applying the regression model on the query point.  
+    def predict(self, query_pts:np.ndarray, is_inverse=False, is_pixel_wise=False):
+        """Predict the target values by applying the model to the query points.  
 
             Parameters:
                 query_pts: the query points for the prediction
                 is_inverse: flag indicating whether to predict x from y instead of y from x
+                is_pixel_wise: indicator for applying the prediction for the queries only in the corresponding pixel (the prediction of each query point corresponds to a single pixel). This requires that the query points have the same dimensions as the spatial dimensions of the coefficients. Relevant only in forward predictions.
             Returns: 
                 results: len(x_query) feature maps, where results[i] corresponds to the predicted features for x_query[i] 
         """
@@ -145,7 +158,7 @@ class GlRegressor:
             query_pts = query_pts ** self.feature_power  # convert to features
 
         # get predictions:
-        preds = self._get_preds(query_pts, is_inverse)
+        preds = self._get_preds(query_pts, is_inverse, is_pixel_wise)
 
         # reshape predictions:
         preds_reshaped = preds.reshape(-1, *self.coeffs.shape[-2:])
@@ -268,23 +281,61 @@ class GlRegressor:
         self.feature_power = model["feature_power"]
 
 
+def load_regress_model(path_to_models, model_name):
+    f_name = model_name + ".pkl"
+    model = GlRegressor()
+    model.load_model(path_to_models / f_name)
+    return model
+
+
+def colorization_pipeline(pan_image, pan_model_name="t2gl_4ord", filt=FilterWavelength.nm9000):
+    base_path = find_parent_dir("MultiSpectralCtrl") / 'analysis'
+    path_to_models = base_path / 'models'
+
+    temperature_to_pan = load_regress_model(path_to_models, pan_model_name)
+    power_to_filt = load_regress_model(path_to_models, f"p2gl_{filt.name}")
+
+    temperature_map = k2c(temperature_to_pan.predict(pan_image, is_inverse=True))
+    power_filt = calc_rx_power(
+        temperature_map.flatten(), filt).reshape(pan_image.shape)
+    filt_image = power_to_filt.predict(power_filt, is_pixel_wise=True)
+    # map_args = [(temperature, filt) for temperature in temperature_map.flatten()]
+    # # with mp.Pool(mp.cpu_count()) as pool:
+    # #     power_map = pool.starmap(calc_rx_power, tqdm(
+    # #         map_args, desc="Evaluating power"))
+    # power_map = [calc_rx_power(temperature, filt) for temperature in tqdm(
+    #     temperature_map.flatten(), desc="Evaluating power")]
+    # filt_image = power_to_filt.predict(power_map)
+    return filt_image
+
+
+
 def main():
-    from tools import get_measurements, FilterWavelength
-    path_to_files = Path.cwd() / "analysis" / "rawData" / "calib" / "tlinear_0"
-    meas_panchromatic, _, _, _, list_blackbody_temperatures, _ =\
-        get_measurements(
-            path_to_files, filter_wavelength=FilterWavelength.PAN, fast_load=True, n_meas_to_load=3)
-    x = np.asarray(c2k(list_blackbody_temperatures))
-    gl_regressor = GlRegressor(is_parallel=False)
-    # gl_regressor.fit(x, meas_panchromatic, deg=1,
-    #                  feature_power=4, train_val_rat=0.5, debug=True)
-    gl_regressor.load_model(Path.cwd() / "analysis" / "models" / "t2gl_1ord.pkl")
-    y_hat = gl_regressor.predict(x)
+    # from tools import get_measurements, FilterWavelength
+    # path_to_files = Path.cwd() / "analysis" / "rawData" / "calib" / "tlinear_0"
+    # meas_panchromatic, _, _, _, list_blackbody_temperatures, _ =\
+    #     get_measurements(
+    #         path_to_files, filter_wavelength=FilterWavelength.PAN, fast_load=True, n_meas_to_load=3)
+    # x = np.asarray(c2k(list_blackbody_temperatures))
+    # gl_regressor = GlRegressor(is_parallel=False)
+    # # # gl_regressor.fit(x, meas_panchromatic, deg=1,
+    # # #                  feature_power=4, train_val_rat=0.5, debug=True)
+    # gl_regressor.load_model(Path.cwd() / "analysis" /
+    #                         "models" / "t2gl_1ord.pkl")
+    # y_hat = gl_regressor.predict(x)
     # ax_lbls = {"xlabel": "Temperature[C]", "ylabel": "Grey-levels"}
     # eval_res = gl_regressor.eval(meas_panchromatic, y_hat,
     #                              list_blackbody_temperatures, debug=True, ax_lbls=ax_lbls)
     # x_hat = k2c(gl_regressor.predict(meas_panchromatic, is_inverse=True))
     # eval_res = gl_regressor.eval(k2c(x), x_hat, list_blackbody_temperatures, debug=True)
+
+    data_base_dir = Path(
+        r"C:\Users\omriber\Documents\Thesis\MultiSpectralCtrl\download")
+    data_fname = "cnt1_20210830_h15m53s38.npy"
+    data = np.load(Path(data_base_dir, data_fname))
+
+    synth = colorization_pipeline(data[0, 0])
+    real = data[1, 0]
     a = 1
 
 
