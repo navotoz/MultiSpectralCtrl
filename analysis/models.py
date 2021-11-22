@@ -11,6 +11,7 @@ from tools import FilterWavelength, calc_rx_power, find_parent_dir, suppress_std
 from tools import choose_random_pixels, calc_r2, c2k, k2c
 import multiprocessing as mp
 from tqdm import tqdm
+from tools import timing
 
 
 class GlRegressor:
@@ -289,9 +290,8 @@ def load_regress_model(path_to_models, model_name):
 
 
 class ColorizationPipeline:
+    @timing
     def __init__(self, is_lut: bool = False) -> None:
-
-        # TODO: change pipeline so that the predication is made to all filters at once (predict should return all filters)
         self.is_lut = is_lut
         base_path = find_parent_dir("MultiSpectralCtrl") / 'analysis'
         path_to_models = base_path / 'models'
@@ -299,15 +299,17 @@ class ColorizationPipeline:
         self.p2filt = None
         self.pan2filt = None
         if is_lut:
-            self.pan2filt = np.load()  # TODO: add the path to the lut
+            self.pan2filt = np.load(path_to_models / "colorization_lut.npy")
         else:
             self.t2pan = load_regress_model(path_to_models, "t2gl_4ord")
             self.p2filt = [load_regress_model(
                 path_to_models, f"p2gl_{filt.name}") for filt in FilterWavelength if filt != FilterWavelength.PAN]
 
-    def predict(self, pan_image, filt: FilterWavelength = FilterWavelength.nm9000, is_lut: bool = False):
-        if is_lut:
-            ...  # TODO: complete implementation once lut is available
+    def predict(self, pan_image):
+        if self.is_lut:
+            j, i = np.meshgrid(
+                np.arange(pan_image.shape[1]), np.arange(pan_image.shape[0]))
+            filt_image = self.pan2filt[:, pan_image, i, j]
         else:
             print("Estimating Temperatures From Panchromatic...")
             temperature_map = k2c(
@@ -395,8 +397,9 @@ def eval_estimate(data: np.ndarray, model,  cancel_bias=False, debug: bool = Fal
 
 def get_synth_res(pan_gl, filt):
     pan_gl_mat = np.full((256, 336), fill_value=pan_gl)
+    pipeline = ColorizationPipeline(is_lut=False)
     with suppress_stdout():
-        res, _ = colorization_pipeline(pan_gl_mat, filt=filt)
+        res, _ = pipeline.predict(pan_gl_mat, filt=filt)
     return res
 
 
@@ -409,15 +412,10 @@ def genColorizationLut(save_path: Path):
     rad_res = 2**14
     lut = np.zeros((5, rad_res, 256, 336), dtype=np.int16)
 
-    for i, filt in enumerate(FilterWavelength):
-        if filt == FilterWavelength.PAN:
-            continue
-
-        map_args = [(pan_gl, filt) for pan_gl in range(rad_res)]
-        with mp.Pool(mp.cpu_count()) as pool:
-            res_list = pool.starmap(get_synth_res, tqdm(
-                map_args, desc=f"Calculating LUT for filter {filt.value} micro"))
-        lut[i - 1] = res_list
+    with mp.Pool(mp.cpu_count()) as pool:
+        res_list = pool.map(get_synth_res, tqdm(range(rad_res), desc=f"Calculating LUT"))
+    
+    lut = res_list
 
     np.save(save_path / "colorization_lut.npy", lut)
 
@@ -427,17 +425,18 @@ def main():
     path_to_files = Path("analysis/rawData") / 'calib' / 'tlinear_0'
     
     ## Load panchromatic data:
-    data = np.asarray([get_measurements(
-        path_to_files, filter_wavelength=filt, fast_load=True, n_meas_to_load=1)[0].mean(axis=0) for filt in FilterWavelength])
+    # data = np.asarray([get_measurements(
+    #     path_to_files, filter_wavelength=filt, fast_load=True, n_meas_to_load=1)[0].mean(axis=0) for filt in FilterWavelength])
 
+    import time
+    data_base_dir = Path(
+        r"C:\Users\omriber\Documents\Thesis\MultiSpectralCtrl\download")
+    fname = "cnt2_20210830_h15m55s45.npy"
+    data = np.load(Path(data_base_dir, fname))[:, 0, ...]
 
-    # data_base_dir = Path(
-    #     r"C:\Users\omriber\Documents\Thesis\MultiSpectralCtrl\download")
-    # fname = "cnt2_20210830_h15m55s45.npy"
-    # data = np.load(Path(data_base_dir, fname))[:, 0, ...]
-    pipeline = ColorizationPipeline()
-    err = eval_estimate(data, debug=True)
+    pipeline = ColorizationPipeline(is_lut=False)
 
+    # err = eval_estimate(data, pipeline, debug=False)
 
 if __name__ == "__main__":
     main()

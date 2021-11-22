@@ -405,6 +405,19 @@ def suppress_stdout():
         finally:
             sys.stdout = old_stdout
 
+from functools import wraps
+import time
+
+def timing(f):
+    @wraps(f)
+    def wrap(*args, **kw):
+        ts = time.perf_counter()
+        result = f(*args, **kw)
+        te = time.perf_counter()
+        print(f'{f.__name__} took: {te-ts:.3f} seconds to run')
+        return result
+    return wrap
+
 def main():
     # calc_rx_power(32, FilterWavelength.nm9000, debug=True)
     arr = np.arange(10)
