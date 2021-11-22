@@ -17,7 +17,8 @@ from scipy.ndimage import median_filter
 from tqdm import tqdm
 import multiprocessing as mp
 import random
-
+from contextlib import contextmanager
+import sys
 
 class FilterWavelength(Enum):
     """An enumeration for Flir's LWIR filters, where the keys and values are the central frequencies of the filters in nano-meter."""
@@ -185,8 +186,8 @@ def calc_rx_power(temperature: float, filt: FilterWavelength = FilterWavelength.
         else:
             fig.suptitle(f"{filt.value} nm Filter at T={temperature_eg}[C]")
         plt.show()
-
-    return rad_power(plank_resp.T, d_lambda)
+    radiance = rad_power(plank_resp.T, d_lambda)
+    return radiance
 
 
 def prefilt_cam_meas(cam_meas: np.ndarray, *, first_valid_meas: int = 0, med_filt_sz: int = 2):
@@ -393,6 +394,16 @@ def find_parent_dir(parent_dir_name):
         cur_path = cur_path.parent
     return (cur_path / parent_dir_name)
 
+
+@contextmanager
+def suppress_stdout():
+    with open(os.devnull, "w") as devnull:
+        old_stdout = sys.stdout
+        sys.stdout = devnull
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
 
 def main():
     # calc_rx_power(32, FilterWavelength.nm9000, debug=True)

@@ -1,10 +1,13 @@
+import os
+import sys
 import numpy as np
 import pandas as pd
 from pathlib import Path
 import plotly.express as px
 import pickle as pkl
 import matplotlib.pyplot as plt
-from tools import FilterWavelength, calc_rx_power, find_parent_dir
+from tools import get_measurements
+from tools import FilterWavelength, calc_rx_power, find_parent_dir, suppress_stdout
 from tools import choose_random_pixels, calc_r2, c2k, k2c
 import multiprocessing as mp
 from tqdm import tqdm
@@ -37,7 +40,6 @@ class GlRegressor:
             var_reshaped = var_dec.reshape(np.prod(var_dec.shape[:2]), -1)
         return var_reshaped.squeeze()
 
-
     def fit(self, x: np.ndarray, y: np.ndarray, deg: int = 1, feature_power: float = 1, train_val_rat: float = 0.5, debug: bool = False):
         """performs a pixel-wise polynomial regression for grey_levels vs an independent variable
 
@@ -59,7 +61,7 @@ class GlRegressor:
         phi_x_regress, y_regress = self._pre_proc_var(
             phi_x, train_val_rat, n_meas), self._pre_proc_var(y, train_val_rat, n_meas)
         print("Pre-Processing is Complete!")
-        
+
         # perform the regression
         print("Performing the regression (this might take a few seconds/minutes, depending on the data size...)")
         if self.is_parallel:
@@ -81,7 +83,6 @@ class GlRegressor:
         """Check if the coefficients are available"""
         assert self.coeffs is not None
 
-
     @staticmethod
     def _solve_inverse(coeffs, y):
         if len(coeffs) == 2:  # model is linear
@@ -97,9 +98,8 @@ class GlRegressor:
 
     def _get_preds(self, x, is_inverse, is_pixel_wise):
 
-        
         # reshape coefficients:
-        self._assert_coeffs()  
+        self._assert_coeffs()
         coeffs_for_pred = self.coeffs.reshape(len(self.coeffs), -1)
 
         # reshape query points to comply with the required arguments shape:
@@ -120,7 +120,8 @@ class GlRegressor:
                     map_args = [(coeffs, queries)
                                 for coeffs, queries in zip(coeffs_for_pred.T, query_for_pred.T)]
                 else:
-                    map_args = [(coeffs, query_for_pred) for coeffs in coeffs_for_pred.T]
+                    map_args = [(coeffs, query_for_pred)
+                                for coeffs in coeffs_for_pred.T]
                 pred_func = np.polyval
             with mp.Pool(mp.cpu_count()) as pool:
                 preds_lst = pool.starmap(pred_func, tqdm(
@@ -140,7 +141,7 @@ class GlRegressor:
 
         return preds
 
-    def predict(self, query_pts:np.ndarray, is_inverse=False, is_pixel_wise=False):
+    def predict(self, query_pts: np.ndarray, is_inverse=False, is_pixel_wise=False):
         """Predict the target values by applying the model to the query points.  
 
             Parameters:
@@ -168,9 +169,8 @@ class GlRegressor:
         # convert predicted features back to the original independent variable:
         if is_inverse and self.feature_power != 1:
             preds_reshaped **= 1 / self.feature_power
-        print("Predictions are ready!")
 
-        return preds_reshaped
+        return preds_reshaped.squeeze()
 
     def show_coeffs(self):
         """Show a map of the regression model's coefficients"""
@@ -288,6 +288,42 @@ def load_regress_model(path_to_models, model_name):
     return model
 
 
+class ColorizationPipeline:
+    def __init__(self, is_lut: bool = False) -> None:
+
+        # TODO: change pipeline so that the predication is made to all filters at once (predict should return all filters)
+        self.is_lut = is_lut
+        base_path = find_parent_dir("MultiSpectralCtrl") / 'analysis'
+        path_to_models = base_path / 'models'
+        self.t2pan = None
+        self.p2filt = None
+        self.pan2filt = None
+        if is_lut:
+            self.pan2filt = np.load()  # TODO: add the path to the lut
+        else:
+            self.t2pan = load_regress_model(path_to_models, "t2gl_4ord")
+            self.p2filt = [load_regress_model(
+                path_to_models, f"p2gl_{filt.name}") for filt in FilterWavelength if filt != FilterWavelength.PAN]
+
+    def predict(self, pan_image, filt: FilterWavelength = FilterWavelength.nm9000, is_lut: bool = False):
+        if is_lut:
+            ...  # TODO: complete implementation once lut is available
+        else:
+            print("Estimating Temperatures From Panchromatic...")
+            temperature_map = k2c(
+                self.t2pan.predict(pan_image, is_inverse=True))
+            print("Estimating Filtered Radiances...")
+            power_maps = [calc_rx_power(temperature_map.flatten(), filt)
+                          for filt in FilterWavelength if filt != FilterWavelength.PAN]
+            power_maps = np.asarray(power_maps).reshape(-1, *pan_image.shape)
+            print("Radiances Are Ready!")
+            print("Estimating Filtered Grey-Levels...")
+            filt_image = np.asarray([model.predict(
+                power, is_pixel_wise=True) for model, power in zip(self.p2filt, power_maps)])
+            print("Predictions are ready!")
+        return filt_image
+
+
 def colorization_pipeline(pan_image, pan_model_name="t2gl_4ord", filt=FilterWavelength.nm9000):
     base_path = find_parent_dir("MultiSpectralCtrl") / 'analysis'
     path_to_models = base_path / 'models'
@@ -295,48 +331,112 @@ def colorization_pipeline(pan_image, pan_model_name="t2gl_4ord", filt=FilterWave
     temperature_to_pan = load_regress_model(path_to_models, pan_model_name)
     power_to_filt = load_regress_model(path_to_models, f"p2gl_{filt.name}")
 
-    temperature_map = k2c(temperature_to_pan.predict(pan_image, is_inverse=True))
+    print("Estimating Temperatures From Panchromatic...")
+    temperature_map = k2c(
+        temperature_to_pan.predict(pan_image, is_inverse=True))
+    print("Estimating Filtered Radiance...")
     power_filt = calc_rx_power(
         temperature_map.flatten(), filt).reshape(pan_image.shape)
+    print("Estimating Filtered Grey-Levels...")
     filt_image = power_to_filt.predict(power_filt, is_pixel_wise=True)
-    # map_args = [(temperature, filt) for temperature in temperature_map.flatten()]
-    # # with mp.Pool(mp.cpu_count()) as pool:
-    # #     power_map = pool.starmap(calc_rx_power, tqdm(
-    # #         map_args, desc="Evaluating power"))
-    # power_map = [calc_rx_power(temperature, filt) for temperature in tqdm(
-    #     temperature_map.flatten(), desc="Evaluating power")]
-    # filt_image = power_to_filt.predict(power_map)
-    return filt_image
+    return filt_image, temperature_map
 
+
+def eval_estimate(data: np.ndarray, model,  cancel_bias=False, debug: bool = False):
+    if filter == FilterWavelength.PAN:
+        raise Exception("The provided filter ")
+
+    gt_pan = data[0]
+    gt_filt = data[1:]
+
+    est_gl_filt = model.predict(gt_pan)
+    est_err = gt_filt - est_gl_filt
+
+    if cancel_bias:
+        est_gl_filt += est_err.mean(axis=(1, 2))[..., None, None]
+        est_err = gt_filt - est_gl_filt
+
+    v_min = np.asarray(
+        [est_gl_filt.min(axis=(1, 2)), gt_filt.min(axis=(1, 2))]).min(axis=0)
+    v_max = np.asarray(
+        [est_gl_filt.max(axis=(1, 2)), gt_filt.max(axis=(1, 2))]).max(axis=0)
+
+    if debug:
+        fig, ax = plt.subplots(len(FilterWavelength)-1, 3)
+        ax[0, 0].set_title("Estimated (output)")
+        ax[0, 1].set_title("Ground-Truth")
+        ax[0, 2].set_title("Differences")
+
+        def show_w_colorbar(axes, img, vmin=None, vmax=None):
+            res = axes.imshow(img, vmin=vmin,
+                              vmax=vmax, cmap="gray")
+            fig.colorbar(res, ax=axes)
+            axes.set_xticks([])
+            axes.set_yticks([])
+
+        for i, filt in enumerate(FilterWavelength):
+            if filt == FilterWavelength.PAN:
+                continue
+            if v_max is not None:
+                vmin, vmax = v_min[i-1], v_max[i-1]
+            else:
+                vmin = vmax = None
+
+            ax[i-1, 0].set_ylabel(f"{filt.value} nm")
+            show_w_colorbar(ax[i-1, 0], est_gl_filt[i-1], vmin=vmin, vmax=vmax)
+            show_w_colorbar(ax[i-1, 1], gt_filt[i-1], vmin=vmin, vmax=vmax)
+            show_w_colorbar(ax[i-1, 2], est_err[i-1])
+
+        # fig.tight_layout()
+        plt.show()
+
+    return est_err
+
+
+def get_synth_res(pan_gl, filt):
+    pan_gl_mat = np.full((256, 336), fill_value=pan_gl)
+    with suppress_stdout():
+        res, _ = colorization_pipeline(pan_gl_mat, filt=filt)
+    return res
+
+
+def genColorizationLut(save_path: Path):
+    from tqdm import tqdm
+    import numpy as np
+    from tools import FilterWavelength
+
+    # Calculate and save the lookup table:
+    rad_res = 2**14
+    lut = np.zeros((5, rad_res, 256, 336), dtype=np.int16)
+
+    for i, filt in enumerate(FilterWavelength):
+        if filt == FilterWavelength.PAN:
+            continue
+
+        map_args = [(pan_gl, filt) for pan_gl in range(rad_res)]
+        with mp.Pool(mp.cpu_count()) as pool:
+            res_list = pool.starmap(get_synth_res, tqdm(
+                map_args, desc=f"Calculating LUT for filter {filt.value} micro"))
+        lut[i - 1] = res_list
+
+    np.save(save_path / "colorization_lut.npy", lut)
 
 
 def main():
-    # from tools import get_measurements, FilterWavelength
-    # path_to_files = Path.cwd() / "analysis" / "rawData" / "calib" / "tlinear_0"
-    # meas_panchromatic, _, _, _, list_blackbody_temperatures, _ =\
-    #     get_measurements(
-    #         path_to_files, filter_wavelength=FilterWavelength.PAN, fast_load=True, n_meas_to_load=3)
-    # x = np.asarray(c2k(list_blackbody_temperatures))
-    # gl_regressor = GlRegressor(is_parallel=False)
-    # # # gl_regressor.fit(x, meas_panchromatic, deg=1,
-    # # #                  feature_power=4, train_val_rat=0.5, debug=True)
-    # gl_regressor.load_model(Path.cwd() / "analysis" /
-    #                         "models" / "t2gl_1ord.pkl")
-    # y_hat = gl_regressor.predict(x)
-    # ax_lbls = {"xlabel": "Temperature[C]", "ylabel": "Grey-levels"}
-    # eval_res = gl_regressor.eval(meas_panchromatic, y_hat,
-    #                              list_blackbody_temperatures, debug=True, ax_lbls=ax_lbls)
-    # x_hat = k2c(gl_regressor.predict(meas_panchromatic, is_inverse=True))
-    # eval_res = gl_regressor.eval(k2c(x), x_hat, list_blackbody_temperatures, debug=True)
 
-    data_base_dir = Path(
-        r"C:\Users\omriber\Documents\Thesis\MultiSpectralCtrl\download")
-    data_fname = "cnt1_20210830_h15m53s38.npy"
-    data = np.load(Path(data_base_dir, data_fname))
+    path_to_files = Path("analysis/rawData") / 'calib' / 'tlinear_0'
+    
+    ## Load panchromatic data:
+    data = np.asarray([get_measurements(
+        path_to_files, filter_wavelength=filt, fast_load=True, n_meas_to_load=1)[0].mean(axis=0) for filt in FilterWavelength])
 
-    synth = colorization_pipeline(data[0, 0])
-    real = data[1, 0]
-    a = 1
+
+    # data_base_dir = Path(
+    #     r"C:\Users\omriber\Documents\Thesis\MultiSpectralCtrl\download")
+    # fname = "cnt2_20210830_h15m55s45.npy"
+    # data = np.load(Path(data_base_dir, fname))[:, 0, ...]
+    pipeline = ColorizationPipeline()
+    err = eval_estimate(data, debug=True)
 
 
 if __name__ == "__main__":
