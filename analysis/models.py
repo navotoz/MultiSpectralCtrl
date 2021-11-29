@@ -12,6 +12,8 @@ from tools import choose_random_pixels, calc_r2, c2k, k2c
 import multiprocessing as mp
 from tqdm import tqdm
 from tools import timing
+from scipy.optimize import curve_fit
+from collections.abc import Iterable
 
 
 class GlRegressor:
@@ -420,23 +422,74 @@ def genColorizationLut(save_path: Path):
     np.save(save_path / "colorization_lut.npy", lut)
 
 
+class Gaussian:
+    def __init__(self) -> None:
+        self.amp = self.mean = self.std = self.bias = None
+    
+    @staticmethod
+    def _gaussian_1d_norm(x, mu, sigma) -> np.ndarray:
+        return np.exp(-0.5*(x - mu)**2 / sigma**2)
+
+    def _gaussian_nd_norm(self, x, mu, sigma):
+        normed_gaussians = []
+        if isinstance(mu, Iterable): # gaussian is more than 1 dimensional:
+            for x_i, mu_i, sigma_i in zip(x, mu, sigma):
+                normed_gaussians.append(self._gaussian_1d_norm(x_i, mu_i, sigma_i))
+            return np.prod(normed_gaussians)
+        else:
+            return self._gaussian_1d_norm(x, mu, sigma)
+
+    def _gaussian(self, x, amp, mean, std, bias) -> np.ndarray:
+        return amp * self._gaussian_nd_norm(x, mean, std) + bias
+        
+
+    def fit(self, x, f_x, p0) -> np.ndarray:
+        """Fit a shifted gaussian based on the provided samples and initial parameters guess. returns the covariance matrix of the estimated parameters"""
+
+        best_vals, cov = curve_fit(self._gaussian, x, f_x, p0=p0)
+        self.amp, self.mean, self.std, self.bias = best_vals
+        return cov
+
+    def predict(self, x):
+        return self._gaussian(x, self.amp, self.mean, self.std, self.bias)
+
+
 def main():
+    import matplotlib.pyplot as plt
+    from models import Gaussian
 
     path_to_files = Path("analysis/rawData") / 'calib' / 'tlinear_0'
+    meas_panchromatic, _, _, _, list_blackbody_temperatures, _ =\
+        get_measurements(path_to_files, filter_wavelength=FilterWavelength.PAN,
+                         fast_load=True, do_prefilt=False, n_meas_to_load=2)
+
+
+    meas_panchromatic_mean = meas_panchromatic.mean(axis=1)
+
+    # X, Y = np.meshgrid(np.arange(meas_panchromatic.shape[-1]), np.arange(meas_panchromatic.shape[-2]))
+    # fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+
+    # ax.plot_surface(X, Y, meas_panchromatic_mean[0])
+    # ax.plot_surface(X, Y, meas_panchromatic_mean[1])
     
-    ## Load panchromatic data:
-    # data = np.asarray([get_measurements(
-    #     path_to_files, filter_wavelength=filt, fast_load=True, n_meas_to_load=1)[0].mean(axis=0) for filt in FilterWavelength])
+    f_x = meas_panchromatic_mean[0, 125]
+    x = np.arange(len(f_x))
+    
+    bias = 0.5 * (f_x[0] + f_x[-1])
+    amp = -np.abs(f_x.min() - bias)
+    cen = 0.5 * x[-1]
+    sigma = cen
 
-    import time
-    data_base_dir = Path(
-        r"C:\Users\omriber\Documents\Thesis\MultiSpectralCtrl\download")
-    fname = "cnt2_20210830_h15m55s45.npy"
-    data = np.load(Path(data_base_dir, fname))[:, 0, ...]
+    init_vals = [amp, cen, sigma, bias]
 
-    pipeline = ColorizationPipeline(is_lut=False)
+    gauss = Gaussian()
+    cov = gauss.fit(x, f_x, init_vals)
+    
 
-    # err = eval_estimate(data, pipeline, debug=False)
+    plt.figure()
+    plt.plot(x, f_x)
+    plt.plot(x, gauss.predict(x))
+    plt.show()
 
 if __name__ == "__main__":
     main()
