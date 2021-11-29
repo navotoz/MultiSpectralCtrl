@@ -1,19 +1,13 @@
-import os
-import sys
 import numpy as np
 import pandas as pd
 from pathlib import Path
 import plotly.express as px
 import pickle as pkl
 import matplotlib.pyplot as plt
-from tools import get_measurements
-from tools import FilterWavelength, calc_rx_power, find_parent_dir, suppress_stdout
-from tools import choose_random_pixels, calc_r2, c2k, k2c
+from tools import FilterWavelength, calc_rx_power, suppress_stdout
+from tools import choose_random_pixels, calc_r2, k2c
 import multiprocessing as mp
 from tqdm import tqdm
-from tools import timing
-from scipy.optimize import curve_fit
-from collections.abc import Iterable
 
 
 class GlRegressor:
@@ -284,28 +278,25 @@ class GlRegressor:
         self.feature_power = model["feature_power"]
 
 
-def load_regress_model(path_to_models, model_name):
-    f_name = model_name + ".pkl"
-    model = GlRegressor()
-    model.load_model(path_to_models / f_name)
-    return model
-
-
 class ColorizationPipeline:
-    @timing
     def __init__(self, is_lut: bool = False) -> None:
         self.is_lut = is_lut
-        base_path = find_parent_dir("MultiSpectralCtrl") / 'analysis'
-        path_to_models = base_path / 'models'
         self.t2pan = None
         self.p2filt = None
         self.pan2filt = None
         if is_lut:
-            self.pan2filt = np.load(path_to_models / "colorization_lut.npy")
+            self.pan2filt = np.load("colorization_lut.npy")
         else:
-            self.t2pan = load_regress_model(path_to_models, "t2gl_4ord")
-            self.p2filt = [load_regress_model(
-                path_to_models, f"p2gl_{filt.name}") for filt in FilterWavelength if filt != FilterWavelength.PAN]
+            self.t2pan = self.load_regress_model("t2gl_4ord")
+            self.p2filt = [self.load_regress_model(
+                f"p2gl_{filt.name}") for filt in FilterWavelength if filt != FilterWavelength.PAN]
+
+    @staticmethod
+    def load_regress_model(model_name):
+        f_name = model_name + ".pkl"
+        model = GlRegressor()
+        model.load_model(f_name)
+        return model
 
     def predict(self, pan_image):
         if self.is_lut:
@@ -326,24 +317,6 @@ class ColorizationPipeline:
                 power, is_pixel_wise=True) for model, power in zip(self.p2filt, power_maps)])
             print("Predictions are ready!")
         return filt_image
-
-
-def colorization_pipeline(pan_image, pan_model_name="t2gl_4ord", filt=FilterWavelength.nm9000):
-    base_path = find_parent_dir("MultiSpectralCtrl") / 'analysis'
-    path_to_models = base_path / 'models'
-
-    temperature_to_pan = load_regress_model(path_to_models, pan_model_name)
-    power_to_filt = load_regress_model(path_to_models, f"p2gl_{filt.name}")
-
-    print("Estimating Temperatures From Panchromatic...")
-    temperature_map = k2c(
-        temperature_to_pan.predict(pan_image, is_inverse=True))
-    print("Estimating Filtered Radiance...")
-    power_filt = calc_rx_power(
-        temperature_map.flatten(), filt).reshape(pan_image.shape)
-    print("Estimating Filtered Grey-Levels...")
-    filt_image = power_to_filt.predict(power_filt, is_pixel_wise=True)
-    return filt_image, temperature_map
 
 
 def eval_estimate(data: np.ndarray, model,  cancel_bias=False, debug: bool = False):
@@ -397,7 +370,7 @@ def eval_estimate(data: np.ndarray, model,  cancel_bias=False, debug: bool = Fal
     return est_err
 
 
-def get_synth_res(pan_gl, filt):
+def get_synth_gl(pan_gl, filt):
     pan_gl_mat = np.full((256, 336), fill_value=pan_gl)
     pipeline = ColorizationPipeline(is_lut=False)
     with suppress_stdout():
@@ -405,125 +378,21 @@ def get_synth_res(pan_gl, filt):
     return res
 
 
-def genColorizationLut(save_path: Path):
+def genColorizationLut(save_path: Path, rad_res=2**14):
     from tqdm import tqdm
     import numpy as np
-    from tools import FilterWavelength
 
     # Calculate and save the lookup table:
-    rad_res = 2**14
-    lut = np.zeros((5, rad_res, 256, 336), dtype=np.int16)
-
     with mp.Pool(mp.cpu_count()) as pool:
-        res_list = pool.map(get_synth_res, tqdm(range(rad_res), desc=f"Calculating LUT"))
-    
-    lut = res_list
+        res_list = pool.map(get_synth_gl, tqdm(
+            range(rad_res), desc=f"Calculating LUT"))
 
-    np.save(save_path / "colorization_lut.npy", lut)
-
-
-class Gaussian:
-    def __init__(self) -> None:
-        self.amp = self.mean = self.std = self.bias = None
-        self.ndim = None
-
-    @staticmethod
-    def _gaussian_1d(x, amp, mu, sigma, bias) -> np.ndarray:
-        return amp * np.exp(-0.5*(x - mu)**2 / sigma**2) + bias
-
-    @staticmethod
-    def _gaussian_2d(grid, amp, mu_x, mu_y, sigma_x, sigma_y, bias):
-
-        x_cent = grid[0] - mu_x
-        y_cent = grid[1] - mu_y
-        return amp * np.exp(-0.5*((x_cent / sigma_x)**2 + (y_cent / sigma_y)**2)) + bias
-
-    @staticmethod
-    def _res_grid(grid, ndim):
-        return np.asarray(grid).reshape(ndim, -1)
-
-    def fit(self, grid, f_grid, p0) -> np.ndarray:
-        """Fit a shifted gaussian based on the provided samples and initial parameters guess. returns the covariance matrix of the estimated parameters"""
-
-        if isinstance(grid, Iterable) or (isinstance(grid, np.ndarray) and grid[0].ndim > 1): # Currently supports only 2D gaussian
-            self.ndim = 2
-            grid_resh = self._res_grid(grid, self.ndim)
-            f_grid_resh = f_grid.ravel()
-            p0_resh = [p0[0], *p0[1], *p0[2], p0[3]]
-            best_vals, cov = curve_fit(
-                self._gaussian_2d, grid_resh, f_grid_resh, p0=p0_resh)
-            self.amp = best_vals[0]
-            self.mean = best_vals[1:3]
-            self.std = best_vals[3:5]
-            self.bias = best_vals[-1]
-        else:
-            self.ndim = 1
-            grid_resh = grid
-            f_grid_resh = f_grid
-            p0_resh = p0
-            best_vals, cov = curve_fit(
-                self._gaussian_1d, grid_resh, f_grid_resh, p0=p0_resh)
-            self.amp, self.mean, self.std, self.bias = best_vals
-        return cov
-
-    def predict(self, x):
-        if self.ndim == 2:
-            res =  self._gaussian_2d(self._res_grid(x, self.ndim), self.amp, *self.mean, *self.std, self.bias)
-            return res.reshape(x[0].shape)
-        else:
-            res =  self._gaussian_1d(x, self.amp, self.mean, self.std, self.bias)
-            return res
-    
-    def eval_fit(self, y_hat, y_meas, grid=None, debug=True):
-        if grid is None:
-            x, y = np.meshgrid(
-                np.arange(y_hat.shape[1]), np.arange(y_hat.shape[0]))
-        else:
-            x, y = grid
-        
-        
-        if debug:
-            import matplotlib.pyplot as plt
-            _, ax = plt.subplots(subplot_kw={"projection": "3d"})
-            ax.plot_surface(x, y, y_meas, label="Measurements")
-            ax.plot_surface(x, y, y_hat, label="Fitted Model", alpha=0.7)
-            ax.set_title("Gaussian Model Fitting (Blue=Data, Red=Model Fit)")
-            plt.show()
-        return calc_r2(y_hat, y_meas)
-
-    @staticmethod
-    def _eg():
-        """This method is used as an example for using the class"""
-        path_to_files = Path("analysis/rawData") / 'calib' / 'tlinear_0'
-        meas_panchromatic, _, _, _, _, _ =\
-            get_measurements(path_to_files, filter_wavelength=FilterWavelength.PAN,
-                            fast_load=True, do_prefilt=False, n_meas_to_load=2)
-
-        meas_panchromatic_mean = meas_panchromatic.mean(axis=1)
-
-        meas_to_fit = meas_panchromatic_mean[0]
-        x, y = np.meshgrid(
-            np.arange(meas_to_fit.shape[1]), np.arange(meas_to_fit.shape[0]))
-
-        bias = (meas_to_fit[0, 0] + meas_to_fit[0, -1] +
-                meas_to_fit[-1, 0] + meas_to_fit[-1, -1]) / 4
-        amp = -np.abs(meas_to_fit.min() - bias)
-        cen = np.asarray(meas_to_fit.shape) // 2
-        sigma = cen
-
-        init_vals = [amp, cen, sigma, bias]
-
-        gauss_model = Gaussian()
-        cov = gauss_model.fit((x, y), meas_to_fit, init_vals)
-        gauss_hat = gauss_model.predict((x, y))
-        r2 = gauss_model.eval_fit(gauss_hat, meas_to_fit, debug=True)
-        print(f"Model Fit R^2 is {r2:.3f}")
+    np.save(save_path / "colorization_lut.npy", np.asarray(res_list))
 
 
 def main():
+    ...
 
-    gauss_model = Gaussian()
-    gauss_model._eg()
-    
+
 if __name__ == "__main__":
     main()

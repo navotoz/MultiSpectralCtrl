@@ -17,5 +17,6 @@
 **/rawData
 */measurements
 jitter copy.ipynb
-**/models/
+**/models/*.pkl
+**/models/*.npy
 /__pycache__/
