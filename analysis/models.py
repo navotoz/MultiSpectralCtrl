@@ -425,71 +425,105 @@ def genColorizationLut(save_path: Path):
 class Gaussian:
     def __init__(self) -> None:
         self.amp = self.mean = self.std = self.bias = None
-    
+        self.ndim = None
+
     @staticmethod
-    def _gaussian_1d_norm(x, mu, sigma) -> np.ndarray:
-        return np.exp(-0.5*(x - mu)**2 / sigma**2)
+    def _gaussian_1d(x, amp, mu, sigma, bias) -> np.ndarray:
+        return amp * np.exp(-0.5*(x - mu)**2 / sigma**2) + bias
 
-    def _gaussian_nd_norm(self, x, mu, sigma):
-        normed_gaussians = []
-        if isinstance(mu, Iterable): # gaussian is more than 1 dimensional:
-            for x_i, mu_i, sigma_i in zip(x, mu, sigma):
-                normed_gaussians.append(self._gaussian_1d_norm(x_i, mu_i, sigma_i))
-            return np.prod(normed_gaussians)
-        else:
-            return self._gaussian_1d_norm(x, mu, sigma)
+    @staticmethod
+    def _gaussian_2d(grid, amp, mu_x, mu_y, sigma_x, sigma_y, bias):
 
-    def _gaussian(self, x, amp, mean, std, bias) -> np.ndarray:
-        return amp * self._gaussian_nd_norm(x, mean, std) + bias
-        
+        x_cent = grid[0] - mu_x
+        y_cent = grid[1] - mu_y
+        return amp * np.exp(-0.5*((x_cent / sigma_x)**2 + (y_cent / sigma_y)**2)) + bias
 
-    def fit(self, x, f_x, p0) -> np.ndarray:
+    @staticmethod
+    def _res_grid(grid, ndim):
+        return np.asarray(grid).reshape(ndim, -1)
+
+    def fit(self, grid, f_grid, p0) -> np.ndarray:
         """Fit a shifted gaussian based on the provided samples and initial parameters guess. returns the covariance matrix of the estimated parameters"""
 
-        best_vals, cov = curve_fit(self._gaussian, x, f_x, p0=p0)
-        self.amp, self.mean, self.std, self.bias = best_vals
+        if isinstance(grid, Iterable) or (isinstance(grid, np.ndarray) and grid[0].ndim > 1): # Currently supports only 2D gaussian
+            self.ndim = 2
+            grid_resh = self._res_grid(grid, self.ndim)
+            f_grid_resh = f_grid.ravel()
+            p0_resh = [p0[0], *p0[1], *p0[2], p0[3]]
+            best_vals, cov = curve_fit(
+                self._gaussian_2d, grid_resh, f_grid_resh, p0=p0_resh)
+            self.amp = best_vals[0]
+            self.mean = best_vals[1:3]
+            self.std = best_vals[3:5]
+            self.bias = best_vals[-1]
+        else:
+            self.ndim = 1
+            grid_resh = grid
+            f_grid_resh = f_grid
+            p0_resh = p0
+            best_vals, cov = curve_fit(
+                self._gaussian_1d, grid_resh, f_grid_resh, p0=p0_resh)
+            self.amp, self.mean, self.std, self.bias = best_vals
         return cov
 
     def predict(self, x):
-        return self._gaussian(x, self.amp, self.mean, self.std, self.bias)
+        if self.ndim == 2:
+            res =  self._gaussian_2d(self._res_grid(x, self.ndim), self.amp, *self.mean, *self.std, self.bias)
+            return res.reshape(x[0].shape)
+        else:
+            res =  self._gaussian_1d(x, self.amp, self.mean, self.std, self.bias)
+            return res
+    
+    def eval_fit(self, y_hat, y_meas, grid=None, debug=True):
+        if grid is None:
+            x, y = np.meshgrid(
+                np.arange(y_hat.shape[1]), np.arange(y_hat.shape[0]))
+        else:
+            x, y = grid
+        
+        
+        if debug:
+            import matplotlib.pyplot as plt
+            _, ax = plt.subplots(subplot_kw={"projection": "3d"})
+            ax.plot_surface(x, y, y_meas, label="Measurements")
+            ax.plot_surface(x, y, y_hat, label="Fitted Model", alpha=0.7)
+            ax.set_title("Gaussian Model Fitting (Blue=Data, Red=Model Fit)")
+            plt.show()
+        return calc_r2(y_hat, y_meas)
+
+    @staticmethod
+    def _eg():
+        """This method is used as an example for using the class"""
+        path_to_files = Path("analysis/rawData") / 'calib' / 'tlinear_0'
+        meas_panchromatic, _, _, _, _, _ =\
+            get_measurements(path_to_files, filter_wavelength=FilterWavelength.PAN,
+                            fast_load=True, do_prefilt=False, n_meas_to_load=2)
+
+        meas_panchromatic_mean = meas_panchromatic.mean(axis=1)
+
+        meas_to_fit = meas_panchromatic_mean[0]
+        x, y = np.meshgrid(
+            np.arange(meas_to_fit.shape[1]), np.arange(meas_to_fit.shape[0]))
+
+        bias = (meas_to_fit[0, 0] + meas_to_fit[0, -1] +
+                meas_to_fit[-1, 0] + meas_to_fit[-1, -1]) / 4
+        amp = -np.abs(meas_to_fit.min() - bias)
+        cen = np.asarray(meas_to_fit.shape) // 2
+        sigma = cen
+
+        init_vals = [amp, cen, sigma, bias]
+
+        gauss_model = Gaussian()
+        cov = gauss_model.fit((x, y), meas_to_fit, init_vals)
+        gauss_hat = gauss_model.predict((x, y))
+        r2 = gauss_model.eval_fit(gauss_hat, meas_to_fit, debug=True)
+        print(f"Model Fit R^2 is {r2:.3f}")
 
 
 def main():
-    import matplotlib.pyplot as plt
-    from models import Gaussian
 
-    path_to_files = Path("analysis/rawData") / 'calib' / 'tlinear_0'
-    meas_panchromatic, _, _, _, list_blackbody_temperatures, _ =\
-        get_measurements(path_to_files, filter_wavelength=FilterWavelength.PAN,
-                         fast_load=True, do_prefilt=False, n_meas_to_load=2)
-
-
-    meas_panchromatic_mean = meas_panchromatic.mean(axis=1)
-
-    # X, Y = np.meshgrid(np.arange(meas_panchromatic.shape[-1]), np.arange(meas_panchromatic.shape[-2]))
-    # fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-
-    # ax.plot_surface(X, Y, meas_panchromatic_mean[0])
-    # ax.plot_surface(X, Y, meas_panchromatic_mean[1])
+    gauss_model = Gaussian()
+    gauss_model._eg()
     
-    f_x = meas_panchromatic_mean[0, 125]
-    x = np.arange(len(f_x))
-    
-    bias = 0.5 * (f_x[0] + f_x[-1])
-    amp = -np.abs(f_x.min() - bias)
-    cen = 0.5 * x[-1]
-    sigma = cen
-
-    init_vals = [amp, cen, sigma, bias]
-
-    gauss = Gaussian()
-    cov = gauss.fit(x, f_x, init_vals)
-    
-
-    plt.figure()
-    plt.plot(x, f_x)
-    plt.plot(x, gauss.predict(x))
-    plt.show()
-
 if __name__ == "__main__":
     main()
